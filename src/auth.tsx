@@ -2,10 +2,12 @@ import Keycloak from 'keycloak-js';
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { adminRequest } from './api-client';
+import { clearPostLogout, consumePostLogout, markPostLogout, safeReturnPath } from './auth-utils';
+import { fetchPermissions } from './auth-service';
 
 type AuthStatus = 'loading' | 'authenticated' | 'anonymous' | 'logging-out' | 'error';
 type PermissionState = 'loading' | 'ready' | 'error';
-type AuthContextValue = {
+export type AuthContextValue = {
   status: AuthStatus;
   permissionState: PermissionState;
   permissions: string[];
@@ -17,6 +19,7 @@ type AuthContextValue = {
   logout: () => Promise<void>;
   clearSession: () => void;
   requestAdmin: (path: string, init?: RequestInit) => Promise<Response>;
+  postLogout: boolean;
 };
 
 const RETURN_TO_KEY = 'compareshop-auth-return-to';
@@ -27,16 +30,7 @@ const keycloak = new Keycloak({
   clientId: import.meta.env.VITE_KEYCLOAK_CLIENT_ID || 'compareshop-admin-ui',
 });
 let initialization: Promise<boolean> | undefined;
-
-export function safeReturnPath(value: string | null | undefined): string {
-  if (!value || !value.startsWith('/') || value.startsWith('//') || value.startsWith('/\\')) return '/';
-  try {
-    const url = new URL(value, window.location.origin);
-    return url.origin === window.location.origin ? `${url.pathname}${url.search}${url.hash}` : '/';
-  } catch {
-    return '/';
-  }
-}
+let postLogoutMarkerChecked = false;
 
 function requestedPath(): string {
   const current = `${window.location.pathname}${window.location.search}${window.location.hash}`;
@@ -71,17 +65,17 @@ export function LoginPage() {
   }, [auth, starting, searchParams]);
 
   useEffect(() => {
-    if (auth.status === 'anonymous') void beginLogin();
+    if (auth.status === 'anonymous' && !auth.postLogout) void beginLogin();
     if (auth.status === 'error') setError('Không thể khởi tạo đăng nhập an toàn. Vui lòng thử lại.');
   }, [auth.status, beginLogin]);
 
   return <main className="auth-canvas"><section className="auth-card">
     <Brand />
-    <h1>Đang chuyển đến trang đăng nhập</h1>
-    <p>Vui lòng chờ trong giây lát để đăng nhập an toàn.</p>
-    {starting && !error ? <><div className="auth-spinner" role="status" aria-label="Đang chuyển hướng" /><div className="auth-status">Đang kết nối với Keycloak…</div></> : <div className="auth-error" role="alert">{error || 'Phiên đăng nhập chưa sẵn sàng.'}</div>}
-    <button className="auth-primary" type="button" onClick={() => void beginLogin()} disabled={starting}>Thử đăng nhập lại</button>
-    <p className="auth-foot">Nếu trang không tự mở, chọn nút phía trên để tiếp tục.</p>
+    <h1>{auth.postLogout ? 'Bạn đã đăng xuất' : 'Đang chuyển đến trang đăng nhập'}</h1>
+    <p>{auth.postLogout ? 'Phiên làm việc đã được đóng. Đăng nhập lại khi bạn sẵn sàng.' : 'Vui lòng chờ trong giây lát để đăng nhập an toàn.'}</p>
+    {starting && !error ? <><div className="auth-spinner" role="status" aria-label="Đang chuyển hướng" /><div className="auth-status">Đang kết nối với Keycloak…</div></> : error ? <div className="auth-error" role="alert">{error}</div> : auth.postLogout ? null : <div className="auth-status">Phiên đăng nhập chưa sẵn sàng.</div>}
+    <button className="auth-primary" type="button" onClick={() => void beginLogin()} disabled={starting}>{auth.postLogout ? 'Đăng nhập lại' : 'Thử đăng nhập lại'}</button>
+    <p className="auth-foot">{auth.postLogout ? 'Bạn có thể đóng trang này hoặc đăng nhập lại.' : 'Nếu trang không tự mở, chọn nút phía trên để tiếp tục.'}</p>
   </section></main>;
 }
 
@@ -124,14 +118,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [permissions, setPermissions] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [permissionAttempt, setPermissionAttempt] = useState(0);
+  const [postLogout, setPostLogout] = useState(false);
 
   useEffect(() => {
     let active = true;
+    if (!postLogoutMarkerChecked) {
+      postLogoutMarkerChecked = true;
+      if (consumePostLogout()) setPostLogout(true);
+    }
     initialization ??= keycloak.init({ onLoad: 'check-sso', pkceMethod: 'S256', checkLoginIframe: false, redirectUri: callbackUrl });
-    initialization.then((authenticated) => {
+    const currentInitialization = initialization;
+    currentInitialization.then((authenticated) => {
       if (active) setStatus(authenticated ? 'authenticated' : 'anonymous');
     }).catch(() => {
       if (active) { setError('Keycloak initialization failed'); setStatus('error'); }
+    }).finally(() => {
+      if (initialization === currentInitialization) initialization = undefined;
     });
     return () => { active = false; };
   }, []);
@@ -142,15 +144,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setPermissions([]);
     setError(null);
     try {
-      const response = await adminRequest(keycloak, '/admin/me/permissions', {}, () => {
+      const loadedPermissions = await fetchPermissions(keycloak, () => {
         keycloak.clearToken();
         setStatus('anonymous');
       }, () => navigate('/forbidden', { replace: true }));
-      if (response.status === 401) throw new Error('unauthorized');
-      if (!response.ok) throw new Error(`permissions-${response.status}`);
-      const result = await response.json() as { permissions?: unknown };
-      if (!Array.isArray(result.permissions) || result.permissions.some(value => typeof value !== 'string')) throw new Error('invalid-permissions-response');
-      setPermissions(result.permissions);
+      setPermissions(loadedPermissions);
       setPermissionState('ready');
     } catch (reason) {
       setPermissions([]);
@@ -165,14 +163,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => { void refreshPermissions(); }, [refreshPermissions]);
 
-  const login = useCallback(() => keycloak.login({ redirectUri: callbackUrl, scope: 'openid profile email' }), []);
+  const login = useCallback(() => {
+    setPostLogout(false);
+    clearPostLogout();
+    return keycloak.login({ redirectUri: callbackUrl, scope: 'openid profile email' });
+  }, []);
   const logout = useCallback(() => {
     setPermissions([]);
     setPermissionState('loading');
     setStatus('logging-out');
+    markPostLogout();
     return keycloak.logout({ redirectUri: `${window.location.origin}/login` }).catch((reason: unknown) => {
-      setStatus('anonymous');
-      throw reason;
+      clearPostLogout();
+      setError(reason instanceof Error ? reason.message : 'Keycloak logout failed');
+      setStatus('error');
     });
   }, []);
   const clearSession = useCallback(() => {
@@ -184,14 +188,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const requestAdmin = useCallback((path: string, init?: RequestInit) => adminRequest(keycloak, path, init, clearSession, () => navigate('/forbidden', { replace: true })), [clearSession, navigate]);
   const value = useMemo<AuthContextValue>(() => ({
     status, permissionState, permissions,
+    postLogout,
     userName: status === 'authenticated' ? String(keycloak.tokenParsed?.name || keycloak.tokenParsed?.preferred_username || keycloak.tokenParsed?.email || 'Admin') : 'Admin',
     error, keycloak, retryPermissions: () => setPermissionAttempt(value => value + 1), login, logout, clearSession, requestAdmin,
-  }), [status, permissionState, permissions, error, login, logout, clearSession, requestAdmin]);
+  }), [status, permissionState, permissions, postLogout, error, login, logout, clearSession, requestAdmin]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 
-const AuthContext = createContext<AuthContextValue | null>(null);
+export const AuthContext = createContext<AuthContextValue | null>(null);
 export function useAuth() {
   const value = useContext(AuthContext);
   if (!value) throw new Error('useAuth must be used within AuthProvider');

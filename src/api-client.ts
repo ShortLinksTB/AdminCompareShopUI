@@ -6,7 +6,7 @@ export async function adminRequest(
   keycloak: Keycloak,
   path: string,
   init: RequestInit = {},
-  onUnauthorized: () => void,
+  onUnauthorized: () => void = () => undefined,
   onForbidden: () => void = () => undefined,
 ): Promise<Response> {
   const url = new URL(path, `${apiBaseUrl}/`);
