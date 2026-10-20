@@ -18,8 +18,7 @@ jobs:
           node-version: '22'
           cache: npm
       - run: npm ci --ignore-scripts
-      # No npm test: this repository has no test tooling yet.
-      # Add a test framework and tests in a separate follow-up issue.
+      - run: npm run test:coverage
       - run: npm run build
 
   publish-image:
