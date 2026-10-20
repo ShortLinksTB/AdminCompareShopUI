@@ -21,6 +21,13 @@ export interface Page<T> {
   totalItems: number;
 }
 
+export interface ProductTarget {
+  id: number;
+  name: string;
+  brand?: string | null;
+  isActive: boolean;
+}
+
 export interface BanFilters {
   targetType: 'all' | BanTargetType;
   active: boolean;
@@ -38,6 +45,7 @@ export class BanApiError extends Error {
 
 const apiBase = (import.meta.env.VITE_COMPARESHOP_API_URL ?? '').replace(/\/$/, '');
 const bansUrl = `${apiBase}/admin/compliance/bans`;
+const productsUrl = `${apiBase}/admin/products`;
 
 function headers(): HeadersInit {
   const token = window.localStorage.getItem('adminAccessToken');
@@ -85,7 +93,25 @@ export async function getBannedItems(filters: BanFilters, signal?: AbortSignal):
   return response.json() as Promise<Page<BannedItem>>;
 }
 
-export async function createBannedItem(input: { targetType: 'Brand'; brandName: string } | { targetType: 'Product'; productId: string; reason: string }): Promise<void> {
+export async function getProductTargets(signal?: AbortSignal): Promise<ProductTarget[]> {
+  const fetchPage = async (page: number) => {
+    const response = await fetch(`${productsUrl}?page=${page}&pageSize=100`, {
+      credentials: 'include',
+      headers: headers(),
+      signal,
+    });
+    await assertResponse(response);
+    return response.json() as Promise<Page<ProductTarget>>;
+  };
+
+  const firstPage = await fetchPage(1);
+  const pageCount = Math.ceil(firstPage.totalItems / firstPage.pageSize);
+  if (pageCount <= 1) return firstPage.items;
+  const remaining = await Promise.all(Array.from({ length: pageCount - 1 }, (_, index) => fetchPage(index + 2)));
+  return [...firstPage.items, ...remaining.flatMap(result => result.items)];
+}
+
+export async function createBannedItem(input: { targetType: 'Brand'; brandName: string; reason: string } | { targetType: 'Product'; productId: number; reason: string }): Promise<void> {
   const response = await fetch(bansUrl, {
     method: 'POST',
     credentials: 'include',

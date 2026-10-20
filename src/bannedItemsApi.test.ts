@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { BanApiError, createBannedItem, getBannedItems, revokeBannedItem } from './bannedItemsApi';
+import { BanApiError, createBannedItem, getBannedItems, getProductTargets, revokeBannedItem } from './bannedItemsApi';
 
 afterEach(() => {
   window.localStorage.clear();
@@ -33,24 +33,34 @@ describe('banned items REST client', () => {
     expect(params.get('active')).toBe('true');
   });
 
+  it('loads all catalog pages for searchable targets', async () => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify({ items: [{ id: 1, name: 'One', isActive: true }], pageNumber: 1, pageSize: 1, totalItems: 2 }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ items: [{ id: 2, name: 'Two', isActive: true }], pageNumber: 2, pageSize: 1, totalItems: 2 }), { status: 200 }));
+    vi.stubGlobal('fetch', fetchMock);
+    expect(await getProductTargets()).toEqual([{ id: 1, name: 'One', isActive: true }, { id: 2, name: 'Two', isActive: true }]);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(fetchMock.mock.calls.map(([url]) => new URL(url as string, 'http://localhost').searchParams.get('page'))).toEqual(['1', '2']);
+  });
+
   it('posts the brand payload with session credentials', async () => {
     const fetchMock = vi.fn().mockResolvedValue(new Response(null, { status: 201 }));
     vi.stubGlobal('fetch', fetchMock);
-    await createBannedItem({ targetType: 'Brand', brandName: 'Example Brand' });
+    await createBannedItem({ targetType: 'Brand', brandName: 'Example Brand', reason: 'Policy violation' });
     const [, init] = fetchMock.mock.calls[0] as [string, RequestInit];
     expect(init.method).toBe('POST');
     expect(init.credentials).toBe('include');
-    expect(JSON.parse(init.body as string)).toEqual({ targetType: 'Brand', brandName: 'Example Brand' });
+    expect(JSON.parse(init.body as string)).toEqual({ targetType: 'Brand', brandName: 'Example Brand', reason: 'Policy violation' });
   });
 
   it('posts the product payload and sends an available bearer token', async () => {
     window.localStorage.setItem('adminAccessToken', 'test-token');
     const fetchMock = vi.fn().mockResolvedValue(new Response(null, { status: 201 }));
     vi.stubGlobal('fetch', fetchMock);
-    await createBannedItem({ targetType: 'Product', productId: 'p-42', reason: 'Policy' });
+    await createBannedItem({ targetType: 'Product', productId: 42, reason: 'Policy' });
     const [, init] = fetchMock.mock.calls[0] as [string, RequestInit];
     expect(new Headers(init.headers).get('Authorization')).toBe('Bearer test-token');
-    expect(JSON.parse(init.body as string)).toEqual({ targetType: 'Product', productId: 'p-42', reason: 'Policy' });
+    expect(JSON.parse(init.body as string)).toEqual({ targetType: 'Product', productId: 42, reason: 'Policy' });
   });
 
   it('deletes an encoded ban ID and accepts a 204 response', async () => {

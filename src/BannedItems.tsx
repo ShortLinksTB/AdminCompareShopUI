@@ -1,8 +1,8 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { Navigate, useLocation, useNavigate } from 'react-router-dom';
-import { BanApiError, createBannedItem, getBannedItems, revokeBannedItem, type BanTargetType, type BannedItem } from './bannedItemsApi';
+import { BanApiError, createBannedItem, getBannedItems, getProductTargets, revokeBannedItem, type BanTargetType, type BannedItem, type ProductTarget } from './bannedItemsApi';
 import './bannedItems.css';
-import { hasPermission } from './permissions';
+import { hasPermission, type AdminIdentity } from './permissions';
 
 const pageSize = 20;
 const dateTime = (value?: string | null) => value
@@ -13,13 +13,14 @@ function targetName(item: BannedItem) {
   return item.targetType === 'Brand' ? item.brandName || 'Unnamed brand' : item.productName || item.productId || 'Unnamed product';
 }
 
-export function BannedItemsRoute({ role }: { role: string }) {
+export function BannedItemsRoute({ identity }: { identity: AdminIdentity | null }) {
   const location = useLocation();
-  const canRead = hasPermission(role, 'compliance.read');
-  const canManage = hasPermission(role, 'compliance.manage');
+  const canRead = hasPermission(identity, 'compliance.read');
+  const canManage = hasPermission(identity, 'compliance.manage');
+  const navigate = useNavigate();
   if (!canRead) return <Navigate to="/" replace />;
   return location.pathname.endsWith('/new')
-    ? <BannedItemForm canManage={canManage} />
+    ? <BannedItemForm canManage={canManage} fullScreen onCancel={() => navigate('/banned-items')} onCreated={() => navigate('/banned-items')} />
     : <BannedItemsPage canManage={canManage} />;
 }
 
@@ -37,6 +38,11 @@ function BannedItemsPage({ canManage }: { canManage: boolean }) {
   const [reloadKey, setReloadKey] = useState(0);
   const [pendingRevoke, setPendingRevoke] = useState<BannedItem | null>(null);
   const [revoking, setRevoking] = useState(false);
+  const [addOpen, setAddOpen] = useState(false);
+  const openAdd = () => {
+    if (window.innerWidth <= 680) navigate('/banned-items/new');
+    else setAddOpen(true);
+  };
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -86,7 +92,7 @@ function BannedItemsPage({ canManage }: { canManage: boolean }) {
   return <div className="banned-page">
     <div className="page-header">
       <div><span className="eyebrow">CATALOG & PRICING</span><h1>Banned items</h1><p>Manage brands and products hidden from public CompareShop.</p></div>
-      {canManage && <button className="primary-button" onClick={() => navigate('/banned-items/new')}>＋ Add banned item</button>}
+      {canManage && <button className="primary-button" onClick={openAdd}>＋ Add banned item</button>}
     </div>
 
     <div className="banned-toolbar" role="search">
@@ -97,7 +103,7 @@ function BannedItemsPage({ canManage }: { canManage: boolean }) {
 
     {error && <div className="banned-alert" role="alert">{error}<button className="outline-button small" onClick={() => setReloadKey(current => current + 1)}>Retry</button></div>}
     {loading ? <BannedItemsLoading />
-      : items.length === 0 && !error ? <div className="banned-state panel"><strong>{query ? 'No results' : `No ${active ? 'active' : 'revoked'} bans found`}</strong><span>{query ? `No banned items match “${query}”.` : 'Try another target type or add a ban.'}</span>{query && <button className="outline-button small" onClick={() => setSearch('')}>Clear search</button>}{canManage && !query && <button className="primary-button" onClick={() => navigate('/banned-items/new')}>＋ Add banned item</button>}</div>
+      : items.length === 0 && !error ? <div className="banned-state panel"><strong>{query ? 'No results' : `No ${active ? 'active' : 'revoked'} bans found`}</strong><span>{query ? `No banned items match “${query}”.` : 'Try another target type or add a ban.'}</span>{query && <button className="outline-button small" onClick={() => setSearch('')}>Clear search</button>}{canManage && !query && <button className="primary-button" onClick={openAdd}>＋ Add banned item</button>}</div>
         : <>
           <section className="panel banned-table-panel" aria-label="Banned items list">
             <div className="banned-table-scroll"><table>
@@ -125,6 +131,7 @@ function BannedItemsPage({ canManage }: { canManage: boolean }) {
       {error && <div className="banned-alert" role="alert">{error}</div>}
       <div><button className="outline-button" disabled={revoking} onClick={() => setPendingRevoke(null)}>Cancel</button><button className="banned-danger-button" disabled={revoking} onClick={revoke}>{revoking ? 'Revoking…' : 'Revoke ban'}</button></div>
     </section></div>}
+    {addOpen && <BannedItemForm canManage fullScreen={false} onCancel={() => setAddOpen(false)} onCreated={() => { setAddOpen(false); setReloadKey(current => current + 1); }} />}
   </div>;
 }
 
@@ -136,11 +143,13 @@ function BannedItemsLoading() {
   </div>;
 }
 
-function BannedItemForm({ canManage }: { canManage: boolean }) {
-  const navigate = useNavigate();
+function BannedItemForm({ canManage, fullScreen, onCancel, onCreated }: { canManage: boolean; fullScreen: boolean; onCancel: () => void; onCreated: () => void }) {
   const [targetType, setTargetType] = useState<BanTargetType>('Brand');
-  const [brandName, setBrandName] = useState('');
-  const [productId, setProductId] = useState('');
+  const [targets, setTargets] = useState<ProductTarget[]>([]);
+  const [targetsLoading, setTargetsLoading] = useState(true);
+  const [targetLoadError, setTargetLoadError] = useState('');
+  const [targetSearch, setTargetSearch] = useState('');
+  const [selectedTarget, setSelectedTarget] = useState<ProductTarget | null>(null);
   const [reason, setReason] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
@@ -148,6 +157,15 @@ function BannedItemForm({ canManage }: { canManage: boolean }) {
 
   useEffect(() => {
     const controller = new AbortController();
+    setTargetsLoading(true);
+    setTargetLoadError('');
+    getProductTargets(controller.signal)
+      .then(result => setTargets(result.filter(product => product.isActive)))
+      .catch(failure => {
+        if (failure instanceof DOMException && failure.name === 'AbortError') return;
+        setTargetLoadError(failure instanceof Error ? failure.message : 'Unable to load catalog targets.');
+      })
+      .finally(() => { if (!controller.signal.aborted) setTargetsLoading(false); });
     getBannedItems({ active: true, targetType: 'all', search: '', page: 1, pageSize: 3 }, controller.signal)
       .then(result => setRecent(result.items))
       .catch(() => setRecent([]));
@@ -155,20 +173,28 @@ function BannedItemForm({ canManage }: { canManage: boolean }) {
   }, []);
 
   if (!canManage) return <Navigate to="/" replace />;
+  const brands = [...new Set(targets.map(product => product.brand?.trim()).filter((brand): brand is string => Boolean(brand)))].sort((a, b) => a.localeCompare(b));
+  const normalizedSearch = targetSearch.trim().toLocaleLowerCase();
+  const matchingProducts = targets.filter(product => `${product.name} ${product.brand ?? ''} ${product.id}`.toLocaleLowerCase().includes(normalizedSearch)).slice(0, 8);
+  const matchingBrands = brands.filter(brand => brand.toLocaleLowerCase().includes(normalizedSearch)).slice(0, 8);
+  const chosenLabel = targetType === 'Brand' ? selectedTarget?.brand?.trim() : selectedTarget ? `${selectedTarget.name}${selectedTarget.brand ? ` · ${selectedTarget.brand}` : ''}` : '';
+  const hasMatchingTargets = targetType === 'Brand' ? matchingBrands.length > 0 : matchingProducts.length > 0;
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setError('');
     setSubmitting(true);
     try {
       if (targetType === 'Brand') {
-        if (!brandName.trim()) throw new Error('Enter a brand name.');
-        await createBannedItem({ targetType, brandName: brandName.trim() });
-      } else {
-        if (!productId.trim()) throw new Error('Enter a product ID.');
+        const brandName = selectedTarget?.brand?.trim();
+        if (!brandName) throw new Error('Choose a brand from the catalog.');
         if (!reason.trim()) throw new Error('Enter a ban reason.');
-        await createBannedItem({ targetType, productId: productId.trim(), reason: reason.trim() });
+        await createBannedItem({ targetType, brandName, reason: reason.trim() });
+      } else {
+        if (!selectedTarget) throw new Error('Choose a product from the catalog.');
+        if (!reason.trim()) throw new Error('Enter a ban reason.');
+        await createBannedItem({ targetType, productId: selectedTarget.id, reason: reason.trim() });
       }
-      navigate('/banned-items');
+      onCreated();
     } catch (failure) {
       setError(failure instanceof BanApiError ? failure.message : failure instanceof Error ? failure.message : 'Unable to create this ban.');
     } finally {
@@ -176,24 +202,32 @@ function BannedItemForm({ canManage }: { canManage: boolean }) {
     }
   };
 
-  return <div className="banned-page banned-form-page">
-    <div className="page-header"><div><span className="eyebrow">CATALOG & PRICING / BANNED ITEMS</span><h1>Add banned item</h1><p>Choose a brand or product to hide from public CompareShop.</p></div></div>
-    <div className="banned-form-layout">
-      <form className="panel banned-form" onSubmit={submit}>
-        <div className="banned-notice">This ban takes effect immediately after it is created.</div>
-        <h2>Entry details</h2>
-        <fieldset className="banned-field"><legend>Target type <span>*</span></legend><div className="banned-choice-row">
-          {(['Brand', 'Product'] as const).map(kind => <label className="banned-choice" key={kind}><input type="radio" name="targetType" value={kind} checked={targetType === kind} onChange={() => setTargetType(kind)} />{kind}</label>)}
-        </div></fieldset>
-        {targetType === 'Brand' ? <label className="banned-field" htmlFor="brandName"><span>Brand name <b>*</b></span><input id="brandName" required maxLength={200} value={brandName} onChange={event => setBrandName(event.target.value)} placeholder="Enter the brand name" /></label>
-          : <>
-            <label className="banned-field" htmlFor="productId"><span>Product ID <b>*</b></span><input id="productId" required value={productId} onChange={event => setProductId(event.target.value)} placeholder="Enter the CompareShop product ID" /></label>
-            <label className="banned-field" htmlFor="banReason"><span>Ban reason <b>*</b></span><textarea id="banReason" required maxLength={1000} value={reason} onChange={event => setReason(event.target.value)} placeholder="Describe why this product is being banned…" /><small>This reason is visible to authorized Admin users.</small></label>
-          </>}
-        {error && <div className="banned-alert" role="alert">{error}</div>}
-        <div className="banned-form-actions"><button className="outline-button" type="button" disabled={submitting} onClick={() => navigate('/banned-items')}>Cancel</button><button className="primary-button" type="submit" disabled={submitting}>{submitting ? 'Adding…' : 'Add to banned list'}</button></div>
-      </form>
-      <aside className="panel banned-recent"><h2>Recently added</h2>{recent.length ? recent.map(item => <div className="banned-recent-item" key={item.id}><strong>{targetName(item)}</strong><small>Added by {item.createdBy || '—'} · {dateTime(item.createdAtUtc)}</small></div>) : <p>No active bans to preview.</p>}</aside>
-    </div>
-  </div>;
+  const form = <>
+    <div className="banned-form-heading"><div><span className="eyebrow">CATALOG & PRICING / BANNED ITEMS</span><h2 id="add-banned-title">Add banned item</h2><p>Choose a catalog target and explain why it is being banned.</p></div><button className="banned-close-button" type="button" aria-label="Close add banned item" onClick={onCancel}>×</button></div>
+    <form className="banned-form" onSubmit={submit}>
+      <div className="banned-notice">This target will be hidden from public CompareShop when the ban takes effect.</div>
+      <h3>Entry details</h3>
+      <fieldset className="banned-field"><legend>Target type <span>*</span></legend><div className="banned-choice-row">
+        {(['Brand', 'Product'] as const).map(kind => <label className="banned-choice" key={kind}><input type="radio" name="targetType" value={kind} checked={targetType === kind} onChange={() => { setTargetType(kind); setSelectedTarget(null); setTargetSearch(''); }} />{kind}</label>)}
+      </div></fieldset>
+      <div className="banned-field"><label htmlFor="targetSearch">{targetType} <b>*</b></label>
+        <div className="banned-target-select"><input id="targetSearch" role="combobox" aria-expanded={Boolean(targetSearch) && hasMatchingTargets} aria-controls="target-options" aria-autocomplete="list" autoComplete="off" value={selectedTarget ? chosenLabel ?? '' : targetSearch} onChange={event => { setSelectedTarget(null); setTargetSearch(event.target.value); }} onFocus={() => { if (selectedTarget) { setSelectedTarget(null); setTargetSearch(chosenLabel ?? ''); } }} placeholder={`Search and select a ${targetType.toLowerCase()}`} />
+          {targetSearch && !selectedTarget && <div className="banned-target-options" id="target-options" role="listbox" aria-label={`${targetType} results`}>
+            {targetsLoading ? <span className="banned-target-empty" role="status">Loading catalog…</span>
+              : targetLoadError ? <span className="banned-target-empty" role="alert">{targetLoadError}</span>
+                : hasMatchingTargets ? targetType === 'Brand' ? matchingBrands.map(brand => <button key={brand} type="button" role="option" aria-selected={false} onClick={() => { setSelectedTarget(targets.find(product => product.brand?.trim() === brand) ?? null); setTargetSearch(''); }}>{brand}</button>) : matchingProducts.map(product => <button key={product.id} type="button" role="option" aria-selected={false} onClick={() => { setSelectedTarget(product); setTargetSearch(''); }}>{product.name}<small>{product.brand || `Product #${product.id}`}</small></button>)
+                  : <span className="banned-target-empty">No matching {targetType.toLowerCase()} found.</span>}
+          </div>}
+        </div>
+        {selectedTarget && <span className="banned-selected-target" role="status">Selected: {chosenLabel}<button type="button" onClick={() => setSelectedTarget(null)}>Change</button></span>}
+      </div>
+      <label className="banned-field" htmlFor="banReason"><span>Ban reason <b>*</b></span><textarea id="banReason" required maxLength={1000} value={reason} onChange={event => setReason(event.target.value)} placeholder="Describe why this target is being banned…" /><small>This reason is visible to authorized Admin users.</small></label>
+      {error && <div className="banned-alert" role="alert">{error}</div>}
+      <div className="banned-form-actions"><button className="outline-button" type="button" disabled={submitting} onClick={onCancel}>Cancel</button><button className="primary-button" type="submit" disabled={submitting || !selectedTarget || !reason.trim()}>{submitting ? 'Adding…' : 'Add to banned list'}</button></div>
+    </form>
+    {fullScreen && <aside className="panel banned-recent"><h2>Recently added</h2>{recent.length ? recent.map(item => <div className="banned-recent-item" key={item.id}><strong>{targetName(item)}</strong><small>Added by {item.createdBy || '—'} · {dateTime(item.createdAtUtc)}</small></div>) : <p>No active bans to preview.</p>}</aside>}
+  </>;
+  return fullScreen
+    ? <div className="banned-page banned-form-page"><div className="banned-mobile-back"><button className="outline-button" type="button" onClick={onCancel}>‹ Back to banned items</button></div><div className="page-header"><div><span className="eyebrow">CATALOG & PRICING / BANNED ITEMS</span><h1>Add banned item</h1><p>Choose a target and provide a reason.</p></div></div><div className="banned-form-layout"><section className="panel banned-mobile-form">{form}</section></div></div>
+    : <div className="banned-drawer-backdrop" role="presentation" onMouseDown={event => { if (event.target === event.currentTarget && !submitting) onCancel(); }}><aside className="banned-drawer" role="dialog" aria-modal="true" aria-labelledby="add-banned-title"><div className="banned-drawer-scroll"><div className="banned-drawer-body">{form}</div></div></aside></div>;
 }

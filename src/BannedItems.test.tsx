@@ -5,12 +5,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { BannedItemsRoute } from './BannedItems';
 import { App } from './App';
-import { BanApiError, type BannedItem, type Page } from './bannedItemsApi';
-import { createBannedItem, getBannedItems, revokeBannedItem } from './bannedItemsApi';
+import { BanApiError, type BannedItem, type Page, type ProductTarget } from './bannedItemsApi';
+import { createBannedItem, getBannedItems, getProductTargets, revokeBannedItem } from './bannedItemsApi';
+import { AdminIdentityContext, type AdminIdentity } from './permissions';
 
 vi.mock('./bannedItemsApi', async () => {
   const actual = await vi.importActual<typeof import('./bannedItemsApi')>('./bannedItemsApi');
-  return { ...actual, createBannedItem: vi.fn(), getBannedItems: vi.fn(), revokeBannedItem: vi.fn() };
+  return { ...actual, createBannedItem: vi.fn(), getBannedItems: vi.fn(), getProductTargets: vi.fn(), revokeBannedItem: vi.fn() };
 });
 
 const item: BannedItem = {
@@ -18,12 +19,14 @@ const item: BannedItem = {
   isActive: true, createdBy: 'Nguyễn An', createdAtUtc: '2026-10-19T09:10:00Z',
 };
 const page = (items: BannedItem[] = [item], pageNumber = 1, totalItems = items.length): Page<BannedItem> => ({ items, pageNumber, pageSize: 20, totalItems });
+const products: ProductTarget[] = [{ id: 42, name: 'Example Phone', brand: 'Example Brand', isActive: true }, { id: 43, name: 'Sample Phone', brand: 'Sample Brand', isActive: true }];
+const identity = (role: AdminIdentity['role']): AdminIdentity => ({ role, permissions: role === 'Super Admin' || role === 'Operator' ? ['compliance.read', 'compliance.manage'] : [] });
 
-function renderRoute(path: string, role = 'Super Admin') {
+function renderRoute(path: string, role: AdminIdentity['role'] = 'Super Admin') {
   return render(<MemoryRouter initialEntries={[path]}><Routes>
     <Route path="/" element={<h1>Dashboard</h1>} />
-    <Route path="/banned-items" element={<BannedItemsRoute role={role} />} />
-    <Route path="/banned-items/new" element={<BannedItemsRoute role={role} />} />
+    <Route path="/banned-items" element={<BannedItemsRoute identity={identity(role)} />} />
+    <Route path="/banned-items/new" element={<BannedItemsRoute identity={identity(role)} />} />
   </Routes></MemoryRouter>);
 }
 
@@ -31,6 +34,7 @@ describe('Banned items routes', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.mocked(getBannedItems).mockResolvedValue(page());
+    vi.mocked(getProductTargets).mockResolvedValue(products);
     vi.mocked(createBannedItem).mockResolvedValue(undefined);
     vi.mocked(revokeBannedItem).mockResolvedValue(undefined);
   });
@@ -40,7 +44,7 @@ describe('Banned items routes', () => {
     const { rerender } = renderRoute('/banned-items', 'Editor');
     expect(await screen.findByRole('heading', { name: 'Dashboard' })).toBeTruthy();
     expect(screen.queryByRole('heading', { name: 'Banned items' })).toBeNull();
-    rerender(<MemoryRouter initialEntries={['/banned-items/new']}><Routes><Route path="/" element={<h1>Dashboard</h1>} /><Route path="/banned-items/new" element={<BannedItemsRoute role="Viewer" />} /></Routes></MemoryRouter>);
+    rerender(<MemoryRouter initialEntries={['/banned-items/new']}><Routes><Route path="/" element={<h1>Dashboard</h1>} /><Route path="/banned-items/new" element={<BannedItemsRoute identity={identity('Viewer')} />} /></Routes></MemoryRouter>);
     expect(await screen.findByRole('heading', { name: 'Dashboard' })).toBeTruthy();
     expect(screen.queryByRole('heading', { name: 'Add banned item' })).toBeNull();
     expect(getBannedItems).not.toHaveBeenCalled();
@@ -102,33 +106,63 @@ describe('Banned items routes', () => {
 
   it('loads and navigates the actual App routes for the list and add form', async () => {
     const user = userEvent.setup();
-    render(<MemoryRouter initialEntries={['/banned-items']}><App /></MemoryRouter>);
+    render(<AdminIdentityContext.Provider value={identity('Super Admin')}><MemoryRouter initialEntries={['/banned-items']}><App /></MemoryRouter></AdminIdentityContext.Provider>);
     expect(await screen.findByRole('heading', { name: 'Banned items' })).toBeTruthy();
     await user.click(screen.getByRole('button', { name: /Add banned item/ }));
-    expect(await screen.findByRole('heading', { name: 'Add banned item' })).toBeTruthy();
+    expect(await screen.findByRole('dialog', { name: 'Add banned item' })).toBeTruthy();
     await user.click(screen.getByRole('button', { name: 'Cancel' }));
     expect(await screen.findByRole('heading', { name: 'Banned items' })).toBeTruthy();
   });
 
-  it('creates the exact brand payload through the add route', async () => {
+  it('creates a brand ban from the searchable catalog selector with reason', async () => {
     const user = userEvent.setup();
-    renderRoute('/banned-items/new');
-    await user.type(screen.getByLabelText('Brand name *'), 'Example Brand');
+    renderRoute('/banned-items');
+    await screen.findAllByText('Example Brand');
+    await user.click(screen.getByRole('button', { name: /Add banned item/ }));
+    await user.type(await screen.findByRole('combobox', { name: 'Brand *' }), 'Example');
+    await user.click(await screen.findByRole('option', { name: 'Example Brand' }));
+    await user.type(screen.getByLabelText(/Ban reason/), 'Policy violation');
     await user.click(screen.getByRole('button', { name: 'Add to banned list' }));
-    await waitFor(() => expect(createBannedItem).toHaveBeenCalledWith({ targetType: 'Brand', brandName: 'Example Brand' }));
+    await waitFor(() => expect(createBannedItem).toHaveBeenCalledWith({ targetType: 'Brand', brandName: 'Example Brand', reason: 'Policy violation' }));
     expect(await screen.findByRole('heading', { name: 'Banned items' })).toBeTruthy();
   });
 
-  it('creates product bans with product ID and reason and displays a 409 response', async () => {
+  it('creates product bans from the searchable catalog and displays a 409 response', async () => {
     const user = userEvent.setup();
     vi.mocked(createBannedItem).mockRejectedValueOnce(new BanApiError('An active ban already exists for this target.', 409));
-    renderRoute('/banned-items/new');
+    renderRoute('/banned-items');
+    await screen.findAllByText('Example Brand');
+    await user.click(screen.getByRole('button', { name: /Add banned item/ }));
     await user.click(screen.getByRole('radio', { name: 'Product' }));
-    await user.type(screen.getByLabelText('Product ID *'), 'product-42');
+    await user.type(screen.getByRole('combobox', { name: 'Product *' }), 'Example Phone');
+    await user.click(await screen.findByRole('option', { name: /Example Phone/ }));
     await user.type(screen.getByLabelText(/Ban reason/), 'Not eligible');
     await user.click(screen.getByRole('button', { name: 'Add to banned list' }));
-    await waitFor(() => expect(createBannedItem).toHaveBeenCalledWith({ targetType: 'Product', productId: 'product-42', reason: 'Not eligible' }));
+    await waitFor(() => expect(createBannedItem).toHaveBeenCalledWith({ targetType: 'Product', productId: 42, reason: 'Not eligible' }));
     expect((await screen.findByRole('alert')).textContent).toContain('An active ban already exists');
+  });
+
+  it('keeps the add flow on a full-screen route on mobile', async () => {
+    const originalWidth = window.innerWidth;
+    Object.defineProperty(window, 'innerWidth', { configurable: true, value: 390 });
+    try {
+      const user = userEvent.setup();
+      render(<AdminIdentityContext.Provider value={identity('Operator')}><MemoryRouter initialEntries={['/banned-items']}><App /></MemoryRouter></AdminIdentityContext.Provider>);
+      await screen.findAllByText('Example Brand');
+      await user.click(screen.getByRole('button', { name: /Add banned item/ }));
+      expect((await screen.findAllByRole('heading', { name: 'Add banned item' })).length).toBeGreaterThan(0);
+      expect(screen.queryByRole('dialog', { name: 'Add banned item' })).toBeNull();
+    } finally {
+      Object.defineProperty(window, 'innerWidth', { configurable: true, value: originalWidth });
+    }
+  });
+
+  it('does not grant compliance access from the editable role storage key', async () => {
+    window.localStorage.setItem('giatot-admin-role', 'Super Admin');
+    render(<MemoryRouter initialEntries={['/banned-items']}><App /></MemoryRouter>);
+    expect(await screen.findByRole('heading', { name: 'Dashboard' })).toBeTruthy();
+    expect(screen.queryByRole('heading', { name: 'Banned items' })).toBeNull();
+    expect(getBannedItems).not.toHaveBeenCalled();
   });
 
   it('shows loading and API failure states with retry', async () => {

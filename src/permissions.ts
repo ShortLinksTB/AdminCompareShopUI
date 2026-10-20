@@ -1,18 +1,22 @@
+import { createContext, useContext } from 'react';
+
 export type AdminRole = 'Super Admin' | 'Operator' | 'Editor' | 'Viewer';
 export type AdminPermission = 'compliance.read' | 'compliance.manage';
 
-const rolePermissions: Record<AdminRole, AdminPermission[]> = {
-  'Super Admin': ['compliance.read', 'compliance.manage'],
-  Operator: ['compliance.read', 'compliance.manage'],
-  Editor: [],
-  Viewer: [],
-};
-
-export function currentAdminRole(): AdminRole {
-  const role = window.localStorage.getItem('giatot-admin-role');
-  return role === 'Operator' || role === 'Editor' || role === 'Viewer' || role === 'Super Admin' ? role : 'Super Admin';
+export interface AdminIdentity {
+  role: AdminRole;
+  permissions: readonly AdminPermission[];
+  displayName?: string;
 }
 
-export function hasPermission(role: string, permission: AdminPermission): boolean {
-  return Object.hasOwn(rolePermissions, role) && rolePermissions[role as AdminRole].includes(permission);
+// The authenticated shell must provide this context after validating the session.
+// Missing identity is deliberately deny-by-default; browser storage is not an authority.
+export const AdminIdentityContext = createContext<AdminIdentity | null>(null);
+
+export function useAdminIdentity(): AdminIdentity | null {
+  return useContext(AdminIdentityContext);
+}
+
+export function hasPermission(identity: AdminIdentity | null, permission: AdminPermission): boolean {
+  return identity?.permissions.includes(permission) ?? false;
 }
