@@ -13,6 +13,7 @@ export type AuthContextValue = {
   permissions: string[];
   userName: string;
   error: string | null;
+  callbackError: string | null;
   keycloak: Keycloak;
   retryPermissions: () => void;
   login: () => Promise<void>;
@@ -24,6 +25,7 @@ export type AuthContextValue = {
 
 const RETURN_TO_KEY = 'compareshop-auth-return-to';
 const callbackUrl = `${window.location.origin}/auth/callback`;
+const silentSsoErrors = new Set(['login_required', 'interaction_required', 'consent_required', 'account_selection_required']);
 const keycloak = new Keycloak({
   url: import.meta.env.VITE_KEYCLOAK_URL || 'https://keycloak-shortlink-dev.giamha.online',
   realm: import.meta.env.VITE_KEYCLOAK_REALM || 'shortlink',
@@ -82,6 +84,7 @@ export function LoginPage() {
 export function CallbackPage() {
   const auth = useAuth();
   const navigate = useNavigate();
+  const redirectToLogin = auth.status === 'anonymous' && auth.callbackError !== null && silentSsoErrors.has(auth.callbackError);
   useEffect(() => {
     if (auth.status === 'authenticated') {
       let target = '/';
@@ -90,9 +93,11 @@ export function CallbackPage() {
         window.sessionStorage.removeItem(RETURN_TO_KEY);
       } catch { /* The default same-origin root remains safe when storage is unavailable. */ }
       navigate(target, { replace: true });
+    } else if (redirectToLogin) {
+      navigate('/login', { replace: true });
     }
-  }, [auth.status, navigate]);
-  if (auth.status === 'error' || auth.status === 'anonymous') return <main className="auth-canvas"><section className="auth-card"><Brand /><h1>Không thể hoàn tất đăng nhập</h1><p>Phiên đăng nhập chưa được xác nhận. Hãy thử lại để tiếp tục an toàn.</p><a className="auth-primary" href="/login">Thử đăng nhập lại</a></section></main>;
+  }, [auth.status, navigate, redirectToLogin]);
+  if (auth.status === 'error' || (auth.status === 'anonymous' && !redirectToLogin)) return <main className="auth-canvas"><section className="auth-card"><Brand /><h1>Không thể hoàn tất đăng nhập</h1><p>Phiên đăng nhập chưa được xác nhận. Hãy thử lại để tiếp tục an toàn.</p><a className="auth-primary" href="/login">Thử đăng nhập lại</a></section></main>;
   return <AuthLoadingScreen message="Đang hoàn tất đăng nhập" />;
 }
 
@@ -117,11 +122,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [permissionState, setPermissionState] = useState<PermissionState>('loading');
   const [permissions, setPermissions] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [callbackError, setCallbackError] = useState<string | null>(null);
   const [permissionAttempt, setPermissionAttempt] = useState(0);
   const [postLogout, setPostLogout] = useState(false);
 
   useEffect(() => {
     let active = true;
+    if (window.location.pathname === '/auth/callback') {
+      const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ''));
+      const queryError = new URLSearchParams(window.location.search).get('error');
+      setCallbackError(hashParams.get('error') || queryError);
+    }
     if (!postLogoutMarkerChecked) {
       postLogoutMarkerChecked = true;
       if (consumePostLogout()) setPostLogout(true);
@@ -187,11 +198,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
   const requestAdmin = useCallback((path: string, init?: RequestInit) => adminRequest(keycloak, path, init, clearSession, () => navigate('/forbidden', { replace: true })), [clearSession, navigate]);
   const value = useMemo<AuthContextValue>(() => ({
-    status, permissionState, permissions,
+    status, permissionState, permissions, callbackError,
     postLogout,
     userName: status === 'authenticated' ? String(keycloak.tokenParsed?.name || keycloak.tokenParsed?.preferred_username || keycloak.tokenParsed?.email || 'Admin') : 'Admin',
     error, keycloak, retryPermissions: () => setPermissionAttempt(value => value + 1), login, logout, clearSession, requestAdmin,
-  }), [status, permissionState, permissions, postLogout, error, login, logout, clearSession, requestAdmin]);
+  }), [status, permissionState, permissions, callbackError, postLogout, error, login, logout, clearSession, requestAdmin]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

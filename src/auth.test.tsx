@@ -38,9 +38,22 @@ function renderWithAuth(children: React.ReactNode, initialEntry = '/') {
   return render(<MemoryRouter initialEntries={[initialEntry]}><AuthProvider>{children}</AuthProvider></MemoryRouter>);
 }
 
+function renderCallbackFlow(callbackParams: string) {
+  window.history.replaceState(window.history.state, '', `/auth/callback${callbackParams}`);
+  keycloakMocks.init.mockImplementation(async () => {
+    // Keycloak removes OAuth callback parameters from the browser URL during init.
+    window.history.replaceState(window.history.state, '', '/auth/callback');
+    return false;
+  });
+  return render(<MemoryRouter initialEntries={['/auth/callback']}><AuthProvider><Routes>
+    <Route path="/auth/callback" element={<><CallbackPage /><CurrentPath /></>} />
+    <Route path="/login" element={<><LoginPage /><CurrentPath /></>} />
+  </Routes></AuthProvider></MemoryRouter>);
+}
+
 function contextValue(overrides: Partial<AuthContextValue> = {}): AuthContextValue {
   return {
-    status: 'authenticated', permissionState: 'ready', permissions: [], postLogout: false,
+    status: 'authenticated', permissionState: 'ready', permissions: [], callbackError: null, postLogout: false,
     userName: 'Test Admin', error: null, keycloak: {} as Keycloak,
     retryPermissions: vi.fn(), login: vi.fn().mockResolvedValue(undefined), logout: vi.fn().mockResolvedValue(undefined),
     clearSession: vi.fn(), requestAdmin: vi.fn().mockResolvedValue(ok()), ...overrides,
@@ -122,6 +135,30 @@ describe('OIDC auth flow', () => {
     window.sessionStorage.setItem('compareshop-auth-return-to', '//evil.example');
     renderWithAuth(<><CallbackPage /><CurrentPath /></>, '/auth/callback');
     await waitFor(() => expect(screen.getByTestId('path').textContent).toBe('/'));
+  });
+
+  it('silently returns to login after a check-sso login_required response', async () => {
+    renderCallbackFlow('#error=login_required&state=check-sso-state');
+
+    await waitFor(() => expect(screen.getByTestId('path')).toHaveTextContent('/login'));
+    await waitFor(() => expect(keycloakMocks.login).toHaveBeenCalledOnce());
+    expect(screen.queryByText('Không thể hoàn tất đăng nhập')).toBeNull();
+  });
+
+  it('returns to login for another soft SSO error received in the query', async () => {
+    renderCallbackFlow('?error=interaction_required&state=check-sso-state');
+
+    await waitFor(() => expect(screen.getByTestId('path')).toHaveTextContent('/login'));
+    await waitFor(() => expect(keycloakMocks.login).toHaveBeenCalledOnce());
+    expect(screen.queryByText('Không thể hoàn tất đăng nhập')).toBeNull();
+  });
+
+  it('keeps the callback error screen for explicit access_denied errors', async () => {
+    renderCallbackFlow('#error=access_denied&state=explicit-login-state');
+
+    expect(await screen.findByText('Không thể hoàn tất đăng nhập')).toBeTruthy();
+    expect(screen.getByTestId('path')).toHaveTextContent('/auth/callback');
+    expect(keycloakMocks.login).not.toHaveBeenCalled();
   });
 
   it('marks a logout return once and uses the safe post-logout URI', async () => {
