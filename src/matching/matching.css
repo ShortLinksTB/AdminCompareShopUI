@@ -96,7 +96,7 @@
 .dark .matching-actions button:not(.matching-primary),
 .dark .matching-pending-badge { background-color: var(--surface); color: var(--text); }
 .dark .matching-card-head { background: var(--surface-alt); }
-.dark .matching-primary { background: var(--accent); color: #fff; }
+.dark .matching-actions .matching-primary { background-color: var(--accent); color: #fff; }
 .dark .matching-candidate.selected { background: color-mix(in srgb, var(--accent) 15%, var(--surface)); }
 .dark .matching-error { color: #ffb4ab; }
 
