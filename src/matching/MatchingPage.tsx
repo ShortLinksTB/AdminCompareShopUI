@@ -77,6 +77,12 @@ export function MatchingPage({ requestAdmin }: { requestAdmin: AdminRequest }) {
     try {
       await approveMatching(requestAdmin, matchingId, candidate.productId);
       setSuccess(true);
+      setQueue(current => current.filter(item => item.id !== matchingId));
+      setSelections(current => {
+        const next = { ...current };
+        delete next[matchingId];
+        return next;
+      });
       await refresh(false);
     } catch (error) {
       setApprovalErrors(current => ({
@@ -121,6 +127,7 @@ export function MatchingPage({ requestAdmin }: { requestAdmin: AdminRequest }) {
         {queue.map(item => {
           const selected = selections[item.id];
           const busy = approvingId === item.id;
+          const candidates = item.candidates.slice(0, 5);
           return <article className="matching-card" key={item.id} aria-label={`Mục chờ duyệt: ${item.name}`}>
             <div className="matching-card-head">
               <div className="matching-source">
@@ -132,9 +139,9 @@ export function MatchingPage({ requestAdmin }: { requestAdmin: AdminRequest }) {
               <span className="matching-pending-badge">Đang chờ</span>
             </div>
 
-            {item.candidates.length === 0 ? <div className="matching-no-candidates">Không tìm thấy gợi ý phù hợp cho mục này.</div> : <fieldset className="matching-candidates">
+            {candidates.length === 0 ? <div className="matching-no-candidates">Không tìm thấy gợi ý phù hợp cho mục này.</div> : <fieldset className="matching-candidates">
               <legend>Chọn một sản phẩm gợi ý</legend>
-              {item.candidates.map(candidate => <label
+              {candidates.map(candidate => <label
                 className={`matching-candidate${selected?.productId === candidate.productId ? ' selected' : ''}`}
                 key={candidate.productId}
               >
@@ -168,7 +175,7 @@ export function MatchingPage({ requestAdmin }: { requestAdmin: AdminRequest }) {
             <footer className="matching-card-foot">
               <span className="matching-action-hint">{busy ? 'Đang gửi yêu cầu duyệt…' : selected ? 'Kiểm tra lựa chọn trước khi duyệt.' : 'Chọn một ứng viên để kích hoạt nút Duyệt.'}</span>
               <div className="matching-actions">
-                {item.candidates.length > 0 && <button
+                {candidates.length > 0 && <button
                   className="matching-secondary"
                   type="button"
                   disabled={approvingId !== null}

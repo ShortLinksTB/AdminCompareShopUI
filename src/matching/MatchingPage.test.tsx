@@ -96,6 +96,39 @@ describe('MatchingPage', () => {
     expect(requestAdmin).toHaveBeenCalledTimes(2);
   });
 
+  it('removes an approved item even when the reconciliation GET must be retried', async () => {
+    const requestAdmin = vi.fn<AdminRequest>()
+      .mockResolvedValueOnce(response([row]))
+      .mockResolvedValueOnce(new Response(null, { status: 204 }))
+      .mockResolvedValueOnce(new Response('', { status: 503 }));
+    renderPage(requestAdmin);
+    fireEvent.click(await screen.findByLabelText(/Laptop product/));
+    fireEvent.click(screen.getByRole('button', { name: 'Duyệt' }));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Không tải được danh sách chờ duyệt');
+    expect(screen.queryByText('Laptop source')).not.toBeInTheDocument();
+    expect(screen.getByRole('status')).toHaveTextContent('Đã duyệt sản phẩm thành công');
+  });
+
+  it('renders at most five candidates without reordering the API response', async () => {
+    const manyCandidates = {
+      ...row,
+      candidates: Array.from({ length: 6 }, (_, index) => ({
+        productId: 80 + index,
+        name: `Candidate ${index + 1}`,
+        brand: 'Acme',
+        similarityScore: 0.9 - index / 10,
+      })),
+    };
+    const requestAdmin = vi.fn<AdminRequest>().mockResolvedValue(response([manyCandidates]));
+    renderPage(requestAdmin);
+
+    expect(await screen.findByLabelText(/Candidate 1/)).toBeInTheDocument();
+    expect(screen.getByLabelText(/Candidate 5/)).toBeInTheDocument();
+    expect(screen.queryByLabelText(/Candidate 6/)).not.toBeInTheDocument();
+    expect(screen.getByText('90% tương đồng').compareDocumentPosition(screen.getByText('50% tương đồng')) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
   it('shows a retryable queue error, then renders a pending item with no candidates', async () => {
     const emptyCandidates = { ...row, candidates: [] };
     const requestAdmin = vi.fn<AdminRequest>()
