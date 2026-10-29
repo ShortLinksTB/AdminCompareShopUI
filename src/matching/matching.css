@@ -93,7 +93,7 @@
 
 .dark .matching-card,
 .dark .matching-refresh,
-.dark .matching-actions button,
+.dark .matching-actions button:not(.matching-primary),
 .dark .matching-pending-badge { background-color: var(--surface); color: var(--text); }
 .dark .matching-card-head { background: var(--surface-alt); }
 .dark .matching-primary { background: var(--accent); color: #fff; }
