@@ -1,4 +1,4 @@
-import { createContext, useContext, useMemo, useState } from 'react';
+import { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { NavLink, Navigate, Outlet, Route, Routes, useLocation } from 'react-router-dom';
 import { matchingQueue, offers, products, shops, type Status } from './mockData';
 import { AuthLoadingScreen, AuthProvider, CallbackPage, ForbiddenPage, LoginPage, PermissionFailure, useAuth } from './auth';
@@ -16,7 +16,79 @@ const FeatureFlagsContext = createContext<{ flags: FeatureFlags; setFlag: (key: 
 function FeatureFlagsProvider({ children }: { children: React.ReactNode }) { const [flags, setFlags] = useState<FeatureFlags>(() => { try { return { ...featureDefaults, ...JSON.parse(window.localStorage.getItem('giatot-admin-feature-flags') || '{}') }; } catch { return featureDefaults; } }); const setFlag = (key: FeatureKey, enabled: boolean) => setFlags(current => { const next = { ...current, [key]: enabled }; window.localStorage.setItem('giatot-admin-feature-flags', JSON.stringify(next)); return next; }); return <FeatureFlagsContext.Provider value={{ flags, setFlag }}>{children}</FeatureFlagsContext.Provider>; }
 
 function StatusBadge({ status }: { status: Status }) { return <span className={`status status-${status.toLowerCase()}`}>{status}</span>; }
-function Shell() { const location = useLocation(); const { flags } = useContext(FeatureFlagsContext); const { userName, logout, permissions } = useAuth(); const [dark, setDark] = useState(false); const visibleNav = nav.filter(item => (!item.flag || flags[item.flag as FeatureKey]) && (item.to !== '/banned-items' || permissions.includes('compliance.read'))); const initials = userName.slice(0, 1).toUpperCase(); return <div className={`admin-shell${dark ? ' dark' : ''}`}><aside className="admin-sidebar"><div className="admin-brand"><span className="admin-brand-mark">G</span><span>GiaTot<small>Admin console</small></span></div><div className="nav-label">WORKSPACE</div><nav>{visibleNav.map(item => <NavLink key={item.to} to={item.to} end={item.end}><span>{item.icon}</span>{item.label}</NavLink>)}</nav><div className="sidebar-bottom"><button className="theme-button" onClick={() => setDark(value => !value)}>{dark ? '☼' : '◐'} {dark ? 'Light mode' : 'Dark mode'}</button><div className="admin-user"><span className="user-avatar">{initials}</span><span><strong>{userName}</strong><small>Admin</small></span><button className="logout-button" aria-label="Đăng xuất" title="Đăng xuất" onClick={() => void logout()}>↪</button></div></div></aside><main className="admin-main"><header className="admin-header"><div className="mobile-brand"><span className="admin-brand-mark">G</span> GiaTot Admin</div><div className="admin-breadcrumb">GiaTot Admin <span>/</span> {location.pathname === '/banned-items/new' ? 'Banned items / Add item' : nav.find(item => item.to === location.pathname)?.label || 'Dashboard'}</div><div className="admin-header-actions"><button aria-label="Search">⌕</button><button aria-label="Notifications">♢<i>3</i></button><button className="admin-profile" onClick={() => void logout()}>{initials} <span>{userName}</span> · Đăng xuất</button></div></header><div className="admin-content"><Outlet /></div></main></div>; }
+function Shell() {
+  const location = useLocation();
+  const { flags } = useContext(FeatureFlagsContext);
+  const { userName, logout, permissions } = useAuth();
+  const [dark, setDark] = useState(false);
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  const mobileNavToggleRef = useRef<HTMLButtonElement>(null);
+  const mobileNavCloseRef = useRef<HTMLButtonElement>(null);
+  const visibleNav = nav.filter(item => (!item.flag || flags[item.flag as FeatureKey]) && (item.to !== '/banned-items' || permissions.includes('compliance.read')));
+  const initials = userName.slice(0, 1).toUpperCase();
+
+  useEffect(() => {
+    setMobileNavOpen(false);
+  }, [location.pathname]);
+
+  useEffect(() => {
+    if (!mobileNavOpen) return;
+    mobileNavCloseRef.current?.focus();
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setMobileNavOpen(false);
+        mobileNavToggleRef.current?.focus();
+        return;
+      }
+      if (event.key !== 'Tab') return;
+      const focusable = document.querySelectorAll<HTMLElement>(
+        '#admin-navigation button:not([disabled]), #admin-navigation a[href]'
+      );
+      if (!focusable.length) return;
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
+    window.addEventListener('keydown', closeOnEscape);
+    return () => window.removeEventListener('keydown', closeOnEscape);
+  }, [mobileNavOpen]);
+
+  return <div className={`admin-shell${dark ? ' dark' : ''}`}>
+    <aside id="admin-navigation" className={`admin-sidebar${mobileNavOpen ? ' mobile-nav-open' : ''}`} role={mobileNavOpen ? 'dialog' : undefined} aria-modal={mobileNavOpen || undefined} aria-label={mobileNavOpen ? 'Application navigation' : undefined}>
+      <div className="admin-brand">
+        <span className="admin-brand-mark">G</span>
+        <span>GiaTot<small>Admin console</small></span>
+        <button ref={mobileNavCloseRef} className="mobile-nav-close" aria-label="Close navigation" onClick={() => { setMobileNavOpen(false); mobileNavToggleRef.current?.focus(); }}>×</button>
+      </div>
+      <div className="nav-label">WORKSPACE</div>
+      <nav aria-label="Application navigation">
+        {visibleNav.map(item => <NavLink key={item.to} to={item.to} end={item.end} onClick={() => { setMobileNavOpen(false); mobileNavToggleRef.current?.focus(); }}><span>{item.icon}</span>{item.label}</NavLink>)}
+      </nav>
+      <div className="sidebar-bottom">
+        <button className="theme-button" onClick={() => setDark(value => !value)}>{dark ? '☼' : '◐'} {dark ? 'Light mode' : 'Dark mode'}</button>
+        <div className="admin-user"><span className="user-avatar">{initials}</span><span><strong>{userName}</strong><small>Admin</small></span><button className="logout-button" aria-label="Đăng xuất" title="Đăng xuất" onClick={() => void logout()}>↪</button></div>
+      </div>
+    </aside>
+    {mobileNavOpen && <button className="mobile-nav-backdrop" aria-label="Dismiss navigation overlay" onClick={() => { setMobileNavOpen(false); mobileNavToggleRef.current?.focus(); }} />}
+    <main className="admin-main">
+      <header className="admin-header">
+        <div className="mobile-brand">
+          <button ref={mobileNavToggleRef} className="mobile-nav-toggle" aria-label={mobileNavOpen ? 'Close navigation' : 'Open navigation'} aria-controls="admin-navigation" aria-expanded={mobileNavOpen} onClick={() => setMobileNavOpen(value => !value)}>☰</button>
+          <span className="admin-brand-mark">G</span> GiaTot Admin
+        </div>
+        <div className="admin-breadcrumb">GiaTot Admin <span>/</span> {location.pathname === '/banned-items/new' ? 'Banned items / Add item' : nav.find(item => item.to === location.pathname)?.label || 'Dashboard'}</div>
+        <div className="admin-header-actions"><button aria-label="Search">⌕</button><button aria-label="Notifications">♢<i>3</i></button><button className="admin-profile" onClick={() => void logout()}>{initials} <span>{userName}</span> · Đăng xuất</button></div>
+      </header>
+      <div className="admin-content"><Outlet /></div>
+    </main>
+  </div>;
+}
 function PageHeader({ eyebrow, title, description, action }: { eyebrow?: string; title: string; description?: string; action?: React.ReactNode }) { return <div className="page-header"><div>{eyebrow && <span className="eyebrow">{eyebrow}</span>}<h1>{title}</h1>{description && <p>{description}</p>}</div>{action}</div>; }
 function Kpi({ label, value, change, tone }: { label: string; value: string; change: string; tone: string }) { return <article className="kpi-card"><div className={`kpi-icon ${tone}`}>{tone === 'orange' ? '▦' : tone === 'green' ? '↗' : tone === 'blue' ? '⌂' : '◷'}</div><span>{label}</span><strong>{value}</strong><small className={change.startsWith('+') ? 'positive' : change.startsWith('-') ? 'negative' : ''}>{change}</small></article>; }
 function Dashboard() { return <><PageHeader eyebrow="OVERVIEW" title="Dashboard" description="Tổng quan sức khỏe catalog, giá và affiliate data." action={<button className="primary-button">+ Tạo sản phẩm</button>} /><div className="kpi-grid"><Kpi label="Products active" value="2,846" change="+12.4% so với tháng trước" tone="orange" /><Kpi label="Offers active" value="8,932" change="+8.6% so với tháng trước" tone="green" /><Kpi label="Partner shops" value="24" change="+3 shop mới" tone="blue" /><Kpi label="Sync success rate" value="98.2%" change="-1.1% trong 24 giờ" tone="purple" /></div><div className="dashboard-grid"><section className="panel chart-panel"><div className="panel-heading"><div><h2>Traffic & affiliate clicks</h2><p>30 ngày gần nhất</p></div><select><option>30 ngày</option><option>7 ngày</option><option>90 ngày</option></select></div><div className="chart-legend"><span><i className="legend orange"></i>Product views</span><span><i className="legend purple"></i>Affiliate clicks</span></div><div className="line-chart"><div className="chart-y"><span>12k</span><span>8k</span><span>4k</span><span>0</span></div><svg viewBox="0 0 600 190" preserveAspectRatio="none" aria-label="Traffic chart"><path className="area" d="M0 160 C55 135 60 148 105 110 S170 120 210 92 S270 120 315 75 S380 98 420 55 S490 100 540 40 S575 55 600 25 L600 190 L0 190Z" /><path className="line orange-line" d="M0 160 C55 135 60 148 105 110 S170 120 210 92 S270 120 315 75 S380 98 420 55 S490 100 540 40 S575 55 600 25" /><path className="line purple-line" d="M0 175 C55 160 70 168 105 145 S175 150 210 125 S275 145 315 110 S380 130 420 92 S490 128 540 78 S575 100 600 65" /></svg></div></section><section className="panel health-panel"><div className="panel-heading"><div><h2>Data health</h2><p>Tình trạng pipeline hiện tại</p></div><button className="icon-button">•••</button></div><div className="health-score"><div className="score-ring"><strong>96<span>%</span></strong></div><div><strong>Healthy</strong><p>Không có incident nghiêm trọng</p></div></div><div className="health-list"><span><i className="dot green"></i>Sources đang hoạt động <b>18/20</b></span><span><i className="dot orange"></i>Offers cần review <b>124</b></span><span><i className="dot red"></i>Sync jobs lỗi <b>3</b></span></div></section></div><div className="dashboard-grid lower"><section className="panel"><div className="panel-heading"><div><h2>Offers cần review</h2><p>Stale hoặc outlier trong 24 giờ</p></div><NavLink to="/offers">Xem tất cả →</NavLink></div><OfferTable rows={offers.slice(0, 3)} compact /></section><section className="panel"><div className="panel-heading"><div><h2>Matching queue</h2><p>Listing đang chờ admin review</p></div><NavLink to="/matching">Xem tất cả →</NavLink></div><div className="queue-list">{matchingQueue.map(item => <div className="queue-item" key={item.id}><span className="queue-avatar">{item.shop.slice(0, 1)}</span><span><strong>{item.listing}</strong><small>{item.shop} · Match {item.confidence}%</small></span><StatusBadge status="Pending" /></div>)}</div></section></div></>; }
