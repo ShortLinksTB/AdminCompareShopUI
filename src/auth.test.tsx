@@ -98,7 +98,6 @@ describe('OIDC auth flow', () => {
     expect(keycloakMocks.init).toHaveBeenCalledWith(expect.objectContaining({ pkceMethod: 'S256', onLoad: 'check-sso' }));
     expect(keycloakMocks.login).toHaveBeenCalledWith(expect.objectContaining({ redirectUri: `${window.location.origin}/auth/callback` }));
     expect(window.sessionStorage.getItem('compareshop-auth-return-to')).toBe('/offers?sort=price');
-    expect(window.localStorage.getItem('compareshop-auth-return-to-fallback')).toBe('/offers?sort=price');
   });
 
   it('loads caller permissions with the protected provider and keeps the permission snapshot in memory', async () => {
@@ -132,9 +131,14 @@ describe('OIDC auth flow', () => {
     expect(window.sessionStorage.getItem('compareshop-auth-return-to')).toBeNull();
   });
 
-  it('restores the same-origin destination from persistent fallback storage after the OIDC callback', async () => {
-    window.sessionStorage.clear();
-    window.localStorage.setItem('compareshop-auth-return-to-fallback', '/products');
+  it('restores the same-origin return path from session storage with the exact callback URI', async () => {
+    keycloakMocks.init.mockResolvedValueOnce(false).mockResolvedValueOnce(true);
+    const loginView = renderWithAuth(<LoginPage />, '/login?returnTo=%2Fproducts');
+
+    await waitFor(() => expect(keycloakMocks.login).toHaveBeenCalledWith(expect.objectContaining({ redirectUri: `${window.location.origin}/auth/callback` })));
+    expect(window.sessionStorage.getItem('compareshop-auth-return-to')).toBe('/products');
+    loginView.unmount();
+
     renderWithAuth(<><CallbackPage /><CurrentPath /></>, '/auth/callback');
 
     await waitFor(() => expect(screen.getByTestId('path').textContent).toBe('/products'));
@@ -144,9 +148,9 @@ describe('OIDC auth flow', () => {
     expect(sessionKeys.some(key => /token|identity/i.test(key))).toBe(false);
   });
 
-  it.each(['//evil.example/admin', 'https://evil.example/admin'])('falls back safely for an unsafe callback URL target: %s', async returnTo => {
+  it.each(['//evil.example/admin', 'https://evil.example/admin'])('falls back safely for an unsafe stored destination: %s', async returnTo => {
     window.sessionStorage.clear();
-    window.localStorage.setItem('compareshop-auth-return-to-fallback', returnTo);
+    window.sessionStorage.setItem('compareshop-auth-return-to', returnTo);
     renderWithAuth(<><CallbackPage /><CurrentPath /></>, '/auth/callback');
 
     await waitFor(() => expect(screen.getByTestId('path').textContent).toBe('/'));

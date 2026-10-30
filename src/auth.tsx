@@ -16,7 +16,7 @@ export type AuthContextValue = {
   callbackError: string | null;
   keycloak: Keycloak;
   retryPermissions: () => void;
-  login: () => Promise<void>;
+  login: (returnTo?: string) => Promise<void>;
   logout: () => Promise<void>;
   clearSession: () => void;
   requestAdmin: (path: string, init?: RequestInit) => Promise<Response>;
@@ -24,7 +24,6 @@ export type AuthContextValue = {
 };
 
 const RETURN_TO_KEY = 'compareshop-auth-return-to';
-const RETURN_TO_FALLBACK_KEY = 'compareshop-auth-return-to-fallback';
 const callbackUrl = `${window.location.origin}/auth/callback`;
 const silentSsoErrors = new Set(['login_required', 'interaction_required', 'consent_required', 'account_selection_required']);
 const keycloak = new Keycloak({
@@ -39,24 +38,6 @@ function requestedPath(): string {
   const current = `${window.location.pathname}${window.location.search}${window.location.hash}`;
   if (current === '/login' || current === '/auth/callback') return '/';
   return safeReturnPath(current);
-}
-
-function storeReturnPath(value: string): void {
-  const safePath = safeReturnPath(value);
-  try { window.sessionStorage.setItem(RETURN_TO_KEY, safePath); } catch { /* Use the persistent same-origin fallback below. */ }
-  try { window.localStorage.setItem(RETURN_TO_FALLBACK_KEY, safePath); } catch { /* Callback still falls back to the app root. */ }
-}
-
-function consumeReturnPath(): string {
-  let storedPath: string | null = null;
-  try { storedPath = window.sessionStorage.getItem(RETURN_TO_KEY); } catch { /* Try the persistent same-origin fallback. */ }
-  try {
-    const fallbackPath = window.localStorage.getItem(RETURN_TO_FALLBACK_KEY);
-    if (!storedPath) storedPath = fallbackPath;
-    window.localStorage.removeItem(RETURN_TO_FALLBACK_KEY);
-  } catch { /* Session storage may still contain the destination. */ }
-  try { window.sessionStorage.removeItem(RETURN_TO_KEY); } catch { /* One-time cleanup is best effort. */ }
-  return safeReturnPath(storedPath);
 }
 
 export function AuthLoadingScreen({ message = 'Đang xác thực phiên đăng nhập…' }: { message?: string }) {
@@ -78,8 +59,7 @@ export function LoginPage() {
     setError(null);
     try {
       const returnTo = safeReturnPath(searchParams.get('returnTo') || requestedPath());
-      storeReturnPath(returnTo);
-      await auth.login();
+      await auth.login(returnTo);
     } catch {
       setStarting(false);
       setError('Không thể kết nối với Keycloak. Vui lòng thử lại.');
@@ -107,7 +87,11 @@ export function CallbackPage() {
   const redirectToLogin = auth.status === 'anonymous' && auth.callbackError !== null && silentSsoErrors.has(auth.callbackError);
   useEffect(() => {
     if (auth.status === 'authenticated') {
-      const target = consumeReturnPath();
+      let target = '/';
+      try {
+        target = safeReturnPath(window.sessionStorage.getItem(RETURN_TO_KEY));
+        window.sessionStorage.removeItem(RETURN_TO_KEY);
+      } catch { /* The default same-origin root remains safe when storage is unavailable. */ }
       navigate(target, { replace: true });
     } else if (redirectToLogin) {
       navigate('/login', { replace: true });
@@ -190,9 +174,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => { void refreshPermissions(); }, [refreshPermissions]);
 
-  const login = useCallback(() => {
+  const login = useCallback((returnTo?: string) => {
     setPostLogout(false);
     clearPostLogout();
+    if (returnTo) window.sessionStorage.setItem(RETURN_TO_KEY, safeReturnPath(returnTo));
     return keycloak.login({ redirectUri: callbackUrl, scope: 'openid profile email' });
   }, []);
   const logout = useCallback(() => {
