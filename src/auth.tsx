@@ -16,7 +16,7 @@ export type AuthContextValue = {
   callbackError: string | null;
   keycloak: Keycloak;
   retryPermissions: () => void;
-  login: () => Promise<void>;
+  login: (returnTo?: string) => Promise<void>;
   logout: () => Promise<void>;
   clearSession: () => void;
   requestAdmin: (path: string, init?: RequestInit) => Promise<Response>;
@@ -58,8 +58,8 @@ export function LoginPage() {
     setStarting(true);
     setError(null);
     try {
-      window.sessionStorage.setItem(RETURN_TO_KEY, safeReturnPath(searchParams.get('returnTo') || requestedPath()));
-      await auth.login();
+      const returnTo = safeReturnPath(searchParams.get('returnTo') || requestedPath());
+      await auth.login(returnTo);
     } catch {
       setStarting(false);
       setError('Không thể kết nối với Keycloak. Vui lòng thử lại.');
@@ -174,9 +174,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => { void refreshPermissions(); }, [refreshPermissions]);
 
-  const login = useCallback(() => {
+  const login = useCallback((returnTo?: string) => {
     setPostLogout(false);
     clearPostLogout();
+    if (returnTo) window.sessionStorage.setItem(RETURN_TO_KEY, safeReturnPath(returnTo));
     return keycloak.login({ redirectUri: callbackUrl, scope: 'openid profile email' });
   }, []);
   const logout = useCallback(() => {
