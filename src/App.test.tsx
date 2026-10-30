@@ -124,7 +124,8 @@ describe('mobile application navigation', () => {
     expect(light).toHaveAttribute('aria-pressed', 'true');
     expect(document.querySelector('.admin-shell')).not.toHaveClass('dark');
 
-    fireEvent.click(screen.getByRole('button', { name: /Test Admin/ }));
+    fireEvent.click(screen.getByRole('button', { name: 'Open navigation' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Đăng xuất' }));
     expect(auth.logout).toHaveBeenCalledOnce();
   });
 });
