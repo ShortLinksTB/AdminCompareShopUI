@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useMemo, useState } from 'react';
+import { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { NavLink, Navigate, Outlet, Route, Routes, useLocation } from 'react-router-dom';
 import { matchingQueue, offers, products, shops, type Status } from './mockData';
 import { AuthLoadingScreen, AuthProvider, CallbackPage, ForbiddenPage, LoginPage, PermissionFailure, useAuth } from './auth';
@@ -22,6 +22,8 @@ function Shell() {
   const { userName, logout, permissions } = useAuth();
   const [dark, setDark] = useState(false);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  const mobileNavToggleRef = useRef<HTMLButtonElement>(null);
+  const mobileNavCloseRef = useRef<HTMLButtonElement>(null);
   const visibleNav = nav.filter(item => (!item.flag || flags[item.flag as FeatureKey]) && (item.to !== '/banned-items' || permissions.includes('compliance.read')));
   const initials = userName.slice(0, 1).toUpperCase();
 
@@ -31,34 +33,53 @@ function Shell() {
 
   useEffect(() => {
     if (!mobileNavOpen) return;
+    mobileNavCloseRef.current?.focus();
     const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') setMobileNavOpen(false);
+      if (event.key === 'Escape') {
+        setMobileNavOpen(false);
+        mobileNavToggleRef.current?.focus();
+        return;
+      }
+      if (event.key !== 'Tab') return;
+      const focusable = document.querySelectorAll<HTMLElement>(
+        '#admin-navigation button:not([disabled]), #admin-navigation a[href]'
+      );
+      if (!focusable.length) return;
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
     };
     window.addEventListener('keydown', closeOnEscape);
     return () => window.removeEventListener('keydown', closeOnEscape);
   }, [mobileNavOpen]);
 
   return <div className={`admin-shell${dark ? ' dark' : ''}`}>
-    <aside id="admin-navigation" className={`admin-sidebar${mobileNavOpen ? ' mobile-nav-open' : ''}`}>
+    <aside id="admin-navigation" className={`admin-sidebar${mobileNavOpen ? ' mobile-nav-open' : ''}`} role={mobileNavOpen ? 'dialog' : undefined} aria-modal={mobileNavOpen || undefined} aria-label={mobileNavOpen ? 'Application navigation' : undefined}>
       <div className="admin-brand">
         <span className="admin-brand-mark">G</span>
         <span>GiaTot<small>Admin console</small></span>
-        <button className="mobile-nav-close" aria-label="Close navigation" onClick={() => setMobileNavOpen(false)}>×</button>
+        <button ref={mobileNavCloseRef} className="mobile-nav-close" aria-label="Close navigation" onClick={() => { setMobileNavOpen(false); mobileNavToggleRef.current?.focus(); }}>×</button>
       </div>
       <div className="nav-label">WORKSPACE</div>
       <nav aria-label="Application navigation">
-        {visibleNav.map(item => <NavLink key={item.to} to={item.to} end={item.end} onClick={() => setMobileNavOpen(false)}><span>{item.icon}</span>{item.label}</NavLink>)}
+        {visibleNav.map(item => <NavLink key={item.to} to={item.to} end={item.end} onClick={() => { setMobileNavOpen(false); mobileNavToggleRef.current?.focus(); }}><span>{item.icon}</span>{item.label}</NavLink>)}
       </nav>
       <div className="sidebar-bottom">
         <button className="theme-button" onClick={() => setDark(value => !value)}>{dark ? '☼' : '◐'} {dark ? 'Light mode' : 'Dark mode'}</button>
         <div className="admin-user"><span className="user-avatar">{initials}</span><span><strong>{userName}</strong><small>Admin</small></span><button className="logout-button" aria-label="Đăng xuất" title="Đăng xuất" onClick={() => void logout()}>↪</button></div>
       </div>
     </aside>
-    {mobileNavOpen && <button className="mobile-nav-backdrop" aria-label="Close navigation" onClick={() => setMobileNavOpen(false)} />}
+    {mobileNavOpen && <button className="mobile-nav-backdrop" aria-label="Dismiss navigation overlay" onClick={() => { setMobileNavOpen(false); mobileNavToggleRef.current?.focus(); }} />}
     <main className="admin-main">
       <header className="admin-header">
         <div className="mobile-brand">
-          <button className="mobile-nav-toggle" aria-label={mobileNavOpen ? 'Close navigation' : 'Open navigation'} aria-controls="admin-navigation" aria-expanded={mobileNavOpen} onClick={() => setMobileNavOpen(value => !value)}>☰</button>
+          <button ref={mobileNavToggleRef} className="mobile-nav-toggle" aria-label={mobileNavOpen ? 'Close navigation' : 'Open navigation'} aria-controls="admin-navigation" aria-expanded={mobileNavOpen} onClick={() => setMobileNavOpen(value => !value)}>☰</button>
           <span className="admin-brand-mark">G</span> GiaTot Admin
         </div>
         <div className="admin-breadcrumb">GiaTot Admin <span>/</span> {location.pathname === '/banned-items/new' ? 'Banned items / Add item' : nav.find(item => item.to === location.pathname)?.label || 'Dashboard'}</div>
