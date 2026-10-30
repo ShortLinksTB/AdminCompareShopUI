@@ -108,4 +108,24 @@ describe('mobile application navigation', () => {
     expect(screen.queryByRole('dialog', { name: 'Application navigation' })).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Open navigation' })).toHaveFocus();
   });
+
+  it('exposes Light and Dark controls in the mobile header and preserves both theme states', () => {
+    renderApp();
+    const themeControls = screen.getByRole('group', { name: 'Color theme' });
+    const light = within(themeControls).getByRole('button', { name: 'Light' });
+    const dark = within(themeControls).getByRole('button', { name: 'Dark' });
+
+    expect(light).toHaveAttribute('aria-pressed', 'true');
+    expect(dark).toHaveAttribute('aria-pressed', 'false');
+    fireEvent.click(dark);
+    expect(dark).toHaveAttribute('aria-pressed', 'true');
+    expect(document.querySelector('.admin-shell')).toHaveClass('dark');
+    fireEvent.click(light);
+    expect(light).toHaveAttribute('aria-pressed', 'true');
+    expect(document.querySelector('.admin-shell')).not.toHaveClass('dark');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open navigation' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Đăng xuất' }));
+    expect(auth.logout).toHaveBeenCalledOnce();
+  });
 });
