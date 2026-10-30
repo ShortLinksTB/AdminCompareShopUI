@@ -208,13 +208,16 @@ describe('OIDC auth flow', () => {
   });
 
   it('renders Forbidden without ending the session on a 403', async () => {
-    vi.mocked(fetch)
-      .mockResolvedValueOnce(ok())
-      .mockResolvedValue(new Response('', { status: 403 }));
+    vi.mocked(fetch).mockImplementation(async input => {
+      const requestUrl = new URL(String(input));
+      return requestUrl.pathname === '/admin/products' ? new Response('', { status: 403 }) : ok();
+    });
     render(<MemoryRouter initialEntries={['/products']}><AuthProvider><Routes><Route path="/forbidden" element={<ForbiddenPage />} /><Route path="*" element={<StateProbe />} /></Routes></AuthProvider></MemoryRouter>);
     await waitFor(() => expect(screen.getByTestId('state')).toHaveTextContent('authenticated:ready:products.read'));
     fireEvent.click(screen.getByRole('button', { name: 'Request admin' }));
     await screen.findByText('Bạn không có quyền truy cập');
+    const requestedPaths = vi.mocked(fetch).mock.calls.map(([input]) => new URL(String(input)).pathname);
+    expect(requestedPaths).toContain('/admin/products');
     expect(keycloakMocks.clearToken).not.toHaveBeenCalled();
     expect(keycloakMocks.logout).not.toHaveBeenCalled();
   });
