@@ -83,7 +83,13 @@ function Shell() {
           <span className="admin-brand-mark">G</span> GiaTot Admin
         </div>
         <div className="admin-breadcrumb">GiaTot Admin <span>/</span> {location.pathname === '/banned-items/new' ? 'Banned items / Add item' : nav.find(item => item.to === location.pathname)?.label || 'Dashboard'}</div>
-        <div className="admin-header-actions"><button aria-label="Search">⌕</button><button aria-label="Notifications">♢<i>3</i></button><button className="admin-profile" onClick={() => void logout()}>{initials} <span>{userName}</span> · Đăng xuất</button></div>
+        <div className="admin-header-actions">
+          <div className="mobile-theme-controls" role="group" aria-label="Color theme">
+            <button type="button" aria-pressed={!dark} onClick={() => setDark(false)}>Light</button>
+            <button type="button" aria-pressed={dark} onClick={() => setDark(true)}>Dark</button>
+          </div>
+          <button aria-label="Search">⌕</button><button aria-label="Notifications">♢<i>3</i></button><button className="admin-profile" onClick={() => void logout()}>{initials} <span>{userName}</span> · Đăng xuất</button>
+        </div>
       </header>
       <div className="admin-content"><Outlet /></div>
     </main>
