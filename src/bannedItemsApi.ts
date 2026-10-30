@@ -36,6 +36,8 @@ export interface BanFilters {
   pageSize: number;
 }
 
+export type AdminRequest = (path: string, init?: RequestInit) => Promise<Response>;
+
 export class BanApiError extends Error {
   constructor(message: string, readonly status: number) {
     super(message);
@@ -43,14 +45,8 @@ export class BanApiError extends Error {
   }
 }
 
-const apiBase = (import.meta.env.VITE_COMPARESHOP_API_URL ?? '').replace(/\/$/, '');
-const bansUrl = `${apiBase}/admin/compliance/bans`;
-const productsUrl = `${apiBase}/admin/products`;
-
-function headers(): HeadersInit {
-  const token = window.localStorage.getItem('adminAccessToken');
-  return token ? { Authorization: `Bearer ${token}` } : {};
-}
+const bansPath = '/admin/compliance/bans';
+const productsPath = '/admin/products';
 
 async function assertResponse(response: Response): Promise<void> {
   if (response.ok) return;
@@ -75,7 +71,7 @@ async function assertResponse(response: Response): Promise<void> {
   throw new BanApiError(detail || statusMessage, response.status);
 }
 
-export async function getBannedItems(filters: BanFilters, signal?: AbortSignal): Promise<Page<BannedItem>> {
+export async function getBannedItems(requestAdmin: AdminRequest, filters: BanFilters, signal?: AbortSignal): Promise<Page<BannedItem>> {
   const params = new URLSearchParams({
     active: String(filters.active),
     page: String(filters.page),
@@ -84,22 +80,14 @@ export async function getBannedItems(filters: BanFilters, signal?: AbortSignal):
   if (filters.targetType !== 'all') params.set('targetType', filters.targetType);
   if (filters.search.trim()) params.set('search', filters.search.trim());
 
-  const response = await fetch(`${bansUrl}?${params}`, {
-    credentials: 'include',
-    headers: headers(),
-    signal,
-  });
+  const response = await requestAdmin(`${bansPath}?${params}`, { signal });
   await assertResponse(response);
   return response.json() as Promise<Page<BannedItem>>;
 }
 
-export async function getProductTargets(signal?: AbortSignal): Promise<ProductTarget[]> {
+export async function getProductTargets(requestAdmin: AdminRequest, signal?: AbortSignal): Promise<ProductTarget[]> {
   const fetchPage = async (page: number) => {
-    const response = await fetch(`${productsUrl}?page=${page}&pageSize=100`, {
-      credentials: 'include',
-      headers: headers(),
-      signal,
-    });
+    const response = await requestAdmin(`${productsPath}?page=${page}&pageSize=100`, { signal });
     await assertResponse(response);
     return response.json() as Promise<Page<ProductTarget>>;
   };
@@ -111,21 +99,16 @@ export async function getProductTargets(signal?: AbortSignal): Promise<ProductTa
   return [...firstPage.items, ...remaining.flatMap(result => result.items)];
 }
 
-export async function createBannedItem(input: { targetType: 'Brand'; brandName: string; reason: string } | { targetType: 'Product'; productId: number; reason: string }): Promise<void> {
-  const response = await fetch(bansUrl, {
+export async function createBannedItem(requestAdmin: AdminRequest, input: { targetType: 'Brand'; brandName: string; reason: string } | { targetType: 'Product'; productId: number; reason: string }): Promise<void> {
+  const response = await requestAdmin(bansPath, {
     method: 'POST',
-    credentials: 'include',
-    headers: { 'Content-Type': 'application/json', ...headers() },
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(input),
   });
   await assertResponse(response);
 }
 
-export async function revokeBannedItem(id: string): Promise<void> {
-  const response = await fetch(`${bansUrl}/${encodeURIComponent(id)}`, {
-    method: 'DELETE',
-    credentials: 'include',
-    headers: headers(),
-  });
+export async function revokeBannedItem(requestAdmin: AdminRequest, id: string): Promise<void> {
+  const response = await requestAdmin(`${bansPath}/${encodeURIComponent(id)}`, { method: 'DELETE' });
   await assertResponse(response);
 }

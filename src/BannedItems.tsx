@@ -1,8 +1,7 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { Navigate, useLocation, useNavigate } from 'react-router-dom';
-import { BanApiError, createBannedItem, getBannedItems, getProductTargets, revokeBannedItem, type BanTargetType, type BannedItem, type ProductTarget } from './bannedItemsApi';
+import { BanApiError, createBannedItem, getBannedItems, getProductTargets, revokeBannedItem, type AdminRequest, type BanTargetType, type BannedItem, type ProductTarget } from './bannedItemsApi';
 import './bannedItems.css';
-import { hasPermission, type AdminIdentity } from './permissions';
 
 const pageSize = 20;
 const dateTime = (value?: string | null) => value
@@ -13,18 +12,18 @@ function targetName(item: BannedItem) {
   return item.targetType === 'Brand' ? item.brandName || 'Unnamed brand' : item.productName || item.productId || 'Unnamed product';
 }
 
-export function BannedItemsRoute({ identity }: { identity: AdminIdentity | null }) {
+export function BannedItemsRoute({ permissions, requestAdmin }: { permissions: string[]; requestAdmin: AdminRequest }) {
   const location = useLocation();
-  const canRead = hasPermission(identity, 'compliance.read');
-  const canManage = hasPermission(identity, 'compliance.manage');
+  const canRead = permissions.includes('compliance.read');
+  const canManage = permissions.includes('compliance.manage');
   const navigate = useNavigate();
   if (!canRead) return <Navigate to="/" replace />;
   return location.pathname.endsWith('/new')
-    ? <BannedItemForm canManage={canManage} fullScreen onCancel={() => navigate('/banned-items')} onCreated={() => navigate('/banned-items')} />
-    : <BannedItemsPage canManage={canManage} />;
+    ? <BannedItemForm canManage={canManage} requestAdmin={requestAdmin} fullScreen onCancel={() => navigate('/banned-items')} onCreated={() => navigate('/banned-items')} />
+    : <BannedItemsPage canManage={canManage} requestAdmin={requestAdmin} />;
 }
 
-function BannedItemsPage({ canManage }: { canManage: boolean }) {
+function BannedItemsPage({ canManage, requestAdmin }: { canManage: boolean; requestAdmin: AdminRequest }) {
   const navigate = useNavigate();
   const [items, setItems] = useState<BannedItem[]>([]);
   const [active, setActive] = useState(true);
@@ -56,7 +55,7 @@ function BannedItemsPage({ canManage }: { canManage: boolean }) {
     const controller = new AbortController();
     setLoading(true);
     setError('');
-    getBannedItems({ active, targetType, search: query, page, pageSize }, controller.signal)
+    getBannedItems(requestAdmin, { active, targetType, search: query, page, pageSize }, controller.signal)
       .then(result => {
         setItems(result.items);
         setTotalItems(result.totalItems);
@@ -77,7 +76,7 @@ function BannedItemsPage({ canManage }: { canManage: boolean }) {
     setRevoking(true);
     setError('');
     try {
-      await revokeBannedItem(pendingRevoke.id);
+      await revokeBannedItem(requestAdmin, pendingRevoke.id);
       setPendingRevoke(null);
       if (items.length === 1 && page > 1) setPage(current => current - 1);
       else setItems(current => current.filter(item => item.id !== pendingRevoke.id));
@@ -131,7 +130,7 @@ function BannedItemsPage({ canManage }: { canManage: boolean }) {
       {error && <div className="banned-alert" role="alert">{error}</div>}
       <div><button className="outline-button" disabled={revoking} onClick={() => setPendingRevoke(null)}>Cancel</button><button className="banned-danger-button" disabled={revoking} onClick={revoke}>{revoking ? 'Revoking…' : 'Revoke ban'}</button></div>
     </section></div>}
-    {addOpen && <BannedItemForm canManage fullScreen={false} onCancel={() => setAddOpen(false)} onCreated={() => { setAddOpen(false); setReloadKey(current => current + 1); }} />}
+    {addOpen && <BannedItemForm canManage requestAdmin={requestAdmin} fullScreen={false} onCancel={() => setAddOpen(false)} onCreated={() => { setAddOpen(false); setReloadKey(current => current + 1); }} />}
   </div>;
 }
 
@@ -143,7 +142,7 @@ function BannedItemsLoading() {
   </div>;
 }
 
-function BannedItemForm({ canManage, fullScreen, onCancel, onCreated }: { canManage: boolean; fullScreen: boolean; onCancel: () => void; onCreated: () => void }) {
+function BannedItemForm({ canManage, requestAdmin, fullScreen, onCancel, onCreated }: { canManage: boolean; requestAdmin: AdminRequest; fullScreen: boolean; onCancel: () => void; onCreated: () => void }) {
   const [targetType, setTargetType] = useState<BanTargetType>('Brand');
   const [targets, setTargets] = useState<ProductTarget[]>([]);
   const [targetsLoading, setTargetsLoading] = useState(true);
@@ -159,14 +158,14 @@ function BannedItemForm({ canManage, fullScreen, onCancel, onCreated }: { canMan
     const controller = new AbortController();
     setTargetsLoading(true);
     setTargetLoadError('');
-    getProductTargets(controller.signal)
+    getProductTargets(requestAdmin, controller.signal)
       .then(result => setTargets(result.filter(product => product.isActive)))
       .catch(failure => {
         if (failure instanceof DOMException && failure.name === 'AbortError') return;
         setTargetLoadError(failure instanceof Error ? failure.message : 'Unable to load catalog targets.');
       })
       .finally(() => { if (!controller.signal.aborted) setTargetsLoading(false); });
-    getBannedItems({ active: true, targetType: 'all', search: '', page: 1, pageSize: 3 }, controller.signal)
+    getBannedItems(requestAdmin, { active: true, targetType: 'all', search: '', page: 1, pageSize: 3 }, controller.signal)
       .then(result => setRecent(result.items))
       .catch(() => setRecent([]));
     return () => controller.abort();
@@ -188,11 +187,11 @@ function BannedItemForm({ canManage, fullScreen, onCancel, onCreated }: { canMan
         const brandName = selectedTarget?.brand?.trim();
         if (!brandName) throw new Error('Choose a brand from the catalog.');
         if (!reason.trim()) throw new Error('Enter a ban reason.');
-        await createBannedItem({ targetType, brandName, reason: reason.trim() });
+        await createBannedItem(requestAdmin, { targetType, brandName, reason: reason.trim() });
       } else {
         if (!selectedTarget) throw new Error('Choose a product from the catalog.');
         if (!reason.trim()) throw new Error('Enter a ban reason.');
-        await createBannedItem({ targetType, productId: selectedTarget.id, reason: reason.trim() });
+        await createBannedItem(requestAdmin, { targetType, productId: selectedTarget.id, reason: reason.trim() });
       }
       onCreated();
     } catch (failure) {
