@@ -123,5 +123,8 @@ describe('mobile application navigation', () => {
     fireEvent.click(light);
     expect(light).toHaveAttribute('aria-pressed', 'true');
     expect(document.querySelector('.admin-shell')).not.toHaveClass('dark');
+
+    fireEvent.click(screen.getByRole('button', { name: /Test Admin/ }));
+    expect(auth.logout).toHaveBeenCalledOnce();
   });
 });
