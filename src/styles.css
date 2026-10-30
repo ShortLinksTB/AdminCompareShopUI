@@ -27,7 +27,7 @@
   .dark .mobile-nav-toggle{color:var(--text)}
   .admin-sidebar .theme-button{display:none}
   .admin-header-actions>button[aria-label="Search"],.admin-header-actions>button[aria-label="Notifications"]{display:none}
-  .admin-header-actions>.admin-profile{display:none}
+  .admin-header-actions .admin-profile{display:none!important}
   .mobile-theme-controls{display:flex;align-items:center;gap:2px;padding:3px;border:1px solid var(--border);border-radius:9px;background:var(--surface-alt)}
   .mobile-theme-controls button{min-width:42px;min-height:36px;padding:0 7px;border:0;border-radius:6px;background:transparent;color:var(--muted);font-size:11px;font-weight:650}
   .mobile-theme-controls button[aria-pressed="true"]{background:var(--surface);color:var(--text);box-shadow:0 1px 3px rgba(20,30,40,.14)}
