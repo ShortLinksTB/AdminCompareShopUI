@@ -158,9 +158,11 @@ describe('Banned items routes', () => {
     expect(await screen.findByText('No matching brand found.')).toBeTruthy();
   });
 
-  it('redirects away from the add-item form when the current permissions only allow read access', async () => {
-    renderRoute('/banned-items/new', ['compliance.read']);
+  it('redirects away from the add-item form when the current permissions only allow read access, without starting any catalog or management request', async () => {
+    renderApp('/banned-items/new', ['compliance.read']);
     expect(await screen.findByRole('heading', { name: 'Dashboard' })).toBeTruthy();
+    expect(getProductTargets).not.toHaveBeenCalled();
+    expect(getBannedItems).not.toHaveBeenCalled();
   });
 
   it('creates product bans from the searchable catalog and displays a 409 response', async () => {

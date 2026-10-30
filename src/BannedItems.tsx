@@ -18,9 +18,11 @@ export function BannedItemsRoute({ permissions, requestAdmin }: { permissions: s
   const canManage = permissions.includes('compliance.manage');
   const navigate = useNavigate();
   if (!canRead) return <Navigate to="/" replace />;
-  return location.pathname.endsWith('/new')
-    ? <BannedItemForm canManage={canManage} requestAdmin={requestAdmin} fullScreen onCancel={() => navigate('/banned-items')} onCreated={() => navigate('/banned-items')} />
-    : <BannedItemsPage canManage={canManage} requestAdmin={requestAdmin} />;
+  if (location.pathname.endsWith('/new')) {
+    if (!canManage) return <Navigate to="/" replace />;
+    return <BannedItemForm canManage requestAdmin={requestAdmin} fullScreen onCancel={() => navigate('/banned-items')} onCreated={() => navigate('/banned-items')} />;
+  }
+  return <BannedItemsPage canManage={canManage} requestAdmin={requestAdmin} />;
 }
 
 function BannedItemsPage({ canManage, requestAdmin }: { canManage: boolean; requestAdmin: AdminRequest }) {
