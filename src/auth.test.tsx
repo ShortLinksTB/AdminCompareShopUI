@@ -96,7 +96,7 @@ describe('OIDC auth flow', () => {
 
     await waitFor(() => expect(keycloakMocks.login).toHaveBeenCalledOnce());
     expect(keycloakMocks.init).toHaveBeenCalledWith(expect.objectContaining({ pkceMethod: 'S256', onLoad: 'check-sso' }));
-    expect(keycloakMocks.login).toHaveBeenCalledWith(expect.objectContaining({ redirectUri: `${window.location.origin}/auth/callback` }));
+    expect(keycloakMocks.login).toHaveBeenCalledWith(expect.objectContaining({ redirectUri: `${window.location.origin}/auth/callback?returnTo=%2Foffers%3Fsort%3Dprice` }));
     expect(window.sessionStorage.getItem('compareshop-auth-return-to')).toBe('/offers?sort=price');
   });
 
@@ -129,6 +129,25 @@ describe('OIDC auth flow', () => {
     renderWithAuth(<><CallbackPage /><CurrentPath /></>, '/auth/callback');
     await waitFor(() => expect(screen.getByTestId('path').textContent).toBe('/products/42'));
     expect(window.sessionStorage.getItem('compareshop-auth-return-to')).toBeNull();
+  });
+
+  it('restores the same-origin return path carried through the OIDC callback', async () => {
+    window.sessionStorage.clear();
+    renderWithAuth(<><CallbackPage /><CurrentPath /></>, '/auth/callback?returnTo=%2Fproducts');
+
+    await waitFor(() => expect(screen.getByTestId('path').textContent).toBe('/products'));
+    expect(window.sessionStorage.getItem('compareshop-auth-return-to')).toBeNull();
+    expect(window.localStorage.length).toBe(0);
+    const sessionKeys = [...Array(window.sessionStorage.length)].map((_, index) => window.sessionStorage.key(index) || '');
+    expect(sessionKeys.some(key => /token|identity/i.test(key))).toBe(false);
+  });
+
+  it.each(['//evil.example/admin', 'https://evil.example/admin'])('falls back safely for an unsafe callback URL target: %s', async returnTo => {
+    window.sessionStorage.clear();
+    renderWithAuth(<><CallbackPage /><CurrentPath /></>, `/auth/callback?returnTo=${encodeURIComponent(returnTo)}`);
+
+    await waitFor(() => expect(screen.getByTestId('path').textContent).toBe('/'));
+    expect(screen.getByTestId('path').textContent).not.toContain('evil.example');
   });
 
   it('falls back to root for an unsafe callback destination', async () => {

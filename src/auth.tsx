@@ -16,7 +16,7 @@ export type AuthContextValue = {
   callbackError: string | null;
   keycloak: Keycloak;
   retryPermissions: () => void;
-  login: () => Promise<void>;
+  login: (returnTo?: string) => Promise<void>;
   logout: () => Promise<void>;
   clearSession: () => void;
   requestAdmin: (path: string, init?: RequestInit) => Promise<Response>;
@@ -58,8 +58,9 @@ export function LoginPage() {
     setStarting(true);
     setError(null);
     try {
-      window.sessionStorage.setItem(RETURN_TO_KEY, safeReturnPath(searchParams.get('returnTo') || requestedPath()));
-      await auth.login();
+      const returnTo = safeReturnPath(searchParams.get('returnTo') || requestedPath());
+      window.sessionStorage.setItem(RETURN_TO_KEY, returnTo);
+      await auth.login(returnTo);
     } catch {
       setStarting(false);
       setError('Không thể kết nối với Keycloak. Vui lòng thử lại.');
@@ -84,19 +85,20 @@ export function LoginPage() {
 export function CallbackPage() {
   const auth = useAuth();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const redirectToLogin = auth.status === 'anonymous' && auth.callbackError !== null && silentSsoErrors.has(auth.callbackError);
   useEffect(() => {
     if (auth.status === 'authenticated') {
       let target = '/';
       try {
-        target = safeReturnPath(window.sessionStorage.getItem(RETURN_TO_KEY));
+        target = safeReturnPath(searchParams.get('returnTo') || window.sessionStorage.getItem(RETURN_TO_KEY));
         window.sessionStorage.removeItem(RETURN_TO_KEY);
       } catch { /* The default same-origin root remains safe when storage is unavailable. */ }
       navigate(target, { replace: true });
     } else if (redirectToLogin) {
       navigate('/login', { replace: true });
     }
-  }, [auth.status, navigate, redirectToLogin]);
+  }, [auth.status, navigate, redirectToLogin, searchParams]);
   if (auth.status === 'error' || (auth.status === 'anonymous' && !redirectToLogin)) return <main className="auth-canvas"><section className="auth-card"><Brand /><h1>Không thể hoàn tất đăng nhập</h1><p>Phiên đăng nhập chưa được xác nhận. Hãy thử lại để tiếp tục an toàn.</p><a className="auth-primary" href="/login">Thử đăng nhập lại</a></section></main>;
   return <AuthLoadingScreen message="Đang hoàn tất đăng nhập" />;
 }
@@ -174,10 +176,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => { void refreshPermissions(); }, [refreshPermissions]);
 
-  const login = useCallback(() => {
+  const login = useCallback((returnTo?: string) => {
     setPostLogout(false);
     clearPostLogout();
-    return keycloak.login({ redirectUri: callbackUrl, scope: 'openid profile email' });
+    const redirectUri = new URL(callbackUrl);
+    if (returnTo) redirectUri.searchParams.set('returnTo', safeReturnPath(returnTo));
+    return keycloak.login({ redirectUri: redirectUri.toString(), scope: 'openid profile email' });
   }, []);
   const logout = useCallback(() => {
     setPermissions([]);
