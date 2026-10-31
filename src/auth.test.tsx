@@ -148,6 +148,26 @@ describe('OIDC auth flow', () => {
     expect(sessionKeys.some(key => /token|identity/i.test(key))).toBe(false);
   });
 
+  it('restores the exact returnTo through the callback cookie when session storage is cleared by the redirect', async () => {
+    keycloakMocks.init.mockResolvedValueOnce(false).mockResolvedValueOnce(true);
+    const loginView = renderWithAuth(<LoginPage />, '/login?returnTo=%2Fproducts');
+
+    await waitFor(() => expect(keycloakMocks.login).toHaveBeenCalledWith(expect.objectContaining({ redirectUri: `${window.location.origin}/auth/callback` })));
+    expect(window.sessionStorage.getItem('compareshop-auth-return-to')).toBe('/products');
+    window.history.replaceState(window.history.state, '', '/auth/callback');
+    expect(document.cookie).toContain('compareshop-auth-return-to=%2Fproducts');
+    window.sessionStorage.clear();
+    loginView.unmount();
+
+    renderWithAuth(<><CallbackPage /><CurrentPath /></>, '/auth/callback');
+
+    await waitFor(() => expect(screen.getByTestId('path').textContent).toBe('/products'));
+    expect(document.cookie).not.toContain('compareshop-auth-return-to=');
+    expect(window.localStorage.length).toBe(0);
+    const sessionKeys = [...Array(window.sessionStorage.length)].map((_, index) => window.sessionStorage.key(index) || '');
+    expect(sessionKeys.some(key => /token|identity/i.test(key))).toBe(false);
+  });
+
   it.each(['//evil.example/admin', 'https://evil.example/admin'])('falls back safely for an unsafe stored destination: %s', async returnTo => {
     window.sessionStorage.clear();
     window.sessionStorage.setItem('compareshop-auth-return-to', returnTo);

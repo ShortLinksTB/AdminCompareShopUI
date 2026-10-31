@@ -2,7 +2,7 @@ import Keycloak from 'keycloak-js';
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { adminRequest } from './api-client';
-import { clearPostLogout, consumePostLogout, markPostLogout, safeReturnPath } from './auth-utils';
+import { clearPostLogout, consumePostLogout, consumeReturnTo, markPostLogout, safeReturnPath, storeReturnTo } from './auth-utils';
 import { fetchPermissions } from './auth-service';
 
 type AuthStatus = 'loading' | 'authenticated' | 'anonymous' | 'logging-out' | 'error';
@@ -23,7 +23,6 @@ export type AuthContextValue = {
   postLogout: boolean;
 };
 
-const RETURN_TO_KEY = 'compareshop-auth-return-to';
 const callbackUrl = `${window.location.origin}/auth/callback`;
 const silentSsoErrors = new Set(['login_required', 'interaction_required', 'consent_required', 'account_selection_required']);
 const keycloak = new Keycloak({
@@ -87,11 +86,7 @@ export function CallbackPage() {
   const redirectToLogin = auth.status === 'anonymous' && auth.callbackError !== null && silentSsoErrors.has(auth.callbackError);
   useEffect(() => {
     if (auth.status === 'authenticated') {
-      let target = '/';
-      try {
-        target = safeReturnPath(window.sessionStorage.getItem(RETURN_TO_KEY));
-        window.sessionStorage.removeItem(RETURN_TO_KEY);
-      } catch { /* The default same-origin root remains safe when storage is unavailable. */ }
+      const target = consumeReturnTo();
       navigate(target, { replace: true });
     } else if (redirectToLogin) {
       navigate('/login', { replace: true });
@@ -177,7 +172,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const login = useCallback((returnTo?: string) => {
     setPostLogout(false);
     clearPostLogout();
-    if (returnTo) window.sessionStorage.setItem(RETURN_TO_KEY, safeReturnPath(returnTo));
+    if (returnTo) storeReturnTo(safeReturnPath(returnTo));
     return keycloak.login({ redirectUri: callbackUrl, scope: 'openid profile email' });
   }, []);
   const logout = useCallback(() => {
