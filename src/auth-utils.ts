@@ -1,5 +1,7 @@
 const POST_LOGOUT_KEY = 'compareshop-post-logout';
 const RETURN_TO_COOKIE = 'compareshop-auth-return-to';
+const RETURN_TO_LOCAL_KEY = 'compareshop-auth-return-to-fallback';
+const RETURN_TO_MAX_AGE_MS = 10 * 60 * 1000;
 
 export function safeReturnPath(value: string | null | undefined, origin = window.location.origin): string {
   if (!value || !value.startsWith('/') || value.startsWith('//') || value.startsWith('/\\')) return '/';
@@ -15,6 +17,9 @@ export function storeReturnPath(value: string, storage: Storage = window.session
   const safePath = safeReturnPath(value);
   try { storage.setItem(RETURN_TO_COOKIE, safePath); } catch { /* The callback cookie is a short-lived fallback for browser redirects. */ }
   try {
+    window.localStorage.setItem(RETURN_TO_LOCAL_KEY, JSON.stringify({ path: safePath, expiresAt: Date.now() + RETURN_TO_MAX_AGE_MS }));
+  } catch { /* The callback cookie and session storage remain available as fallbacks. */ }
+  try {
     const secure = window.location.protocol === 'https:' ? '; Secure' : '';
     document.cookie = `${RETURN_TO_COOKIE}=${encodeURIComponent(safePath)}; Path=/; Max-Age=600; SameSite=Lax${secure}`;
   } catch { /* Session storage remains the primary same-tab return-path store. */ }
@@ -26,6 +31,14 @@ export function consumeReturnPath(storage: Storage = window.sessionStorage): str
     path = storage.getItem(RETURN_TO_COOKIE);
     storage.removeItem(RETURN_TO_COOKIE);
   } catch { /* Fall back to the short-lived callback cookie. */ }
+  try {
+    const fallback = window.localStorage.getItem(RETURN_TO_LOCAL_KEY);
+    window.localStorage.removeItem(RETURN_TO_LOCAL_KEY);
+    if (path === null && fallback) {
+      const saved = JSON.parse(fallback) as { path?: unknown; expiresAt?: unknown };
+      if (typeof saved.path === 'string' && typeof saved.expiresAt === 'number' && Number.isFinite(saved.expiresAt) && saved.expiresAt > Date.now() && saved.expiresAt <= Date.now() + RETURN_TO_MAX_AGE_MS) path = saved.path;
+    }
+  } catch { /* The session path and short-lived cookie remain available as fallbacks. */ }
   try {
     const cookie = document.cookie.split('; ').find(item => item.startsWith(`${RETURN_TO_COOKIE}=`));
     if (path === null && cookie) path = decodeURIComponent(cookie.slice(RETURN_TO_COOKIE.length + 1));
