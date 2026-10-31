@@ -30,8 +30,13 @@ vi.mock('./BannedItems', () => ({
   },
 }));
 
-function renderApp() {
-  return render(<MemoryRouter initialEntries={['/']}><App /></MemoryRouter>);
+function CurrentRoute() {
+  const location = useLocation();
+  return <output data-testid="current-route">{location.pathname}{location.search}{location.hash}</output>;
+}
+
+function renderApp(initialEntry = '/') {
+  return render(<MemoryRouter initialEntries={[initialEntry]}><App /><CurrentRoute /></MemoryRouter>);
 }
 
 afterEach(() => {
@@ -41,6 +46,20 @@ afterEach(() => {
 });
 
 describe('mobile application navigation', () => {
+  it('restores a validated returnTo route when an authenticated user opens login', () => {
+    renderApp('/login?returnTo=%2Fproducts');
+
+    expect(screen.getByTestId('current-route')).toHaveTextContent('/products');
+    expect(screen.getByRole('heading', { name: 'Products' })).toBeInTheDocument();
+  });
+
+  it('falls back to the app root for a protocol-relative login returnTo', () => {
+    renderApp('/login?returnTo=%2F%2Fevil.example%2Fadmin');
+
+    expect(screen.getByTestId('current-route')).toHaveTextContent('/');
+    expect(screen.getByRole('heading', { name: 'Dashboard' })).toBeInTheDocument();
+  });
+
   it('opens an accessible drawer with Banned items for compliance readers and returns focus on Escape', () => {
     auth.permissions = ['compliance.read'];
     renderApp();
