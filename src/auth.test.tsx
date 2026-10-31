@@ -73,6 +73,8 @@ afterEach(() => {
   cleanup();
   vi.unstubAllGlobals();
   window.sessionStorage.clear();
+  document.cookie = 'compareshop-auth-return-to=; Path=/; Max-Age=0; SameSite=Lax';
+  window.history.replaceState(window.history.state, '', '/');
 });
 
 describe('OIDC auth flow', () => {
@@ -131,18 +133,22 @@ describe('OIDC auth flow', () => {
     expect(window.sessionStorage.getItem('compareshop-auth-return-to')).toBeNull();
   });
 
-  it('restores the same-origin return path from session storage with the exact callback URI', async () => {
+  it('restores the same-origin return path after the identity-provider round trip with the exact callback URI', async () => {
     keycloakMocks.init.mockResolvedValueOnce(false).mockResolvedValueOnce(true);
     const loginView = renderWithAuth(<LoginPage />, '/login?returnTo=%2Fproducts');
 
     await waitFor(() => expect(keycloakMocks.login).toHaveBeenCalledWith(expect.objectContaining({ redirectUri: `${window.location.origin}/auth/callback` })));
     expect(window.sessionStorage.getItem('compareshop-auth-return-to')).toBe('/products');
     loginView.unmount();
+    // Model browsers that discard tab session state while returning from the identity provider.
+    window.sessionStorage.clear();
+    window.history.replaceState(window.history.state, '', '/auth/callback');
 
     renderWithAuth(<><CallbackPage /><CurrentPath /></>, '/auth/callback');
 
     await waitFor(() => expect(screen.getByTestId('path').textContent).toBe('/products'));
     expect(window.sessionStorage.getItem('compareshop-auth-return-to')).toBeNull();
+    expect(document.cookie).not.toContain('compareshop-auth-return-to=');
     expect(window.localStorage.length).toBe(0);
     const sessionKeys = [...Array(window.sessionStorage.length)].map((_, index) => window.sessionStorage.key(index) || '');
     expect(sessionKeys.some(key => /token|identity/i.test(key))).toBe(false);
