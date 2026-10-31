@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { BrowserRouter, useLocation } from 'react-router-dom';
 import { App } from './App';
 
-const keycloakMocks = vi.hoisted(() => ({ init: vi.fn(), login: vi.fn(), logout: vi.fn(), updateToken: vi.fn(), clearToken: vi.fn() }));
+const keycloakMocks = vi.hoisted(() => ({ init: vi.fn(), login: vi.fn(), logout: vi.fn(), updateToken: vi.fn(), clearToken: vi.fn(), returnPathAtLogin: null as string | null }));
 
 vi.mock('keycloak-js', () => ({
   default: class MockKeycloak {
@@ -36,6 +36,7 @@ beforeEach(() => {
   setBrowserPath('/login?returnTo=%2Fproducts');
   keycloakMocks.init.mockReset().mockImplementation(async () => window.location.pathname === '/auth/callback');
   keycloakMocks.login.mockReset().mockImplementation(async () => {
+    keycloakMocks.returnPathAtLogin = window.sessionStorage.getItem('compareshop-auth-return-to');
     // A top-level identity-provider round trip may lose tab state and cookies.
     window.sessionStorage.clear();
     document.cookie = 'compareshop-auth-return-to=; Path=/; Max-Age=0; SameSite=Lax';
@@ -43,6 +44,7 @@ beforeEach(() => {
   keycloakMocks.logout.mockReset().mockResolvedValue(undefined);
   keycloakMocks.updateToken.mockReset().mockResolvedValue(undefined);
   keycloakMocks.clearToken.mockReset();
+  keycloakMocks.returnPathAtLogin = null;
   window.sessionStorage.clear();
   window.localStorage.clear();
   document.cookie = 'compareshop-auth-return-to=; Path=/; Max-Age=0; SameSite=Lax';
@@ -59,6 +61,28 @@ afterEach(() => {
 });
 
 describe('application OIDC browser return flow', () => {
+  it('stores the validated route before Keycloak redirects and consumes it at the callback effect', async () => {
+    keycloakMocks.login.mockReset().mockImplementation(async () => {
+      keycloakMocks.returnPathAtLogin = window.sessionStorage.getItem('compareshop-auth-return-to');
+    });
+    const loginPage = renderBrowserApp();
+    await waitFor(() => expect(keycloakMocks.login).toHaveBeenCalled());
+    expect(keycloakMocks.returnPathAtLogin).toBe('/products');
+
+    // A same-tab Keycloak round trip preserves sessionStorage; verify the callback consumes this exact value.
+    loginPage.unmount();
+    setBrowserPath('/auth/callback?code=authorization-code&state=interactive-state');
+    expect(window.sessionStorage.getItem('compareshop-auth-return-to')).toBe('/products');
+    renderBrowserApp();
+
+    expect(await screen.findByRole('heading', { name: 'Products' })).toBeInTheDocument();
+    expect(screen.getByTestId('current-route')).toHaveTextContent('/products');
+    expect(window.localStorage.length).toBe(0);
+    expect(window.sessionStorage.length).toBe(0);
+    expect(document.cookie).not.toContain('compareshop-auth-return-to=');
+    expect(keycloakMocks.clearToken).not.toHaveBeenCalled();
+  });
+
   it('preserves returnTo across the initial silent SSO login_required callback and interactive login', async () => {
     let finishSilentSso!: (authenticated: boolean) => void;
     keycloakMocks.init.mockReset().mockImplementationOnce(() => new Promise(resolve => { finishSilentSso = resolve; }));
