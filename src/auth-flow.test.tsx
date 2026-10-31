@@ -1,5 +1,5 @@
 import { StrictMode } from 'react';
-import { cleanup, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, render, screen, waitFor } from '@testing-library/react';
 import '@testing-library/jest-dom/vitest';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { BrowserRouter, useLocation } from 'react-router-dom';
@@ -59,6 +59,44 @@ afterEach(() => {
 });
 
 describe('application OIDC browser return flow', () => {
+  it('preserves returnTo across the initial silent SSO login_required callback and interactive login', async () => {
+    let finishSilentSso!: (authenticated: boolean) => void;
+    keycloakMocks.init.mockReset().mockImplementationOnce(() => new Promise(resolve => { finishSilentSso = resolve; }));
+
+    const initialLogin = renderBrowserApp();
+    await waitFor(() => expect(keycloakMocks.init).toHaveBeenCalledWith(expect.objectContaining({ onLoad: 'check-sso', redirectUri: `${window.location.origin}/auth/callback` })));
+    const savedPath = JSON.parse(window.localStorage.getItem('compareshop-auth-return-to-fallback') || '{}') as { path?: string; expiresAt?: number };
+    expect(savedPath.path).toBe('/products');
+    expect(Object.keys(savedPath).sort()).toEqual(['expiresAt', 'path']);
+    expect(JSON.stringify(savedPath)).not.toMatch(/token|identity/i);
+
+    // Keycloak's initial check-sso can return to the same callback route with login_required before interactive login starts.
+    initialLogin.unmount();
+    await act(async () => { finishSilentSso(false); });
+    await act(async () => { await Promise.resolve(); });
+    keycloakMocks.init.mockImplementation(async () => window.location.pathname === '/auth/callback' && !new URLSearchParams(window.location.search).has('error'));
+
+    setBrowserPath('/auth/callback?error=login_required&state=silent-state');
+    const silentCallback = renderBrowserApp();
+    await waitFor(() => expect(keycloakMocks.login).toHaveBeenCalledWith(expect.objectContaining({ redirectUri: `${window.location.origin}/auth/callback` })));
+    expect(screen.getByTestId('current-route')).toHaveTextContent('/login?returnTo=%2Fproducts');
+    expect(window.localStorage.getItem('compareshop-auth-return-to-fallback')).toContain('/products');
+
+    // The following full-page Keycloak return starts a fresh app at the successful callback route.
+    silentCallback.unmount();
+    window.sessionStorage.clear();
+    document.cookie = 'compareshop-auth-return-to=; Path=/; Max-Age=0; SameSite=Lax';
+    setBrowserPath('/auth/callback?code=authorization-code&state=interactive-state');
+    renderBrowserApp();
+
+    expect(await screen.findByRole('heading', { name: 'Products' })).toBeInTheDocument();
+    expect(screen.getByTestId('current-route')).toHaveTextContent('/products');
+    expect(window.localStorage.length).toBe(0);
+    expect(window.sessionStorage.length).toBe(0);
+    expect(document.cookie).not.toContain('compareshop-auth-return-to=');
+    expect(keycloakMocks.clearToken).not.toHaveBeenCalled();
+  });
+
   it('restores /products through the real LoginRoute and callback route after tab state and cookies are lost', async () => {
     const loginPage = renderBrowserApp();
     await waitFor(() => expect(keycloakMocks.login).toHaveBeenCalledWith(expect.objectContaining({ redirectUri: `${window.location.origin}/auth/callback` })));

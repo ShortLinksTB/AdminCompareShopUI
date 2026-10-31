@@ -89,7 +89,8 @@ export function CallbackPage() {
       const target = consumeReturnPath();
       navigate(target, { replace: true });
     } else if (redirectToLogin) {
-      navigate('/login', { replace: true });
+      const target = consumeReturnPath();
+      navigate(`/login?returnTo=${encodeURIComponent(target)}`, { replace: true });
     }
   }, [auth.status, navigate, redirectToLogin]);
   if (auth.status === 'error' || (auth.status === 'anonymous' && !redirectToLogin)) return <main className="auth-canvas"><section className="auth-card"><Brand /><h1>Không thể hoàn tất đăng nhập</h1><p>Phiên đăng nhập chưa được xác nhận. Hãy thử lại để tiếp tục an toàn.</p><a className="auth-primary" href="/login">Thử đăng nhập lại</a></section></main>;
@@ -131,6 +132,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (!postLogoutMarkerChecked) {
       postLogoutMarkerChecked = true;
       if (consumePostLogout()) setPostLogout(true);
+    }
+    // check-sso may redirect through the callback before LoginPage starts an interactive login.
+    if (window.location.pathname === '/login') {
+      const requestedReturnPath = new URLSearchParams(window.location.search).get('returnTo');
+      if (requestedReturnPath !== null) storeReturnPath(safeReturnPath(requestedReturnPath));
     }
     initialization ??= keycloak.init({ onLoad: 'check-sso', pkceMethod: 'S256', checkLoginIframe: false, redirectUri: callbackUrl });
     const currentInitialization = initialization;
