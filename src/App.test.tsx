@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import '@testing-library/jest-dom/vitest';
-import { MemoryRouter, useLocation } from 'react-router-dom';
+import { BrowserRouter, MemoryRouter, useLocation } from 'react-router-dom';
 import { App } from './App';
 
 const auth = vi.hoisted(() => ({
@@ -36,12 +36,18 @@ function renderApp(initialEntry = '/') {
   return render(<MemoryRouter initialEntries={[initialEntry]}><App /></MemoryRouter>);
 }
 
+function RouteProbe() {
+  const location = useLocation();
+  return <output data-testid="current-route">{location.pathname}{location.search}</output>;
+}
+
 afterEach(() => {
   cleanup();
   auth.permissions = [];
   auth.status = 'authenticated';
   auth.permissionState = 'ready';
   vi.clearAllMocks();
+  window.history.replaceState({}, '', '/');
 });
 
 describe('mobile application navigation', () => {
@@ -49,6 +55,17 @@ describe('mobile application navigation', () => {
     renderApp('/login?returnTo=%2Fproducts');
 
     expect(screen.getByRole('heading', { name: 'Products' })).toBeInTheDocument();
+  });
+
+  it('navigates an authenticated BrowserRouter login to returnTo before permissions finish loading', () => {
+    auth.status = 'authenticated';
+    auth.permissionState = 'loading';
+    window.history.replaceState({}, '', '/login?returnTo=%2Fproducts');
+
+    render(<BrowserRouter><App /><RouteProbe /></BrowserRouter>);
+
+    expect(screen.getByTestId('current-route')).toHaveTextContent('/products');
+    expect(screen.getByText('Đang tải quyền truy cập')).toBeInTheDocument();
   });
 
   it('keeps protocol-relative login return targets on the app root', () => {
