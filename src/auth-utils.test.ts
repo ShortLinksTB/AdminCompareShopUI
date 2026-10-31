@@ -39,11 +39,37 @@ describe('one-time post-logout marker', () => {
 describe('callback return path handoff', () => {
   it('uses the short-lived same-origin cookie if session storage is cleared during the identity-provider round trip', () => {
     window.sessionStorage.clear();
+    window.localStorage.clear();
     storeReturnPath('/products?sort=price');
+    const saved = JSON.parse(window.localStorage.getItem('compareshop-auth-return-to-fallback') || '{}');
+    expect(saved.path).toBe('/products?sort=price');
+    expect(Object.keys(saved).sort()).toEqual(['expiresAt', 'path']);
+    expect(JSON.stringify(saved)).not.toMatch(/token|identity/i);
     window.sessionStorage.clear();
+    window.localStorage.clear();
 
     expect(consumeReturnPath()).toBe('/products?sort=price');
     expect(document.cookie).not.toContain('compareshop-auth-return-to=');
+    expect(window.localStorage.length).toBe(0);
+  });
+
+  it('uses and clears the expiring local fallback when the browser loses session state and blocks cookies', () => {
+    window.sessionStorage.clear();
+    window.localStorage.clear();
+    storeReturnPath('/products?sort=price');
+    window.sessionStorage.clear();
+    document.cookie = 'compareshop-auth-return-to=; Path=/; Max-Age=0; SameSite=Lax';
+
+    expect(consumeReturnPath()).toBe('/products?sort=price');
+    expect(window.localStorage.length).toBe(0);
+  });
+
+  it('ignores an expired local fallback', () => {
+    window.sessionStorage.clear();
+    window.localStorage.setItem('compareshop-auth-return-to-fallback', JSON.stringify({ path: '/products', expiresAt: Date.now() - 1 }));
+    document.cookie = 'compareshop-auth-return-to=; Path=/; Max-Age=0; SameSite=Lax';
+
+    expect(consumeReturnPath()).toBe('/');
     expect(window.localStorage.length).toBe(0);
   });
 
