@@ -5,6 +5,8 @@ import { MemoryRouter, useLocation } from 'react-router-dom';
 import { App } from './App';
 
 const auth = vi.hoisted(() => ({
+  status: 'authenticated' as 'authenticated' | 'anonymous' | 'logging-out',
+  permissionState: 'ready' as 'ready' | 'loading',
   permissions: [] as string[],
   logout: vi.fn(),
   userName: 'Test Admin',
@@ -13,13 +15,13 @@ const auth = vi.hoisted(() => ({
 vi.mock('./auth', () => ({
   AuthProvider: ({ children }: { children: React.ReactNode }) => children,
   useAuth: () => ({
-    status: 'authenticated', permissionState: 'ready', permissions: auth.permissions,
+    status: auth.status, permissionState: auth.permissionState, permissions: auth.permissions,
     userName: auth.userName, logout: auth.logout, requestAdmin: vi.fn(),
   }),
-  AuthLoadingScreen: () => null,
+  AuthLoadingScreen: ({ message }: { message?: string }) => <div>{message}</div>,
   CallbackPage: () => null,
   ForbiddenPage: () => null,
-  LoginPage: () => null,
+  LoginPage: () => <div>Login page</div>,
   PermissionFailure: () => null,
 }));
 
@@ -30,17 +32,46 @@ vi.mock('./BannedItems', () => ({
   },
 }));
 
-function renderApp() {
-  return render(<MemoryRouter initialEntries={['/']}><App /></MemoryRouter>);
+function renderApp(initialEntry = '/') {
+  return render(<MemoryRouter initialEntries={[initialEntry]}><App /></MemoryRouter>);
 }
 
 afterEach(() => {
   cleanup();
   auth.permissions = [];
+  auth.status = 'authenticated';
+  auth.permissionState = 'ready';
   vi.clearAllMocks();
 });
 
 describe('mobile application navigation', () => {
+  it('restores the requested safe route when the login URL is opened with an authenticated session', () => {
+    renderApp('/login?returnTo=%2Fproducts');
+
+    expect(screen.getByRole('heading', { name: 'Products' })).toBeInTheDocument();
+  });
+
+  it('keeps protocol-relative login return targets on the app root', () => {
+    renderApp('/login?returnTo=%2F%2Fevil.example%2Fadmin');
+
+    expect(screen.getByRole('heading', { name: 'Dashboard' })).toBeInTheDocument();
+    expect(screen.queryByText(/evil\.example/)).not.toBeInTheDocument();
+  });
+
+  it('keeps the login page visible while the user is anonymous', () => {
+    auth.status = 'anonymous';
+    renderApp('/login?returnTo=%2Fproducts');
+
+    expect(screen.getByText('Login page')).toBeInTheDocument();
+  });
+
+  it('shows the logout progress screen instead of navigating to a return target', () => {
+    auth.status = 'logging-out';
+    renderApp('/login?returnTo=%2Fproducts');
+
+    expect(screen.getByText('Đang đăng xuất')).toBeInTheDocument();
+  });
+
   it('opens an accessible drawer with Banned items for compliance readers and returns focus on Escape', () => {
     auth.permissions = ['compliance.read'];
     renderApp();
