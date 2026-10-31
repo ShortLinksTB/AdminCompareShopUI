@@ -47,7 +47,7 @@ function Brand() {
   return <div className="auth-brand"><span className="auth-mark" aria-hidden="true">C</span><span>CompareShop<small>ADMIN CONSOLE</small></span></div>;
 }
 
-export function LoginPage() {
+export function LoginPage({ returnTo: routeReturnTo }: { returnTo?: string } = {}) {
   const auth = useAuth();
   const [searchParams] = useSearchParams();
   const [starting, setStarting] = useState(false);
@@ -57,13 +57,13 @@ export function LoginPage() {
     setStarting(true);
     setError(null);
     try {
-      const returnTo = safeReturnPath(searchParams.get('returnTo') || requestedPath());
+      const returnTo = safeReturnPath(routeReturnTo || searchParams.get('returnTo') || requestedPath());
       await auth.login(returnTo);
     } catch {
       setStarting(false);
       setError('Không thể kết nối với Keycloak. Vui lòng thử lại.');
     }
-  }, [auth, starting, searchParams]);
+  }, [auth, starting, routeReturnTo, searchParams]);
 
   useEffect(() => {
     if (auth.status === 'anonymous' && !auth.postLogout) void beginLogin();

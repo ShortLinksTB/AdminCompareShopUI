@@ -21,7 +21,7 @@ vi.mock('./auth', () => ({
   AuthLoadingScreen: ({ message }: { message?: string }) => <div>{message}</div>,
   CallbackPage: () => null,
   ForbiddenPage: () => null,
-  LoginPage: () => <div>Login page</div>,
+  LoginPage: ({ returnTo }: { returnTo?: string }) => <div>Login page: {returnTo}</div>,
   PermissionFailure: () => null,
 }));
 
@@ -62,7 +62,14 @@ describe('mobile application navigation', () => {
     auth.status = 'anonymous';
     renderApp('/login?returnTo=%2Fproducts');
 
-    expect(screen.getByText('Login page')).toBeInTheDocument();
+    expect(screen.getByText('Login page: /products')).toBeInTheDocument();
+  });
+
+  it('passes only the safe fallback from LoginRoute into the login action', () => {
+    auth.status = 'anonymous';
+    renderApp('/login?returnTo=%2F%2Fevil.example%2Fadmin');
+
+    expect(screen.getByText('Login page: /')).toBeInTheDocument();
   });
 
   it('shows the logout progress screen instead of navigating to a return target', () => {
