@@ -1,5 +1,5 @@
 import Keycloak from 'keycloak-js';
-import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { adminRequest } from './api-client';
 import { clearPostLogout, consumePostLogout, consumeReturnPath, markPostLogout, safeReturnPath, storeReturnPath } from './auth-utils';
@@ -114,6 +114,12 @@ export function PermissionFailure() {
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const navigate = useNavigate();
+  // react-router's navigate identity is not stable across route changes.
+  // Reading it through a ref (instead of a useCallback dependency) keeps
+  // refreshPermissions/requestAdmin stable across navigation, so switching
+  // sections doesn't retrigger the permissions fetch and loading screen.
+  const navigateRef = useRef(navigate);
+  useEffect(() => { navigateRef.current = navigate; }, [navigate]);
   const [status, setStatus] = useState<AuthStatus>('loading');
   const [permissionState, setPermissionState] = useState<PermissionState>('loading');
   const [permissions, setPermissions] = useState<string[]>([]);
@@ -159,7 +165,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const loadedPermissions = await fetchPermissions(keycloak, () => {
         keycloak.clearToken();
         setStatus('anonymous');
-      }, () => navigate('/forbidden', { replace: true }));
+      }, () => navigateRef.current('/forbidden', { replace: true }));
       setPermissions(loadedPermissions);
       setPermissionState('ready');
     } catch (reason) {
@@ -171,7 +177,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setStatus('anonymous');
       }
     }
-  }, [status, permissionAttempt, navigate]);
+  }, [status, permissionAttempt]);
 
   useEffect(() => { void refreshPermissions(); }, [refreshPermissions]);
 
@@ -198,7 +204,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setStatus('anonymous');
     setPermissionState('loading');
   }, []);
-  const requestAdmin = useCallback((path: string, init?: RequestInit) => adminRequest(keycloak, path, init, clearSession, () => navigate('/forbidden', { replace: true })), [clearSession, navigate]);
+  const requestAdmin = useCallback((path: string, init?: RequestInit) => adminRequest(keycloak, path, init, clearSession, () => navigateRef.current('/forbidden', { replace: true })), [clearSession]);
   const value = useMemo<AuthContextValue>(() => ({
     status, permissionState, permissions, callbackError,
     postLogout,

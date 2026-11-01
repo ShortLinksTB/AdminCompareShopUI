@@ -1,5 +1,5 @@
 import { StrictMode } from 'react';
-import { act, cleanup, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import '@testing-library/jest-dom/vitest';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { BrowserRouter, useLocation } from 'react-router-dom';
@@ -129,5 +129,26 @@ describe('application OIDC browser return flow', () => {
     expect(screen.queryByText(/evil\.example/)).not.toBeInTheDocument();
     expect(window.localStorage.length).toBe(0);
     expect(document.cookie).not.toContain('compareshop-auth-return-to=');
+  });
+
+  it('does not refetch permissions or show the permissions loading screen when switching sections', async () => {
+    let permissionFetches = 0;
+    vi.stubGlobal('fetch', vi.fn().mockImplementation(() => {
+      permissionFetches++;
+      return Promise.resolve(new Response(JSON.stringify({ permissions: ['dashboard.read', 'products.read'] }), { status: 200, headers: { 'Content-Type': 'application/json' } }));
+    }));
+    setBrowserPath('/');
+    keycloakMocks.init.mockReset().mockResolvedValue(true);
+    renderBrowserApp();
+
+    await screen.findByRole('heading', { name: 'Dashboard' });
+    expect(permissionFetches).toBe(1);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open navigation' }));
+    fireEvent.click(await screen.findByRole('link', { name: /Products/ }));
+
+    await screen.findByRole('heading', { name: 'Products' });
+    expect(screen.queryByText('Đang tải quyền truy cập')).not.toBeInTheDocument();
+    expect(permissionFetches).toBe(1);
   });
 });
