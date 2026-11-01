@@ -122,6 +122,25 @@ describe('mobile application navigation', () => {
     expect(screen.queryByRole('link', { name: /Banned items/ })).not.toBeInTheDocument();
   });
 
+  it('hides every permission-gated nav item when the account has no permissions', () => {
+    renderApp();
+    fireEvent.click(screen.getByRole('button', { name: 'Open navigation' }));
+
+    for (const label of [/Products/, /Offers & Prices/, /Product Matching/, /Partner Shops/, /Users & Roles/, /Settings/]) {
+      expect(screen.queryByRole('link', { name: label })).not.toBeInTheDocument();
+    }
+  });
+
+  it('shows only the nav items matching the account\'s granted permissions', () => {
+    auth.permissions = ['products.read', 'dashboard.read'];
+    renderApp();
+    fireEvent.click(screen.getByRole('button', { name: 'Open navigation' }));
+
+    expect(screen.getByRole('link', { name: /Products/ })).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: /Offers & Prices/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: /Users & Roles/ })).not.toBeInTheDocument();
+  });
+
   it('wraps keyboard focus at both ends of the open drawer', () => {
     renderApp();
     fireEvent.click(screen.getByRole('button', { name: 'Open navigation' }));
