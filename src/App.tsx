@@ -7,7 +7,13 @@ import { MatchingPage } from './matching/MatchingPage';
 import { BannedItemsRoute } from './BannedItems';
 
 const money = (value: number) => new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND', maximumFractionDigits: 0 }).format(value);
-const nav = [{ to: '/', label: 'Tổng quan', icon: '▦', end: true }, { to: '/products', label: 'Products', icon: '□', flag: 'products' }, { to: '/offers', label: 'Offers & Prices', icon: '₫', flag: 'offers' }, { to: '/matching', label: 'Product Matching', icon: '⇄', flag: 'matching' }, { to: '/shops', label: 'Partner Shops', icon: '⌂', flag: 'shops' }, { to: '/data-sources', label: 'Data Sources', icon: '◫', flag: 'dataSources' }, { to: '/sync-jobs', label: 'Sync Jobs', icon: '↻', flag: 'syncJobs' }, { to: '/affiliate-links', label: 'Affiliate Links', icon: '↗', flag: 'affiliateLinks' }, { to: '/price-history', label: 'Price History', icon: '⌁', flag: 'priceHistory' }, { to: '/price-alerts', label: 'Price Alerts', icon: '◉', flag: 'priceAlerts' }, { to: '/categories', label: 'Categories', icon: '◇', flag: 'categories' }, { to: '/banned-items', label: 'Banned items', icon: '⊘' }, { to: '/blog', label: 'Blog CMS', icon: '▤', flag: 'blog' }, { to: '/analytics', label: 'Analytics', icon: '⌁', flag: 'analytics' }, { to: '/seo', label: 'SEO', icon: '◎', flag: 'seo' }, { to: '/users', label: 'Users & Roles', icon: '♙', flag: 'users' }, { to: '/audit-logs', label: 'Audit Logs', icon: '≡', flag: 'auditLogs' }, { to: '/feature-flags', label: 'Feature Flags', icon: '⚑' }, { to: '/settings', label: 'Settings', icon: '⚙' }];
+// `permission` must match a key the backend actually grants (see
+// /admin/me/permissions) — items without one are always shown to any
+// authenticated admin once their feature flag is on, so every entry here
+// needs one. Affiliate Links has no backend permission yet, so it's
+// deliberately left out of this list (route still exists for direct nav)
+// until that permission exists.
+const nav = [{ to: '/', label: 'Tổng quan', icon: '▦', end: true, permission: 'dashboard.read' }, { to: '/products', label: 'Products', icon: '□', flag: 'products', permission: 'products.read' }, { to: '/offers', label: 'Offers & Prices', icon: '₫', flag: 'offers', permission: 'offers.read' }, { to: '/matching', label: 'Product Matching', icon: '⇄', flag: 'matching', permission: 'matching.read' }, { to: '/shops', label: 'Partner Shops', icon: '⌂', flag: 'shops', permission: 'shops.read' }, { to: '/data-sources', label: 'Data Sources', icon: '◫', flag: 'dataSources', permission: 'sync_jobs.read' }, { to: '/sync-jobs', label: 'Sync Jobs', icon: '↻', flag: 'syncJobs', permission: 'sync_jobs.read' }, { to: '/price-history', label: 'Price History', icon: '⌁', flag: 'priceHistory', permission: 'offers.read' }, { to: '/price-alerts', label: 'Price Alerts', icon: '◉', flag: 'priceAlerts', permission: 'price_alerts.read_all' }, { to: '/categories', label: 'Categories', icon: '◇', flag: 'categories', permission: 'categories.read' }, { to: '/banned-items', label: 'Banned items', icon: '⊘', permission: 'compliance.read' }, { to: '/blog', label: 'Blog CMS', icon: '▤', flag: 'blog', permission: 'articles.read' }, { to: '/analytics', label: 'Analytics', icon: '⌁', flag: 'analytics', permission: 'analytics.read' }, { to: '/seo', label: 'SEO', icon: '◎', flag: 'seo', permission: 'seo.read' }, { to: '/users', label: 'Users & Roles', icon: '♙', flag: 'users', permission: 'users.manage' }, { to: '/audit-logs', label: 'Audit Logs', icon: '≡', flag: 'auditLogs', permission: 'audit_logs.read' }, { to: '/feature-flags', label: 'Feature Flags', icon: '⚑', permission: 'feature_flags.read' }, { to: '/settings', label: 'Settings', icon: '⚙', permission: 'settings.manage' }];
 
 type FeatureKey = 'products' | 'offers' | 'matching' | 'shops' | 'dataSources' | 'syncJobs' | 'affiliateLinks' | 'priceHistory' | 'priceAlerts' | 'categories' | 'blog' | 'analytics' | 'seo' | 'users' | 'auditLogs';
 type FeatureFlags = Record<FeatureKey, boolean>;
@@ -25,7 +31,7 @@ function Shell() {
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const mobileNavToggleRef = useRef<HTMLButtonElement>(null);
   const mobileNavCloseRef = useRef<HTMLButtonElement>(null);
-  const visibleNav = nav.filter(item => (!item.flag || flags[item.flag as FeatureKey]) && (item.to !== '/banned-items' || permissions.includes('compliance.read')));
+  const visibleNav = nav.filter(item => (!item.flag || flags[item.flag as FeatureKey]) && (!item.permission || permissions.includes(item.permission)));
   const initials = userName.slice(0, 1).toUpperCase();
 
   useEffect(() => {
