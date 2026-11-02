@@ -13,6 +13,7 @@ export function ProductsPage({ requestAdmin }: { requestAdmin: AdminRequest }) {
   const [reloadKey, setReloadKey] = useState(0);
   const [search, setSearch] = useState('');
   const [activeFilter, setActiveFilter] = useState<'all' | 'active' | 'inactive'>('all');
+  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
 
   const loadProducts = useCallback(async (signal: AbortSignal) => {
     setLoading(true);
@@ -46,8 +47,27 @@ export function ProductsPage({ requestAdmin }: { requestAdmin: AdminRequest }) {
     const matchesStatus = activeFilter === 'all' || (activeFilter === 'active' ? product.isActive : !product.isActive);
     return matchesSearch && matchesStatus;
   });
+  const allVisibleSelected = visibleItems.length > 0 && visibleItems.every(product => selectedIds.has(product.id));
+  const selectedCount = selectedIds.size;
 
-  return <>
+  const toggleProduct = (productId: number, selected: boolean) => {
+    setSelectedIds(current => {
+      const next = new Set(current);
+      if (selected) next.add(productId);
+      else next.delete(productId);
+      return next;
+    });
+  };
+
+  const toggleVisibleProducts = (selected: boolean) => {
+    setSelectedIds(current => {
+      const next = new Set(current);
+      visibleItems.forEach(product => selected ? next.add(product.id) : next.delete(product.id));
+      return next;
+    });
+  };
+
+  return <div className="products-page">
     <div className="page-header">
       <div><span className="eyebrow">CATALOG</span><h1>Products</h1><p>Danh mục sản phẩm chuẩn và trạng thái hoạt động.</p></div>
     </div>
@@ -61,8 +81,10 @@ export function ProductsPage({ requestAdmin }: { requestAdmin: AdminRequest }) {
       {loading ? <div className="products-loading" role="status">Loading products…</div>
         : !error && visibleItems.length === 0 ? <div className="products-empty" role="status"><strong>No products found</strong><span>{items.length === 0 ? 'Products will appear here when available.' : 'Try changing your search or status filter.'}</span></div>
           : !error && <>
-            <div className="products-table-scroll"><table><thead><tr><th>Product</th><th>Category ID</th><th>Status</th></tr></thead><tbody>
-              {visibleItems.map(product => <tr key={product.id}>
+            {selectedCount > 0 && <p className="products-selection-status" role="status">{selectedCount} selected</p>}
+            <div className="products-table-scroll"><table><thead><tr><th className="products-selection-column"><input type="checkbox" aria-label="Select all visible products" checked={allVisibleSelected} onChange={event => toggleVisibleProducts(event.target.checked)} /></th><th>Product</th><th>Category ID</th><th>Status</th></tr></thead><tbody>
+              {visibleItems.map(product => <tr key={product.id} className={selectedIds.has(product.id) ? 'products-row-selected' : undefined}>
+                <td className="products-selection-column"><input type="checkbox" aria-label={`Select ${product.name}`} checked={selectedIds.has(product.id)} onChange={event => toggleProduct(product.id, event.target.checked)} /></td>
                 <td><strong>{product.name}</strong><small>{product.brand || product.slug} · ID {product.id}</small></td>
                 <td>{product.categoryId}</td>
                 <td><span className={`status status-${product.isActive ? 'active' : 'disabled'}`}>{product.isActive ? 'Active' : 'Inactive'}</span></td>
@@ -71,5 +93,5 @@ export function ProductsPage({ requestAdmin }: { requestAdmin: AdminRequest }) {
             <div className="table-footer"><span>Showing {totalItems === 0 ? 0 : (pageNumber - 1) * pageSize + 1}–{Math.min(pageNumber * pageSize, totalItems)} of {totalItems} products</span><div><button type="button" aria-label="Previous page" disabled={pageNumber <= 1} onClick={() => setPageNumber(value => value - 1)}>‹</button><span className="products-page-number">Page {pageNumber} of {pageCount}</span><button type="button" aria-label="Next page" disabled={pageNumber >= pageCount} onClick={() => setPageNumber(value => value + 1)}>›</button></div></div>
           </>}
     </section>
-  </>;
+  </div>;
 }
