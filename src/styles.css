@@ -39,12 +39,12 @@
 
 /* Keep the Products surface explicitly themed so page styles and native controls
    do not inherit a mismatched browser color scheme. */
-.admin-shell{color-scheme:light}
-.admin-shell.dark{color-scheme:dark}
-.admin-shell:not(.dark){--bg:#f7f9fb;--surface:#fff;--surface-alt:#f4f7f9;--border:#e4e9ee;--text:#17202a;--muted:#586773;color:#17202a}
-.admin-shell:not(.dark) .admin-main{background:#f7f9fb}
-.admin-shell:not(.dark) .admin-header{background:#fff;color:#17202a}
-.admin-shell:not(.dark) .admin-breadcrumb{color:#586773}
+.admin-shell.products-route{color-scheme:light}
+.admin-shell.products-route.dark{color-scheme:dark}
+.admin-shell.products-route:not(.dark){--bg:#f7f9fb;--surface:#fff;--surface-alt:#f4f7f9;--border:#e4e9ee;--text:#17202a;--muted:#586773;color:#17202a}
+.admin-shell.products-route:not(.dark) .admin-main{background:#f7f9fb}
+.admin-shell.products-route:not(.dark) .admin-header{background:#fff;color:#17202a}
+.admin-shell.products-route:not(.dark) .admin-breadcrumb{color:#586773}
 .products-page{--surface:#fff;--surface-alt:#f4f7f9;--border:#dce3e8;--text:#17202a;--muted:#586773;--products-row-selected:#fff2e9;--products-control-border:#8795a0;--products-focus:#b94700;color:#17202a}
 .products-page .page-header h1,.products-page .table-panel td strong{color:#17202a}
 .products-page .page-header p,.products-page .table-footer,.products-page .products-page-number{color:#586773}
