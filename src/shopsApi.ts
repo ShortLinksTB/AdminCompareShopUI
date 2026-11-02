@@ -1,18 +1,25 @@
-import type { AdminRequest, Page } from './bannedItemsApi';
+export type AdminRequest = (path: string, init?: RequestInit) => Promise<Response>;
 
-export interface PartnerShop {
+export interface AdminShop {
   id: number;
   slug: string;
   name: string;
-  websiteUrl?: string | null;
+  websiteUrl: string | null;
   isActive: boolean;
 }
 
 export interface ShopInput {
   slug: string;
   name: string;
-  websiteUrl?: string;
+  websiteUrl?: string | null;
   isActive: boolean;
+}
+
+export interface ShopPage {
+  items: AdminShop[];
+  pageNumber: number;
+  pageSize: number;
+  totalItems: number;
 }
 
 export class ShopApiError extends Error {
@@ -26,42 +33,46 @@ const shopsPath = '/admin/shops';
 
 async function assertResponse(response: Response): Promise<void> {
   if (response.ok) return;
+
   let detail = '';
   try {
-    const body = await response.json() as { message?: string; title?: string; detail?: string };
-    detail = body.message ?? body.detail ?? body.title ?? '';
+    const body = await response.json() as { message?: string; title?: string; detail?: string; errors?: Record<string, string[]> };
+    const validationMessage = body.errors ? Object.values(body.errors).flat().find(Boolean) : undefined;
+    detail = body.message ?? body.detail ?? validationMessage ?? body.title ?? '';
   } catch {
-    // The API may return an empty body, including for permission and server failures.
+    // Some API failures, including the current linked-offer delete case, have no JSON body.
   }
-  const fallback = response.status === 400
-    ? 'Shop details are invalid. Check the slug, name, and website URL.'
-    : response.status === 404
-      ? 'This shop could not be found. Refresh the list and try again.'
-      : response.status === 401 || response.status === 403
-        ? 'You do not have permission to manage partner shops.'
-        : `Request failed (${response.status}). Please try again.`;
-  throw new ShopApiError(detail || fallback, response.status);
+  throw new ShopApiError(detail || `Request failed (${response.status}). Please try again.`, response.status);
 }
 
-export async function getPartnerShops(requestAdmin: AdminRequest, page: number, pageSize: number, signal?: AbortSignal): Promise<Page<PartnerShop>> {
-  const response = await requestAdmin(`${shopsPath}?page=${page}&pageSize=${pageSize}`, { signal });
+export async function getShops(requestAdmin: AdminRequest, page: number, pageSize: number, signal?: AbortSignal): Promise<ShopPage> {
+  const params = new URLSearchParams({ page: String(page), pageSize: String(pageSize) });
+  const response = await requestAdmin(`${shopsPath}?${params}`, { signal });
   await assertResponse(response);
-  return response.json() as Promise<Page<PartnerShop>>;
+  return response.json() as Promise<ShopPage>;
 }
 
-export async function createPartnerShop(requestAdmin: AdminRequest, input: ShopInput): Promise<PartnerShop> {
-  const response = await requestAdmin(shopsPath, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(input) });
+export async function createShop(requestAdmin: AdminRequest, input: ShopInput): Promise<AdminShop> {
+  const response = await requestAdmin(shopsPath, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(input),
+  });
   await assertResponse(response);
-  return response.json() as Promise<PartnerShop>;
+  return response.json() as Promise<AdminShop>;
 }
 
-export async function updatePartnerShop(requestAdmin: AdminRequest, id: number, input: ShopInput): Promise<PartnerShop> {
-  const response = await requestAdmin(`${shopsPath}/${encodeURIComponent(id)}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(input) });
+export async function updateShop(requestAdmin: AdminRequest, id: number, input: ShopInput): Promise<AdminShop> {
+  const response = await requestAdmin(`${shopsPath}/${encodeURIComponent(id)}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(input),
+  });
   await assertResponse(response);
-  return response.json() as Promise<PartnerShop>;
+  return response.json() as Promise<AdminShop>;
 }
 
-export async function deletePartnerShop(requestAdmin: AdminRequest, id: number): Promise<void> {
+export async function deleteShop(requestAdmin: AdminRequest, id: number): Promise<void> {
   const response = await requestAdmin(`${shopsPath}/${encodeURIComponent(id)}`, { method: 'DELETE' });
   await assertResponse(response);
 }
