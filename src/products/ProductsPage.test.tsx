@@ -6,6 +6,7 @@ import type { AdminProduct, AdminRequest } from './products-api';
 
 const first: AdminProduct = { id: 42, slug: 'phone-a', name: 'Phone A', brand: 'Brand A', description: null, seoTitle: null, seoDescription: null, categoryId: 7, isActive: true };
 const second = { ...first, id: 43, slug: 'phone-b', name: 'Phone B', brand: null, categoryId: 8, isActive: false };
+const third = { ...first, id: 44, slug: 'phone-c', name: 'Phone C', categoryId: 9 };
 const response = (items = [first], pageNumber = 1, pageSize = 20, totalItems = items.length) => Response.json({ items, pageNumber, pageSize, totalItems });
 
 afterEach(cleanup);
@@ -60,5 +61,85 @@ describe('ProductsPage', () => {
     expect(screen.getByText('Phone B')).toBeInTheDocument();
     fireEvent.change(screen.getByRole('textbox', { name: 'Search products' }), { target: { value: 'no match' } });
     expect(screen.getByText('Try changing your search or status filter.')).toBeInTheDocument();
+  });
+
+  it('toggles a product row and exposes selected status', async () => {
+    const requestAdmin = vi.fn<AdminRequest>().mockResolvedValue(response([first, second]));
+    render(<ProductsPage requestAdmin={requestAdmin} />);
+
+    const rowCheckbox = await screen.findByRole('checkbox', { name: 'Select Phone A' });
+    fireEvent.click(rowCheckbox);
+
+    expect(rowCheckbox).toBeChecked();
+    expect(rowCheckbox.closest('tr')).toHaveClass('products-row-selected');
+    expect(screen.getByRole('status')).toHaveTextContent('1 selected');
+
+    fireEvent.click(rowCheckbox);
+    expect(rowCheckbox).not.toBeChecked();
+    expect(rowCheckbox.closest('tr')).not.toHaveClass('products-row-selected');
+    expect(screen.queryByText('1 selected')).not.toBeInTheDocument();
+  });
+
+  it('selects and clears every currently visible product', async () => {
+    const requestAdmin = vi.fn<AdminRequest>().mockResolvedValue(response([first, second]));
+    render(<ProductsPage requestAdmin={requestAdmin} />);
+
+    const selectAll = await screen.findByRole('checkbox', { name: 'Select all visible products' });
+    fireEvent.click(selectAll);
+
+    expect(selectAll).toBeChecked();
+    expect(screen.getByRole('checkbox', { name: 'Select Phone A' })).toBeChecked();
+    expect(screen.getByRole('checkbox', { name: 'Select Phone B' })).toBeChecked();
+    expect(screen.getByRole('status')).toHaveTextContent('2 selected');
+
+    fireEvent.click(selectAll);
+    expect(selectAll).not.toBeChecked();
+    expect(screen.getByRole('checkbox', { name: 'Select Phone A' })).not.toBeChecked();
+    expect(screen.getByRole('checkbox', { name: 'Select Phone B' })).not.toBeChecked();
+    expect(screen.queryByText('2 selected')).not.toBeInTheDocument();
+  });
+
+  it('keeps filtered selections and only changes visible rows when selecting all', async () => {
+    const requestAdmin = vi.fn<AdminRequest>().mockResolvedValue(response([first, second]));
+    render(<ProductsPage requestAdmin={requestAdmin} />);
+
+    fireEvent.click(await screen.findByRole('checkbox', { name: 'Select Phone A' }));
+    fireEvent.change(screen.getByRole('combobox', { name: 'Filter by status' }), { target: { value: 'inactive' } });
+
+    const phoneB = screen.getByRole('checkbox', { name: 'Select Phone B' });
+    expect(screen.getByRole('checkbox', { name: 'Select all visible products' })).not.toBeChecked();
+    expect(phoneB).not.toBeChecked();
+    expect(screen.getByRole('status')).toHaveTextContent('1 selected');
+
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Select all visible products' }));
+    expect(phoneB).toBeChecked();
+    expect(screen.getByRole('status')).toHaveTextContent('2 selected');
+
+    fireEvent.change(screen.getByRole('combobox', { name: 'Filter by status' }), { target: { value: 'all' } });
+    expect(screen.getByRole('checkbox', { name: 'Select Phone A' })).toBeChecked();
+    expect(screen.getByRole('checkbox', { name: 'Select Phone B' })).toBeChecked();
+  });
+
+  it('preserves selections across API pagination and selects all only on the current page', async () => {
+    const requestAdmin = vi.fn<AdminRequest>()
+      .mockResolvedValueOnce(response([first, second], 1, 20, 21))
+      .mockResolvedValueOnce(response([third], 2, 20, 21))
+      .mockResolvedValueOnce(response([first, second], 1, 20, 21));
+    render(<ProductsPage requestAdmin={requestAdmin} />);
+
+    fireEvent.click(await screen.findByRole('checkbox', { name: 'Select Phone A' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Next page' }));
+    const phoneC = await screen.findByRole('checkbox', { name: 'Select Phone C' });
+    expect(screen.getByRole('status')).toHaveTextContent('1 selected');
+    expect(phoneC).not.toBeChecked();
+
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Select all visible products' }));
+    expect(phoneC).toBeChecked();
+    expect(screen.getByRole('status')).toHaveTextContent('2 selected');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Previous page' }));
+    expect(await screen.findByRole('checkbox', { name: 'Select Phone A' })).toBeChecked();
+    expect(screen.getByRole('checkbox', { name: 'Select Phone B' })).not.toBeChecked();
+    expect(screen.getByRole('status')).toHaveTextContent('2 selected');
   });
 });
