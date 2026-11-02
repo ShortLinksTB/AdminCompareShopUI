@@ -52,6 +52,7 @@ afterEach(() => {
 
 describe('mobile application navigation', () => {
   it('restores the requested safe route when the login URL is opened with an authenticated session', () => {
+    auth.permissions = ['products.read'];
     renderApp('/login?returnTo=%2Fproducts');
 
     expect(screen.getByRole('heading', { name: 'Products' })).toBeInTheDocument();
