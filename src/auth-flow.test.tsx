@@ -46,7 +46,13 @@ beforeEach(() => {
   window.sessionStorage.clear();
   window.localStorage.clear();
   document.cookie = 'compareshop-auth-return-to=; Path=/; Max-Age=0; SameSite=Lax';
-  vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify({ permissions: [] }), { status: 200, headers: { 'Content-Type': 'application/json' } })));
+  vi.stubGlobal('fetch', vi.fn().mockImplementation((input: RequestInfo | URL) => {
+    const url = String(input);
+    const body = url.includes('/admin/me/permissions')
+      ? { permissions: ['products.read'] }
+      : { items: [], pageNumber: 1, pageSize: 20, totalItems: 0 };
+    return Promise.resolve(new Response(JSON.stringify(body), { status: 200, headers: { 'Content-Type': 'application/json' } }));
+  }));
 });
 
 afterEach(() => {
@@ -133,9 +139,14 @@ describe('application OIDC browser return flow', () => {
 
   it('does not refetch permissions or show the permissions loading screen when switching sections', async () => {
     let permissionFetches = 0;
-    vi.stubGlobal('fetch', vi.fn().mockImplementation(() => {
-      permissionFetches++;
-      return Promise.resolve(new Response(JSON.stringify({ permissions: ['dashboard.read', 'products.read'] }), { status: 200, headers: { 'Content-Type': 'application/json' } }));
+    vi.stubGlobal('fetch', vi.fn().mockImplementation((input: RequestInfo | URL) => {
+      const url = String(input);
+      const isPermissions = url.includes('/admin/me/permissions');
+      if (isPermissions) permissionFetches++;
+      const body = isPermissions
+        ? { permissions: ['dashboard.read', 'products.read'] }
+        : { items: [], pageNumber: 1, pageSize: 20, totalItems: 0 };
+      return Promise.resolve(new Response(JSON.stringify(body), { status: 200, headers: { 'Content-Type': 'application/json' } }));
     }));
     setBrowserPath('/');
     keycloakMocks.init.mockReset().mockResolvedValue(true);
