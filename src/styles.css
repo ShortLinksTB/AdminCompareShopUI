@@ -104,3 +104,21 @@
 .admin-shell.products-route.dark .products-page .products-row-selected td:first-child{box-shadow:inset 3px 0 0 #ff7a38}
 .admin-shell.products-route.dark .products-page .status-active{background:#183b29;color:#8ee0a5}
 .admin-shell.products-route.dark .products-page .status-disabled{background:#402322;color:#ffb4ab}
+
+/* Bind Products colors to the explicit theme state rendered by Shell. This
+   route-scoped layer keeps the live page, controls, and table on one palette. */
+.admin-shell[data-theme="dark"] .admin-content .products-page{--surface:#131e27;--surface-alt:#1b2933;--border:#34434e;--text:#f4f7f9;--muted:#c0ccd3;color:#e0e7eb}
+.admin-shell[data-theme="dark"] .admin-breadcrumb{color:#d0d9de}
+.admin-shell[data-theme="dark"] .admin-breadcrumb span{color:#91a0aa}
+.admin-shell[data-theme="dark"] .admin-header{background:#131e27;color:#f4f7f9;border-color:#34434e}
+.admin-shell[data-theme="dark"] .products-page .panel,.admin-shell[data-theme="dark"] .products-page .toolbar-search,.admin-shell[data-theme="dark"] .products-page .toolbar select{background:#131e27;color:#e0e7eb;border-color:#34434e}
+.admin-shell[data-theme="dark"] .products-page .page-header h1,.admin-shell[data-theme="dark"] .products-page .table-panel td strong{color:#f4f7f9}
+.admin-shell[data-theme="dark"] .products-page .page-header p,.admin-shell[data-theme="dark"] .products-page .table-panel td small,.admin-shell[data-theme="dark"] .products-page .table-footer,.admin-shell[data-theme="dark"] .products-page .products-page-number{color:#c0ccd3}
+.admin-shell[data-theme="dark"] .products-page .toolbar-search input{background:transparent;color:#f4f7f9}
+.admin-shell[data-theme="dark"] .products-page .toolbar-search input::placeholder{color:#c0ccd3;opacity:1}
+.admin-shell[data-theme="dark"] .products-page .table-panel th{color:#d0d9de;border-color:#34434e}
+.admin-shell[data-theme="dark"] .products-page .table-panel td{color:#e0e7eb;border-color:#34434e}
+.admin-shell[data-theme="dark"] .products-page .table-footer,.admin-shell[data-theme="dark"] .products-page .products-selection-status{border-color:#34434e}
+.admin-shell[data-theme="dark"] .products-page .products-selection-status{color:#e0e7eb}
+.admin-shell[data-theme="dark"] .products-page .table-footer button{background:#1b2933;color:#e0e7eb;border-color:#465762}
+.admin-shell[data-theme="dark"] .products-page .table-footer button:disabled{color:#a1adb5;border-color:#34434e}

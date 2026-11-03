@@ -69,7 +69,7 @@ function Shell() {
     return () => window.removeEventListener('keydown', closeOnEscape);
   }, [mobileNavOpen]);
 
-  return <div className={`admin-shell${dark ? ' dark' : ''}${productsRoute ? ' products-route' : ''}`}>
+  return <div className={`admin-shell${dark ? ' dark' : ''}${productsRoute ? ' products-route' : ''}`} data-theme={dark ? 'dark' : 'light'}>
     <aside id="admin-navigation" className={`admin-sidebar${mobileNavOpen ? ' mobile-nav-open' : ''}`} role={mobileNavOpen ? 'dialog' : undefined} aria-modal={mobileNavOpen || undefined} aria-label={mobileNavOpen ? 'Application navigation' : undefined}>
       <div className="admin-brand">
         <span className="admin-brand-mark">G</span>

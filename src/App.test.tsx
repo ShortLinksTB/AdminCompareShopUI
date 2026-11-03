@@ -82,6 +82,7 @@ describe('mobile application navigation', () => {
 
     const adminShell = document.querySelector('.admin-shell');
     expect(adminShell).toHaveClass('products-route');
+    expect(adminShell).toHaveAttribute('data-theme', 'light');
 
     fireEvent.click(screen.getByRole('link', { name: /Product Matching/ }));
 
@@ -208,9 +209,11 @@ describe('mobile application navigation', () => {
     fireEvent.click(dark);
     expect(dark).toHaveAttribute('aria-pressed', 'true');
     expect(document.querySelector('.admin-shell')).toHaveClass('dark');
+    expect(document.querySelector('.admin-shell')).toHaveAttribute('data-theme', 'dark');
     fireEvent.click(light);
     expect(light).toHaveAttribute('aria-pressed', 'true');
     expect(document.querySelector('.admin-shell')).not.toHaveClass('dark');
+    expect(document.querySelector('.admin-shell')).toHaveAttribute('data-theme', 'light');
 
     fireEvent.click(screen.getByRole('button', { name: 'Open navigation' }));
     fireEvent.click(screen.getByRole('button', { name: 'Đăng xuất' }));
