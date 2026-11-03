@@ -76,6 +76,19 @@ describe('mobile application navigation', () => {
     expect(screen.queryByText(/evil\.example/)).not.toBeInTheDocument();
   });
 
+  it('limits the Products theme scope class to the Products route', () => {
+    auth.permissions = ['products.read', 'matching.read'];
+    renderApp('/products');
+
+    const adminShell = document.querySelector('.admin-shell');
+    expect(adminShell).toHaveClass('products-route');
+
+    fireEvent.click(screen.getByRole('link', { name: /Product Matching/ }));
+
+    expect(adminShell).not.toHaveClass('products-route');
+    expect(screen.getByRole('heading', { name: 'Product Matching' })).toBeInTheDocument();
+  });
+
   it('keeps the login page visible while the user is anonymous', () => {
     auth.status = 'anonymous';
     renderApp('/login?returnTo=%2Fproducts');
