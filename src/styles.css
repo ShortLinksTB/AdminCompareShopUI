@@ -79,27 +79,27 @@
 
 /* Keep the Products route dark even when its light-mode surface rules are more specific
    than the shared application theme. The route scope leaves other pages untouched. */
-.admin-shell.products-route.dark{color-scheme:dark;--bg:#101820;--surface:#17232d;--surface-alt:#21303b;--border:#2b3a46;--text:#eff6f8;--muted:#a9bac4;color:#eff6f8;background:#101820}
-.admin-shell.products-route.dark .admin-main{background:#101820;color:#eff6f8}
-.admin-shell.products-route.dark .admin-header{background:#17232d;color:#eff6f8;border-color:#2b3a46}
-.admin-shell.products-route.dark .admin-breadcrumb{color:#b5c3cb}
-.admin-shell.products-route.dark .admin-breadcrumb span{color:#71818c}
-.admin-shell.products-route.dark .admin-header-actions>button{color:#b5c3cb}
-.admin-shell.products-route.dark .products-page{--surface:#17232d;--surface-alt:#21303b;--border:#354754;--text:#eff6f8;--muted:#a9bac4;--products-row-selected:#352b26;--products-control-border:#8ea0ab;--products-focus:#ff9a66;color:#eff6f8}
-.admin-shell.products-route.dark .products-page .page-header h1,.admin-shell.products-route.dark .products-page .table-panel td strong{color:#eff6f8}
-.admin-shell.products-route.dark .products-page .page-header p,.admin-shell.products-route.dark .products-page .table-panel td small,.admin-shell.products-route.dark .products-page .table-footer,.admin-shell.products-route.dark .products-page .products-page-number{color:#a9bac4}
-.admin-shell.products-route.dark .products-page .panel,.admin-shell.products-route.dark .products-page .toolbar-search,.admin-shell.products-route.dark .products-page .toolbar select{background:#17232d;border-color:#354754}
-.admin-shell.products-route.dark .products-page .table-panel th{color:#b5c3cb;border-color:#354754}
-.admin-shell.products-route.dark .products-page .table-panel td{color:#d1dbe0;border-color:#354754}
-.admin-shell.products-route.dark .products-page .table-footer,.admin-shell.products-route.dark .products-page .products-selection-status{border-color:#354754}
-.admin-shell.products-route.dark .products-page .products-selection-status{color:#d1dbe0}
-.admin-shell.products-route.dark .products-page .toolbar-search input{color:#eff6f8}
-.admin-shell.products-route.dark .products-page .toolbar-search input::placeholder{color:#a9bac4;opacity:1}
-.admin-shell.products-route.dark .products-page input[type="checkbox"]{background:#17232d;border-color:#8ea0ab}
+.admin-shell.products-route.dark{color-scheme:dark;--bg:#0c141b;--surface:#131e27;--surface-alt:#1b2933;--border:#34434e;--text:#fff;--muted:#c0ccd3;color:#fff;background:#0c141b}
+.admin-shell.products-route.dark .admin-main{background:#0c141b;color:#fff}
+.admin-shell.products-route.dark .admin-header{background:#131e27;color:#fff;border-color:#34434e}
+.admin-shell.products-route.dark .admin-breadcrumb{color:#d0d9de}
+.admin-shell.products-route.dark .admin-breadcrumb span{color:#91a0aa}
+.admin-shell.products-route.dark .admin-header-actions>button{color:#d0d9de}
+.admin-shell.products-route.dark .products-page{--surface:#131e27;--surface-alt:#1b2933;--border:#34434e;--text:#fff;--muted:#c0ccd3;--products-row-selected:#352b26;--products-control-border:#a8b6bf;--products-focus:#ff9a66;color:#fff}
+.admin-shell.products-route.dark .products-page .page-header h1,.admin-shell.products-route.dark .products-page .table-panel td strong{color:#fff}
+.admin-shell.products-route.dark .products-page .page-header p,.admin-shell.products-route.dark .products-page .table-panel td small,.admin-shell.products-route.dark .products-page .table-footer,.admin-shell.products-route.dark .products-page .products-page-number{color:#c0ccd3}
+.admin-shell.products-route.dark .products-page .panel,.admin-shell.products-route.dark .products-page .toolbar-search,.admin-shell.products-route.dark .products-page .toolbar select{background:#131e27;border-color:#34434e}
+.admin-shell.products-route.dark .products-page .table-panel th{color:#d0d9de;border-color:#34434e}
+.admin-shell.products-route.dark .products-page .table-panel td{color:#e0e7eb;border-color:#34434e}
+.admin-shell.products-route.dark .products-page .table-footer,.admin-shell.products-route.dark .products-page .products-selection-status{border-color:#34434e}
+.admin-shell.products-route.dark .products-page .products-selection-status{color:#e0e7eb}
+.admin-shell.products-route.dark .products-page .toolbar-search input{color:#fff}
+.admin-shell.products-route.dark .products-page .toolbar-search input::placeholder{color:#c0ccd3;opacity:1}
+.admin-shell.products-route.dark .products-page input[type="checkbox"]{background:#131e27;border-color:#a8b6bf}
 .admin-shell.products-route.dark .products-page input[type="checkbox"]:checked{background:#ff7a38;border-color:#ff7a38}
 .admin-shell.products-route.dark .products-page input[type="checkbox"]:focus-visible{outline-color:rgba(255,154,102,.5)}
-.admin-shell.products-route.dark .products-page .table-footer button{background:#21303b;color:#d1dbe0;border-color:#40515c}
-.admin-shell.products-route.dark .products-page .table-footer button:disabled{color:#82929d;border-color:#354754}
+.admin-shell.products-route.dark .products-page .table-footer button{background:#1b2933;color:#e0e7eb;border-color:#465762}
+.admin-shell.products-route.dark .products-page .table-footer button:disabled{color:#a1adb5;border-color:#34434e}
 .admin-shell.products-route.dark .products-page .products-row-selected td{background:#352b26}
 .admin-shell.products-route.dark .products-page .products-row-selected td:first-child{box-shadow:inset 3px 0 0 #ff7a38}
 .admin-shell.products-route.dark .products-page .status-active{background:#183b29;color:#8ee0a5}
