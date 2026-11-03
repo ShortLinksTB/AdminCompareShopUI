@@ -25,6 +25,7 @@ describe('Products theme styles', () => {
 
   it('applies theme surface colors immediately on the Products route', () => {
     expect(normalizedStyles).toContain('.admin-shell.products-route,.admin-shell.products-route .admin-header,.admin-shell.products-route .products-page .panel,.admin-shell.products-route .products-page .toolbar-search,.admin-shell.products-route .products-page .toolbar select,.admin-shell.products-route .products-page .table-footer button,.admin-shell.products-route .products-page input[type="checkbox"],.admin-shell.products-route .products-page input[type="checkbox"]::before{transition:none}');
+    expect(normalizedStyles).toContain('.admin-shell.products-route .products-page input[type="checkbox"]::before{transition:none}');
   });
 
   it('renders coordinated dark surfaces and readable text on the Products route', () => {
