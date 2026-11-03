@@ -24,7 +24,7 @@ describe('Products theme styles', () => {
   });
 
   it('applies theme surface colors immediately on the Products route', () => {
-    expect(normalizedStyles).toContain('.admin-shell.products-route,.admin-shell.products-route .admin-header,.admin-shell.products-route .products-page .panel,.admin-shell.products-route .products-page .toolbar-search,.admin-shell.products-route .products-page .toolbar select,.admin-shell.products-route .products-page .table-footer button{transition:none}');
+    expect(normalizedStyles).toContain('.admin-shell.products-route,.admin-shell.products-route .admin-header,.admin-shell.products-route .products-page .panel,.admin-shell.products-route .products-page .toolbar-search,.admin-shell.products-route .products-page .toolbar select,.admin-shell.products-route .products-page .table-footer button,.admin-shell.products-route .products-page input[type="checkbox"],.admin-shell.products-route .products-page input[type="checkbox"]::before{transition:none}');
   });
 
   it('renders coordinated dark surfaces and readable text on the Products route', () => {
@@ -34,7 +34,7 @@ describe('Products theme styles', () => {
     const shell = document.createElement('div');
     shell.className = 'admin-shell products-route dark';
     shell.dataset.theme = 'dark';
-    shell.innerHTML = '<header class="admin-header"><div class="admin-breadcrumb">Products</div></header><main class="admin-content"><div class="products-page"><div class="page-header"><h1>Products</h1><p>Helper text</p></div><label class="toolbar-search"><input placeholder="Search"></label><select><option>All status</option></select><section class="panel table-panel"><table><thead><tr><th>Product</th></tr></thead><tbody><tr><td><input type="checkbox" checked><strong>Product name</strong><small>Helper label</small><span class="status status-active">Active</span></td></tr></tbody></table><div class="table-footer"><span>Showing products</span><span class="products-page-number">Page 1</span></div></section></div></main>';
+    shell.innerHTML = '<header class="admin-header"><div class="admin-breadcrumb">Products</div></header><main class="admin-content"><div class="products-page"><div class="page-header"><h1>Products</h1><p>Helper text</p></div><label class="toolbar-search"><input placeholder="Search"></label><select><option>All status</option></select><section class="panel table-panel"><table><thead><tr><th><input type="checkbox" aria-label="Select all visible products"></th><th>Product</th></tr></thead><tbody><tr><td><input type="checkbox" aria-label="Select product" checked><strong>Product name</strong><small>Helper label</small><span class="status status-active">Active</span></td></tr></tbody></table><div class="table-footer"><span>Showing products</span><span class="products-page-number">Page 1</span></div></section></div></main>';
     document.body.append(shell);
 
     expect(getComputedStyle(shell.querySelector('.toolbar-search')!).backgroundColor).toBe('rgb(19, 30, 39)');
@@ -46,7 +46,11 @@ describe('Products theme styles', () => {
     expect(getComputedStyle(shell.querySelector('.table-panel td strong')!).color).toBe('rgb(244, 247, 249)');
     expect(getComputedStyle(shell.querySelector('.table-panel th')!).color).toBe('rgb(208, 217, 222)');
     expect(getComputedStyle(shell.querySelector('.admin-breadcrumb')!).color).toBe('rgb(208, 217, 222)');
-    expect(getComputedStyle(shell.querySelector('input[type="checkbox"]')!).backgroundColor).toBe('rgb(255, 122, 56)');
+    const checkboxes = shell.querySelectorAll<HTMLInputElement>('.products-page input[type="checkbox"]');
+    expect(checkboxes).toHaveLength(2);
+    checkboxes.forEach(checkbox => expect(getComputedStyle(checkbox).transition).toBe('none'));
+    expect(getComputedStyle(checkboxes[0]!).backgroundColor).toBe('rgb(19, 30, 39)');
+    expect(getComputedStyle(checkboxes[1]!).backgroundColor).toBe('rgb(255, 122, 56)');
     expect(getComputedStyle(shell.querySelector('.status-active')!).color).toBe('rgb(142, 224, 165)');
 
     shell.dataset.theme = 'light';

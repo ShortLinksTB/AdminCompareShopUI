@@ -126,4 +126,4 @@
 /* Theme colors on this route must settle in the same frame as the theme state.
    Otherwise a live capture immediately after toggling can catch pale surfaces
    mid-transition beneath already-updated dark foregrounds. */
-.admin-shell.products-route,.admin-shell.products-route .admin-header,.admin-shell.products-route .products-page .panel,.admin-shell.products-route .products-page .toolbar-search,.admin-shell.products-route .products-page .toolbar select,.admin-shell.products-route .products-page .table-footer button{transition:none}
+.admin-shell.products-route,.admin-shell.products-route .admin-header,.admin-shell.products-route .products-page .panel,.admin-shell.products-route .products-page .toolbar-search,.admin-shell.products-route .products-page .toolbar select,.admin-shell.products-route .products-page .table-footer button,.admin-shell.products-route .products-page input[type="checkbox"],.admin-shell.products-route .products-page input[type="checkbox"]::before{transition:none}
