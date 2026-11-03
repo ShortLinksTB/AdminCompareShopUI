@@ -122,3 +122,8 @@
 .admin-shell[data-theme="dark"] .products-page .products-selection-status{color:#e0e7eb}
 .admin-shell[data-theme="dark"] .products-page .table-footer button{background:#1b2933;color:#e0e7eb;border-color:#465762}
 .admin-shell[data-theme="dark"] .products-page .table-footer button:disabled{color:#a1adb5;border-color:#34434e}
+
+/* Theme colors on this route must settle in the same frame as the theme state.
+   Otherwise a live capture immediately after toggling can catch pale surfaces
+   mid-transition beneath already-updated dark foregrounds. */
+.admin-shell.products-route,.admin-shell.products-route .admin-header,.admin-shell.products-route .products-page .panel,.admin-shell.products-route .products-page .toolbar-search,.admin-shell.products-route .products-page .toolbar select,.admin-shell.products-route .products-page .table-footer button{transition:none}

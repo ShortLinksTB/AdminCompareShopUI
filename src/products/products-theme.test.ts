@@ -23,6 +23,10 @@ describe('Products theme styles', () => {
     expect(normalizedStyles).toContain('.products-page .page-header h1,.products-page .table-panel td strong{color:#17202a}');
   });
 
+  it('applies theme surface colors immediately on the Products route', () => {
+    expect(normalizedStyles).toContain('.admin-shell.products-route,.admin-shell.products-route .admin-header,.admin-shell.products-route .products-page .panel,.admin-shell.products-route .products-page .toolbar-search,.admin-shell.products-route .products-page .toolbar select,.admin-shell.products-route .products-page .table-footer button{transition:none}');
+  });
+
   it('renders coordinated dark surfaces and readable text on the Products route', () => {
     const style = document.createElement('style');
     style.textContent = styles;
@@ -34,6 +38,9 @@ describe('Products theme styles', () => {
     document.body.append(shell);
 
     expect(getComputedStyle(shell.querySelector('.toolbar-search')!).backgroundColor).toBe('rgb(19, 30, 39)');
+    expect(getComputedStyle(shell).transition).toBe('none');
+    expect(getComputedStyle(shell.querySelector('.toolbar-search')!).transition).toBe('none');
+    expect(getComputedStyle(shell.querySelector('.table-panel')!).transition).toBe('none');
     expect(getComputedStyle(shell.querySelector('.table-panel')!).backgroundColor).toBe('rgb(19, 30, 39)');
     expect(getComputedStyle(shell.querySelector('.table-panel td')!).color).toBe('rgb(224, 231, 235)');
     expect(getComputedStyle(shell.querySelector('.table-panel td strong')!).color).toBe('rgb(244, 247, 249)');
