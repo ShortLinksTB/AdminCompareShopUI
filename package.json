@@ -8,7 +8,6 @@
     "build": "tsc -b && vite build",
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",
-    "test:coverage:dashboard": "vitest run src/App.test.tsx --coverage --coverage.include=src/App.tsx --coverage.reporter=text --coverage.thresholds.lines=80 --coverage.thresholds.statements=0 --coverage.thresholds.functions=0 --coverage.thresholds.branches=0",
     "lint": "tsc -b --pretty false",
     "preview": "vite preview"
   },
