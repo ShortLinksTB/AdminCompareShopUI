@@ -8,6 +8,7 @@ const auth = vi.hoisted(() => ({
   status: 'authenticated' as 'authenticated' | 'anonymous' | 'logging-out',
   permissionState: 'ready' as 'ready' | 'loading',
   permissions: [] as string[],
+  requestAdmin: vi.fn(),
   logout: vi.fn(),
   userName: 'Test Admin',
 }));
@@ -16,7 +17,7 @@ vi.mock('./auth', () => ({
   AuthProvider: ({ children }: { children: React.ReactNode }) => children,
   useAuth: () => ({
     status: auth.status, permissionState: auth.permissionState, permissions: auth.permissions,
-    userName: auth.userName, logout: auth.logout, requestAdmin: vi.fn(),
+    userName: auth.userName, logout: auth.logout, requestAdmin: auth.requestAdmin,
   }),
   AuthLoadingScreen: ({ message }: { message?: string }) => <div>{message}</div>,
   CallbackPage: () => null,
@@ -46,11 +47,21 @@ afterEach(() => {
   auth.permissions = [];
   auth.status = 'authenticated';
   auth.permissionState = 'ready';
+  auth.requestAdmin.mockReset();
   vi.clearAllMocks();
   window.history.replaceState({}, '', '/');
 });
 
 describe('mobile application navigation', () => {
+  it('loads the existing Offers route for admins with offers.read', async () => {
+    auth.permissions = ['offers.read'];
+    auth.requestAdmin.mockResolvedValue(new Response('', { status: 500 }));
+    renderApp('/offers');
+
+    expect(screen.getByRole('heading', { name: 'Offers & Prices' })).toBeInTheDocument();
+    expect(await screen.findByRole('alert')).toHaveTextContent('Could not load offers');
+  });
+
   it('restores the requested safe route when the login URL is opened with an authenticated session', () => {
     auth.permissions = ['products.read'];
     renderApp('/login?returnTo=%2Fproducts');

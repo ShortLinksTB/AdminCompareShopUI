@@ -127,3 +127,10 @@
    Otherwise a live capture immediately after toggling can catch pale surfaces
    mid-transition beneath already-updated dark foregrounds. */
 .admin-shell.products-route,.admin-shell.products-route .admin-header,.admin-shell.products-route .products-page .panel,.admin-shell.products-route .products-page .toolbar-search,.admin-shell.products-route .products-page .toolbar select,.admin-shell.products-route .products-page .table-footer button,.admin-shell.products-route .products-page input[type="checkbox"],.admin-shell.products-route .products-page input[type="checkbox"]::before{transition:none}
+
+/* Offers keeps the catalog table layout while using only the read API contract. */
+.offers-page .offers-table-wrap table{min-width:900px}
+.offers-page .offers-state{display:grid;justify-items:center;gap:8px;padding:48px 20px;color:var(--muted);font-size:12px}
+.offers-page .offers-state strong{color:var(--text);font-size:14px}
+.offers-page .table-footer{justify-content:flex-start}
+.offers-page .status-neutral{background:var(--surface-alt);color:var(--muted)}
