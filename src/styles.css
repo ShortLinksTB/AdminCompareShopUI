@@ -134,3 +134,5 @@
 .offers-page .offers-state strong{color:var(--text);font-size:14px}
 .offers-page .table-footer{justify-content:flex-start}
 .offers-page .status-neutral{background:var(--surface-alt);color:var(--muted)}
+.admin-shell[data-theme="dark"] .offers-page .status-active{background:#183b29;color:#8ee0a5}
+.admin-shell[data-theme="dark"] .offers-page .status-disabled{background:#402322;color:#ffb4ab}
