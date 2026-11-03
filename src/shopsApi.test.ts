@@ -23,7 +23,18 @@ describe('partner shops API', () => {
     expect(request.mock.calls.map(([path, init]) => [path, init?.method])).toEqual([
       ['/admin/shops', 'POST'], ['/admin/shops/3', 'PUT'], ['/admin/shops/3', 'DELETE'],
     ]);
+    expect(request.mock.calls[0][2]).toEqual({ redirectOnForbidden: false });
+    expect(request.mock.calls[1][2]).toEqual({ redirectOnForbidden: false });
     expect(JSON.parse(String(request.mock.calls[0][1]?.body))).toEqual(input);
+  });
+
+  it('returns create and update 403 responses to the form as permission errors', async () => {
+    const request = vi.fn<AdminRequest>().mockResolvedValue(new Response(null, { status: 403 }));
+    const input = { slug: 'shop-three', name: 'Shop Three', isActive: true };
+    await expect(createPartnerShop(request, input)).rejects.toMatchObject<Partial<ShopApiError>>({ status: 403 });
+    await expect(updatePartnerShop(request, 3, input)).rejects.toMatchObject<Partial<ShopApiError>>({ status: 403 });
+    expect(request).toHaveBeenNthCalledWith(1, '/admin/shops', expect.anything(), { redirectOnForbidden: false });
+    expect(request).toHaveBeenNthCalledWith(2, '/admin/shops/3', expect.anything(), { redirectOnForbidden: false });
   });
 
   it('uses validation details and a safe fallback for non-JSON failures', async () => {

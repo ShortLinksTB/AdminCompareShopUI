@@ -30,6 +30,7 @@ function StateProbe() {
     <button onClick={auth.retryPermissions}>Retry permissions</button>
     <button onClick={() => void auth.logout()}>Logout</button>
     <button onClick={() => void auth.requestAdmin('/admin/products')}>Request admin</button>
+    <button onClick={() => void auth.requestAdmin('/admin/shops', { method: 'POST' }, { redirectOnForbidden: false })}>Request shop mutation</button>
   </div>;
 }
 
@@ -226,6 +227,20 @@ describe('OIDC auth flow', () => {
     expect(requestedPaths).toContain('/admin/products');
     expect(keycloakMocks.clearToken).not.toHaveBeenCalled();
     expect(keycloakMocks.logout).not.toHaveBeenCalled();
+  });
+
+  it('keeps the current route for a forbidden mutation when the caller handles the response', async () => {
+    vi.mocked(fetch).mockImplementation(async input => {
+      const requestUrl = new URL(String(input));
+      return requestUrl.pathname === '/admin/shops' ? new Response('', { status: 403 }) : ok();
+    });
+    render(<MemoryRouter initialEntries={['/shops']}><AuthProvider><Routes><Route path="/forbidden" element={<ForbiddenPage />} /><Route path="*" element={<><StateProbe /><CurrentPath /></>} /></Routes></AuthProvider></MemoryRouter>);
+    await waitFor(() => expect(screen.getByTestId('state')).toHaveTextContent('authenticated:ready:products.read'));
+    fireEvent.click(screen.getByRole('button', { name: 'Request shop mutation' }));
+    await waitFor(() => expect(fetch).toHaveBeenCalledWith(expect.objectContaining({ pathname: '/admin/shops' }), expect.anything()));
+    expect(screen.getByTestId('path')).toHaveTextContent('/shops');
+    expect(screen.queryByText('Bạn không có quyền truy cập')).not.toBeInTheDocument();
+    expect(keycloakMocks.clearToken).not.toHaveBeenCalled();
   });
 
   it('renders retry for permission failures and clears permission data when retried', () => {

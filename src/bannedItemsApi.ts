@@ -36,7 +36,7 @@ export interface BanFilters {
   pageSize: number;
 }
 
-export type AdminRequest = (path: string, init?: RequestInit) => Promise<Response>;
+export type AdminRequest = (path: string, init?: RequestInit, options?: { redirectOnForbidden?: boolean }) => Promise<Response>;
 
 export class BanApiError extends Error {
   constructor(message: string, readonly status: number) {

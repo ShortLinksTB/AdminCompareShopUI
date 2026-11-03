@@ -50,13 +50,13 @@ export async function getPartnerShops(requestAdmin: AdminRequest, page: number, 
 }
 
 export async function createPartnerShop(requestAdmin: AdminRequest, input: ShopInput): Promise<PartnerShop> {
-  const response = await requestAdmin(shopsPath, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(input) });
+  const response = await requestAdmin(shopsPath, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(input) }, { redirectOnForbidden: false });
   await assertResponse(response);
   return response.json() as Promise<PartnerShop>;
 }
 
 export async function updatePartnerShop(requestAdmin: AdminRequest, id: number, input: ShopInput): Promise<PartnerShop> {
-  const response = await requestAdmin(`${shopsPath}/${encodeURIComponent(id)}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(input) });
+  const response = await requestAdmin(`${shopsPath}/${encodeURIComponent(id)}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(input) }, { redirectOnForbidden: false });
   await assertResponse(response);
   return response.json() as Promise<PartnerShop>;
 }

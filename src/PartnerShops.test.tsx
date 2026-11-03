@@ -80,6 +80,34 @@ describe('Partner Shops page', () => {
     expect(screen.getByLabelText('Name')).toHaveValue('New Shop');
   });
 
+  it('keeps the create dialog and shop list when create is forbidden', async () => {
+    const user = userEvent.setup();
+    api.createPartnerShop.mockRejectedValueOnce(new Error('You do not have permission to manage partner shops.'));
+    renderShops();
+    await user.click(await screen.findByRole('button', { name: /Add shop/ }));
+    await user.type(screen.getByLabelText('Slug'), 'new-shop');
+    await user.type(screen.getByLabelText('Name'), 'New Shop');
+    await user.click(screen.getByRole('button', { name: 'Save shop' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent('You do not have permission');
+    expect(screen.getByLabelText('Slug')).toHaveValue('new-shop');
+    expect(screen.getByLabelText('Name')).toHaveValue('New Shop');
+    expect(screen.getByText('CellphoneS')).toBeInTheDocument();
+  });
+
+  it('keeps the edit dialog and shop list when update is forbidden', async () => {
+    const user = userEvent.setup();
+    api.updatePartnerShop.mockRejectedValueOnce(new Error('You do not have permission to manage partner shops.'));
+    renderShops();
+    await screen.findByText('CellphoneS');
+    await user.click(screen.getByRole('button', { name: 'Edit' }));
+    await user.clear(screen.getByLabelText('Name'));
+    await user.type(screen.getByLabelText('Name'), 'Edited CellphoneS');
+    await user.click(screen.getByRole('button', { name: 'Save shop' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent('You do not have permission');
+    expect(screen.getByLabelText('Name')).toHaveValue('Edited CellphoneS');
+    expect(screen.getByText('CellphoneS')).toBeInTheDocument();
+  });
+
   it('confirms before deleting, cancels without a request, and retains a shop on delete failure', async () => {
     const user = userEvent.setup();
     const confirm = vi.spyOn(window, 'confirm').mockReturnValueOnce(false).mockReturnValueOnce(true);
