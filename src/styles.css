@@ -136,3 +136,14 @@
 .offers-page .status-neutral{background:var(--surface-alt);color:var(--muted)}
 .admin-shell[data-theme="dark"] .offers-page .status-active{background:#183b29;color:#8ee0a5}
 .admin-shell[data-theme="dark"] .offers-page .status-disabled{background:#402322;color:#ffb4ab}
+
+/* Offers text pairs stay within the existing light/dark catalog palette while
+   meeting normal-text contrast on the deployed table surfaces. */
+.offers-page{--offers-muted:#586773;--offers-active-text:#166534;--offers-active-bg:var(--green-soft);--offers-outlier-text:#92400e;--offers-outlier-bg:var(--yellow-soft)}
+.offers-page .page-header p,.offers-page .offer-table-wrap th{color:var(--offers-muted)}
+.offers-page .status-active{background:var(--offers-active-bg);color:var(--offers-active-text)}
+.offers-page .status-outlier{background:var(--offers-outlier-bg);color:var(--offers-outlier-text)}
+.admin-shell[data-theme="dark"] .offers-page{--offers-muted:#c0ccd3;--offers-active-text:#8ee0a5;--offers-active-bg:#183b29;--offers-outlier-text:#fbbf24;--offers-outlier-bg:#3f2d14}
+.admin-shell[data-theme="dark"] .offers-page .page-header p,.admin-shell[data-theme="dark"] .offers-page .offer-table-wrap th{color:var(--offers-muted)}
+.admin-shell[data-theme="dark"] .offers-page .status-active{background:var(--offers-active-bg);color:var(--offers-active-text)}
+.admin-shell[data-theme="dark"] .offers-page .status-outlier{background:var(--offers-outlier-bg);color:var(--offers-outlier-text)}
