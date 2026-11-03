@@ -50,6 +50,16 @@ describe('Products theme styles', () => {
     expect(getComputedStyle(shell.querySelector('.table-panel td strong')!).color).toBe('rgb(23, 32, 42)');
     expect(getComputedStyle(shell.querySelector('.admin-breadcrumb')!).color).toBe('rgb(88, 103, 115)');
 
+    const otherRouteShell = document.createElement('div');
+    otherRouteShell.className = 'admin-shell dark';
+    otherRouteShell.dataset.theme = 'dark';
+    otherRouteShell.innerHTML = '<header class="admin-header"><div class="admin-breadcrumb">Dashboard <span>/</span></div></header>';
+    document.body.append(otherRouteShell);
+    expect(getComputedStyle(otherRouteShell.querySelector('.admin-header')!).backgroundColor).toBe('rgb(23, 35, 45)');
+    expect(getComputedStyle(otherRouteShell.querySelector('.admin-breadcrumb')!).color).toBe('rgb(201, 213, 220)');
+    expect(getComputedStyle(otherRouteShell.querySelector('.admin-breadcrumb span')!).color).toBe('rgb(193, 203, 210)');
+
+    otherRouteShell.remove();
     shell.remove();
     style.remove();
   });

@@ -108,9 +108,9 @@
 /* Bind Products colors to the explicit theme state rendered by Shell. This
    route-scoped layer keeps the live page, controls, and table on one palette. */
 .admin-shell[data-theme="dark"] .admin-content .products-page{--surface:#131e27;--surface-alt:#1b2933;--border:#34434e;--text:#f4f7f9;--muted:#c0ccd3;color:#e0e7eb}
-.admin-shell[data-theme="dark"] .admin-breadcrumb{color:#d0d9de}
-.admin-shell[data-theme="dark"] .admin-breadcrumb span{color:#91a0aa}
-.admin-shell[data-theme="dark"] .admin-header{background:#131e27;color:#f4f7f9;border-color:#34434e}
+.admin-shell.products-route[data-theme="dark"] .admin-breadcrumb{color:#d0d9de}
+.admin-shell.products-route[data-theme="dark"] .admin-breadcrumb span{color:#91a0aa}
+.admin-shell.products-route[data-theme="dark"] .admin-header{background:#131e27;color:#f4f7f9;border-color:#34434e}
 .admin-shell[data-theme="dark"] .products-page .panel,.admin-shell[data-theme="dark"] .products-page .toolbar-search,.admin-shell[data-theme="dark"] .products-page .toolbar select{background:#131e27;color:#e0e7eb;border-color:#34434e}
 .admin-shell[data-theme="dark"] .products-page .page-header h1,.admin-shell[data-theme="dark"] .products-page .table-panel td strong{color:#f4f7f9}
 .admin-shell[data-theme="dark"] .products-page .page-header p,.admin-shell[data-theme="dark"] .products-page .table-panel td small,.admin-shell[data-theme="dark"] .products-page .table-footer,.admin-shell[data-theme="dark"] .products-page .products-page-number{color:#c0ccd3}
