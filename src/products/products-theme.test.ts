@@ -8,11 +8,13 @@ const normalizedStyles = styles.replace(/\s+/g, ' ');
 
 describe('Products theme styles', () => {
   it('defines dark surfaces and readable foregrounds within the Products route', () => {
-    expect(normalizedStyles).toContain('.admin-shell.products-route.dark{color-scheme:dark;--bg:#101820;');
-    expect(normalizedStyles).toContain('.admin-shell.products-route.dark .admin-main{background:#101820;color:#eff6f8}');
-    expect(normalizedStyles).toContain('.admin-shell.products-route.dark .admin-header{background:#17232d;color:#eff6f8;');
-    expect(normalizedStyles).toContain('.admin-shell.products-route.dark .products-page .panel,.admin-shell.products-route.dark .products-page .toolbar-search,.admin-shell.products-route.dark .products-page .toolbar select{background:#17232d;');
-    expect(normalizedStyles).toContain('.admin-shell.products-route.dark .products-page .table-panel td{color:#d1dbe0;');
+    expect(normalizedStyles).toContain('.admin-shell.products-route.dark{color-scheme:dark;--bg:#0c141b;');
+    expect(normalizedStyles).toContain('.admin-shell.products-route.dark .admin-main{background:#0c141b;color:#fff}');
+    expect(normalizedStyles).toContain('.admin-shell.products-route.dark .admin-header{background:#131e27;color:#fff;');
+    expect(normalizedStyles).toContain('.admin-shell.products-route.dark .products-page .panel,.admin-shell.products-route.dark .products-page .toolbar-search,.admin-shell.products-route.dark .products-page .toolbar select{background:#131e27;');
+    expect(normalizedStyles).toContain('.admin-shell.products-route.dark .products-page .table-panel td{color:#e0e7eb;');
+    expect(normalizedStyles).toContain('.admin-shell.products-route.dark .products-page .table-panel th{color:#d0d9de;');
+    expect(normalizedStyles).toContain('.admin-shell.products-route.dark .admin-breadcrumb{color:#d0d9de}');
     expect(normalizedStyles).toContain('.admin-shell.products-route.dark .products-page input[type="checkbox"]:checked{background:#ff7a38;');
   });
 
