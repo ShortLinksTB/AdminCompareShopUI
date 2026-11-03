@@ -22,4 +22,45 @@ describe('Products theme styles', () => {
     expect(normalizedStyles).toContain('.products-page .panel,.products-page .toolbar-search,.products-page .toolbar select{background:#fff}');
     expect(normalizedStyles).toContain('.products-page .page-header h1,.products-page .table-panel td strong{color:#17202a}');
   });
+
+  it('renders coordinated dark surfaces and readable text on the Products route', () => {
+    const style = document.createElement('style');
+    style.textContent = styles;
+    document.head.append(style);
+    const shell = document.createElement('div');
+    shell.className = 'admin-shell products-route dark';
+    shell.dataset.theme = 'dark';
+    shell.innerHTML = '<header class="admin-header"><div class="admin-breadcrumb">Products</div></header><main class="admin-content"><div class="products-page"><div class="page-header"><h1>Products</h1><p>Helper text</p></div><label class="toolbar-search"><input placeholder="Search"></label><select><option>All status</option></select><section class="panel table-panel"><table><thead><tr><th>Product</th></tr></thead><tbody><tr><td><input type="checkbox" checked><strong>Product name</strong><small>Helper label</small><span class="status status-active">Active</span></td></tr></tbody></table><div class="table-footer"><span>Showing products</span><span class="products-page-number">Page 1</span></div></section></div></main>';
+    document.body.append(shell);
+
+    expect(getComputedStyle(shell.querySelector('.toolbar-search')!).backgroundColor).toBe('rgb(19, 30, 39)');
+    expect(getComputedStyle(shell.querySelector('.table-panel')!).backgroundColor).toBe('rgb(19, 30, 39)');
+    expect(getComputedStyle(shell.querySelector('.table-panel td')!).color).toBe('rgb(224, 231, 235)');
+    expect(getComputedStyle(shell.querySelector('.table-panel td strong')!).color).toBe('rgb(244, 247, 249)');
+    expect(getComputedStyle(shell.querySelector('.table-panel th')!).color).toBe('rgb(208, 217, 222)');
+    expect(getComputedStyle(shell.querySelector('.admin-breadcrumb')!).color).toBe('rgb(208, 217, 222)');
+    expect(getComputedStyle(shell.querySelector('input[type="checkbox"]')!).backgroundColor).toBe('rgb(255, 122, 56)');
+    expect(getComputedStyle(shell.querySelector('.status-active')!).color).toBe('rgb(142, 224, 165)');
+
+    shell.dataset.theme = 'light';
+    shell.classList.remove('dark');
+    expect(getComputedStyle(shell.querySelector('.toolbar-search')!).backgroundColor).toBe('rgb(255, 255, 255)');
+    expect(getComputedStyle(shell.querySelector('.table-panel')!).backgroundColor).toBe('rgb(255, 255, 255)');
+    expect(getComputedStyle(shell.querySelector('.table-panel td')!).color).toBe('rgb(53, 66, 76)');
+    expect(getComputedStyle(shell.querySelector('.table-panel td strong')!).color).toBe('rgb(23, 32, 42)');
+    expect(getComputedStyle(shell.querySelector('.admin-breadcrumb')!).color).toBe('rgb(88, 103, 115)');
+
+    const otherRouteShell = document.createElement('div');
+    otherRouteShell.className = 'admin-shell dark';
+    otherRouteShell.dataset.theme = 'dark';
+    otherRouteShell.innerHTML = '<header class="admin-header"><div class="admin-breadcrumb">Dashboard <span>/</span></div></header>';
+    document.body.append(otherRouteShell);
+    expect(getComputedStyle(otherRouteShell.querySelector('.admin-header')!).backgroundColor).toBe('rgb(23, 35, 45)');
+    expect(getComputedStyle(otherRouteShell.querySelector('.admin-breadcrumb')!).color).toBe('rgb(201, 213, 220)');
+    expect(getComputedStyle(otherRouteShell.querySelector('.admin-breadcrumb span')!).color).toBe('rgb(193, 203, 210)');
+
+    otherRouteShell.remove();
+    shell.remove();
+    style.remove();
+  });
 });
