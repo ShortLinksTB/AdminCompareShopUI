@@ -12,7 +12,14 @@ const money = new Intl.NumberFormat('vi-VN', {
 
 function updatedAt(value: string): string {
   const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? value : date.toLocaleString('vi-VN', { timeZone: 'UTC' });
+  if (Number.isNaN(date.getTime())) return value;
+
+  const twoDigits = (part: number) => String(part).padStart(2, '0');
+  const time = `${twoDigits(date.getUTCHours())}:${twoDigits(date.getUTCMinutes())}:${twoDigits(date.getUTCSeconds())}`;
+  const day = twoDigits(date.getUTCDate());
+  const month = twoDigits(date.getUTCMonth() + 1);
+  const year = String(date.getUTCFullYear()).padStart(4, '0');
+  return `${time} ${day}/${month}/${year}`;
 }
 
 function safeExternalHref(value: string): string | null {

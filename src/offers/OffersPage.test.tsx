@@ -17,6 +17,24 @@ const inactiveNormal: AdminOffer = {
 afterEach(cleanup);
 
 describe('OffersPage', () => {
+  it('renders the UTC epoch boundary without shifting to the browser timezone', async () => {
+    const epochOffer: AdminOffer = { ...activeOutlier, updatedAtUtc: '1970-01-01T00:00:00Z' };
+    const requestAdmin = vi.fn<AdminRequest>().mockResolvedValue(Response.json([epochOffer]));
+    render(<OffersPage requestAdmin={requestAdmin} />);
+
+    const row = (await screen.findByText('201')).closest('tr')!;
+    expect(row).toHaveTextContent('00:00:00 01/01/1970');
+  });
+
+  it('keeps the original value for an invalid UTC timestamp', async () => {
+    const invalidOffer: AdminOffer = { ...activeOutlier, updatedAtUtc: 'invalid timestamp' };
+    const requestAdmin = vi.fn<AdminRequest>().mockResolvedValue(Response.json([invalidOffer]));
+    render(<OffersPage requestAdmin={requestAdmin} />);
+
+    const row = (await screen.findByText('201')).closest('tr')!;
+    expect(row).toHaveTextContent('invalid timestamp');
+  });
+
   it('renders only contract-backed offer values and keeps active/outlier flags independent', async () => {
     const requestAdmin = vi.fn<AdminRequest>().mockResolvedValue(Response.json([activeOutlier, inactiveNormal]));
     render(<OffersPage requestAdmin={requestAdmin} />);
