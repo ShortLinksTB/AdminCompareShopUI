@@ -11,7 +11,13 @@ const money = new Intl.NumberFormat('vi-VN', {
 });
 
 function updatedAt(value: string): string {
-  const date = new Date(value);
+  // AdminOffer.updatedAtUtc is UTC even when the API omits an explicit zone.
+  // JavaScript treats an offset-less ISO date-time as local time, so mark that
+  // contract form as UTC before parsing. Keep other input formats unchanged.
+  const utcValue = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?$/.test(value)
+    ? `${value}Z`
+    : value;
+  const date = new Date(utcValue);
   if (Number.isNaN(date.getTime())) return value;
 
   const twoDigits = (part: number) => String(part).padStart(2, '0');

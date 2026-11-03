@@ -17,6 +17,15 @@ const inactiveNormal: AdminOffer = {
 afterEach(cleanup);
 
 describe('OffersPage', () => {
+  it('treats an offset-less UTC epoch timestamp as UTC', async () => {
+    const epochOffer: AdminOffer = { ...activeOutlier, updatedAtUtc: '1970-01-01T00:00:00' };
+    const requestAdmin = vi.fn<AdminRequest>().mockResolvedValue(Response.json([epochOffer]));
+    render(<OffersPage requestAdmin={requestAdmin} />);
+
+    const row = (await screen.findByText('201')).closest('tr')!;
+    expect(row).toHaveTextContent('00:00:00 01/01/1970');
+  });
+
   it('renders the UTC epoch boundary without shifting to the browser timezone', async () => {
     const epochOffer: AdminOffer = { ...activeOutlier, updatedAtUtc: '1970-01-01T00:00:00Z' };
     const requestAdmin = vi.fn<AdminRequest>().mockResolvedValue(Response.json([epochOffer]));
