@@ -61,6 +61,16 @@ describe('adminRequest', () => {
     expect(onUnauthorized).not.toHaveBeenCalled();
   });
 
+  it.each(['POST', 'PUT'])('returns mutation 403 responses without navigating away (%s)', async method => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(response(403)));
+    const onForbidden = vi.fn();
+
+    await expect(adminRequest(fakeKeycloak(), '/admin/shops', { method }, vi.fn(), onForbidden))
+      .resolves.toMatchObject({ status: 403 });
+
+    expect(onForbidden).not.toHaveBeenCalled();
+  });
+
   it('clears the session when token refresh fails', async () => {
     const onUnauthorized = vi.fn();
     await expect(adminRequest(fakeKeycloak(vi.fn().mockRejectedValue(new Error('refresh failed'))), '/admin/me/permissions', {}, onUnauthorized)).rejects.toThrow('refresh failed');
