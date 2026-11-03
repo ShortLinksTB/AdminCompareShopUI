@@ -39,6 +39,9 @@ export async function adminRequest(
     }
   }
   if (response.status === 401) onUnauthorized();
-  if (response.status === 403) onForbidden();
+  // A forbidden response to a read means this page cannot be accessed. For
+  // mutations, return the response to the caller so it can show the failure
+  // without unmounting an in-progress form or discarding its values.
+  if (response.status === 403 && ['GET', 'HEAD', 'OPTIONS'].includes(method)) onForbidden();
   return response;
 }
