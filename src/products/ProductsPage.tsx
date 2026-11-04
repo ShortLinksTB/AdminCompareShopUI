@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type PointerEvent, type WheelEvent } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type PointerEvent } from 'react';
 import { deleteAdminProduct, getAdminCategories, getAdminProducts, updateAdminProduct, type AdminCategory, type AdminProduct, type AdminRequest, type ProductInput } from './products-api';
 import './products.css';
 
@@ -36,6 +36,7 @@ export function ProductsPage({ requestAdmin, permissions = [] }: { requestAdmin:
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const [drag, setDrag] = useState<{ pointerId: number; x: number; y: number; panX: number; panY: number } | null>(null);
   const loadVersion = useRef(0);
+  const lightboxRef = useRef<HTMLDivElement>(null);
   const canUpdate = permissions.includes('products.update');
   const canDelete = permissions.includes('products.delete');
 
@@ -143,15 +144,21 @@ export function ProductsPage({ requestAdmin, permissions = [] }: { requestAdmin:
     } finally { setDeletingId(null); }
   }
 
-  function onWheel(event: WheelEvent<HTMLDivElement>) {
-    event.preventDefault();
-    const bounds = event.currentTarget.getBoundingClientRect();
-    const px = event.clientX - bounds.left - bounds.width / 2;
-    const py = event.clientY - bounds.top - bounds.height / 2;
-    const nextZoom = Math.min(4, Math.max(1, zoom * (event.deltaY < 0 ? 1.15 : 1 / 1.15)));
-    setPan(current => nextZoom === 1 ? { x: 0, y: 0 } : ({ x: px - (px - current.x) * nextZoom / zoom, y: py - (py - current.y) * nextZoom / zoom }));
-    setZoom(nextZoom);
-  }
+  useEffect(() => {
+    const element = lightboxRef.current;
+    if (!lightbox || !element) return;
+    const onWheel = (event: WheelEvent) => {
+      event.preventDefault();
+      const bounds = element.getBoundingClientRect();
+      const px = event.clientX - bounds.left - bounds.width / 2;
+      const py = event.clientY - bounds.top - bounds.height / 2;
+      const nextZoom = Math.min(4, Math.max(1, zoom * (event.deltaY < 0 ? 1.15 : 1 / 1.15)));
+      setPan(current => nextZoom === 1 ? { x: 0, y: 0 } : ({ x: px - (px - current.x) * nextZoom / zoom, y: py - (py - current.y) * nextZoom / zoom }));
+      setZoom(nextZoom);
+    };
+    element.addEventListener('wheel', onWheel, { passive: false });
+    return () => element.removeEventListener('wheel', onWheel);
+  }, [lightbox, zoom]);
 
   function startPan(event: PointerEvent<HTMLDivElement>) {
     if (zoom <= 1) return;
@@ -211,7 +218,7 @@ export function ProductsPage({ requestAdmin, permissions = [] }: { requestAdmin:
 
     {deleteTarget && <div className="product-modal-backdrop" onMouseDown={event => { if (event.target === event.currentTarget) setDeleteTarget(null); }}><section className="product-confirm" role="alertdialog" aria-modal="true" aria-labelledby="delete-product-title"><h2 id="delete-product-title">Xoá sản phẩm?</h2><p>Bạn có chắc muốn xoá “{deleteTarget.name}” không? Thao tác này không thể hoàn tác.</p><footer><button type="button" onClick={() => setDeleteTarget(null)}>Huỷ</button><button className="danger" type="button" disabled={deletingId === deleteTarget.id} onClick={() => void remove()}>{deletingId === deleteTarget.id ? 'Đang xoá…' : 'Xoá sản phẩm'}</button></footer></section></div>}
 
-    {lightbox && <div className="product-lightbox" role="presentation" onMouseDown={event => { if (event.target === event.currentTarget) closeLightbox(); }}><div className={`product-lightbox-box${zoom > 1 ? ' zoomed' : ''}`} onWheel={onWheel} onPointerDown={startPan} onPointerMove={event => { if (drag?.pointerId === event.pointerId) setPan({ x: drag.panX + event.clientX - drag.x, y: drag.panY + event.clientY - drag.y }); }} onPointerUp={() => setDrag(null)} onPointerCancel={() => setDrag(null)}>
+    {lightbox && <div className="product-lightbox" role="presentation" onMouseDown={event => { if (event.target === event.currentTarget) closeLightbox(); }}><div ref={lightboxRef} className={`product-lightbox-box${zoom > 1 ? ' zoomed' : ''}`} onPointerDown={startPan} onPointerMove={event => { if (drag?.pointerId === event.pointerId) setPan({ x: drag.panX + event.clientX - drag.x, y: drag.panY + event.clientY - drag.y }); }} onPointerUp={() => setDrag(null)} onPointerCancel={() => setDrag(null)}>
       <button className="product-lightbox-close" type="button" aria-label="Đóng ảnh" onClick={closeLightbox}>✕</button><img src={lightbox.src} alt={lightbox.alt} draggable="false" style={{ transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})` }} /><span className="product-lightbox-hint">Scroll để zoom · kéo để di chuyển</span><span className="product-lightbox-zoom">{Math.round(zoom * 100)}%</span>
     </div></div>}
   </div>;

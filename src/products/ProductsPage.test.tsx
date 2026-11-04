@@ -86,6 +86,20 @@ describe('ProductsPage', () => {
     expect(screen.queryByRole('img', { name: 'Phone A' })).not.toBeInTheDocument();
   });
 
+  it('registers the lightbox wheel listener as non-passive', async () => {
+    const addEventListener = vi.spyOn(HTMLElement.prototype, 'addEventListener');
+    render(<ProductsPage requestAdmin={requestFor()} />);
+    await screen.findByText('Phone A');
+    fireEvent.click(screen.getByRole('button', { name: 'View image of Phone A' }));
+    const lightbox = screen.getByRole('img', { name: 'Phone A' }).parentElement!;
+    expect(addEventListener).toHaveBeenCalledWith('wheel', expect.any(Function), { passive: false });
+    const listenerIndex = addEventListener.mock.contexts.findIndex((element, index) => element === lightbox
+      && addEventListener.mock.calls[index][0] === 'wheel');
+    expect(listenerIndex).toBeGreaterThanOrEqual(0);
+    expect(addEventListener.mock.calls[listenerIndex][2]).toEqual({ passive: false });
+    addEventListener.mockRestore();
+  });
+
   it('opens the permission-gated edit form and sends current ImageUrl in the full replacement PUT', async () => {
     const requestAdmin = requestFor();
     requestAdmin.mockImplementation(path => {
