@@ -52,6 +52,21 @@ describe('ProductsPage', () => {
     await waitFor(() => expect(requestAdmin).toHaveBeenCalledWith('/admin/products?page=1&pageSize=10&isActive=false', expect.any(Object)));
     expect(document.querySelector('.products-total')).toHaveTextContent('Tổng 2 sản phẩm');
     expect(screen.getByRole('button', { name: 'Inactive' })).toBeInTheDocument();
+    expect(screen.queryByRole('listbox', { name: 'Filter by status' })).not.toBeInTheDocument();
+  });
+
+  it.each([
+    'All status',
+    'Active',
+    'Inactive',
+  ])('closes the status menu after selecting %s', async (label) => {
+    render(<ProductsPage requestAdmin={requestFor()} />);
+    await screen.findByText('Phone A');
+    fireEvent.click(screen.getByRole('button', { name: 'All status' }));
+    fireEvent.click(screen.getByRole('option', { name: new RegExp(label) }));
+
+    expect(screen.queryByRole('listbox', { name: 'Filter by status' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: label })).toHaveAttribute('aria-expanded', 'false');
   });
 
   it('changes page size through the API and moves to the first page', async () => {
