@@ -5,6 +5,8 @@
 .sync-jobs-table-wrap{overflow-x:auto}
 .sync-jobs-table-wrap table{width:100%;min-width:620px;border-collapse:collapse}
 .sync-jobs-table-wrap th{width:20%;padding:14px 20px;border-bottom:1px solid var(--border);color:var(--muted);font-size:11px;font-weight:800;letter-spacing:.04em;text-align:left;text-transform:uppercase;white-space:nowrap}
+.sync-jobs-page .sync-jobs-table-wrap th{color:#586773}
+.admin-shell[data-theme="dark"] .sync-jobs-page .sync-jobs-table-wrap th{color:var(--muted)}
 .sync-jobs-table-wrap th:nth-child(2),.sync-jobs-table-wrap th:nth-child(3),.sync-jobs-table-wrap th:nth-child(4){width:16%}
 .sync-jobs-table-wrap th:last-child{width:12%}
 .sync-jobs-table-wrap td{padding:14px 20px;border-bottom:1px solid var(--border);color:var(--text);font-size:13px;white-space:nowrap}
