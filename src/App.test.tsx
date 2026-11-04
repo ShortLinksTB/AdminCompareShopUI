@@ -72,6 +72,23 @@ describe('mobile application navigation', () => {
     expect(auth.requestAdmin).toHaveBeenCalledWith('/admin/sync-jobs', expect.objectContaining({ signal: expect.any(AbortSignal) }));
   });
 
+  it('loads Categories on its real route only for admins with categories.read', async () => {
+    auth.permissions = ['categories.read'];
+    auth.requestAdmin.mockResolvedValue(Response.json({ items: [{ id: 7, slug: 'audio', name: 'Audio', isActive: true }], pageNumber: 1, pageSize: 20, totalItems: 1 }));
+    renderApp('/categories');
+
+    expect(screen.getByRole('heading', { name: 'Categories' })).toBeInTheDocument();
+    expect(await screen.findByText('Audio')).toBeInTheDocument();
+    expect(auth.requestAdmin).toHaveBeenCalledWith('/admin/categories?page=1&pageSize=20', { signal: undefined });
+  });
+
+  it('does not load Categories when categories.read is absent', () => {
+    renderApp('/categories');
+
+    expect(auth.requestAdmin).not.toHaveBeenCalled();
+    expect(screen.queryByRole('heading', { name: 'Categories' })).not.toBeInTheDocument();
+  });
+
   it('does not request Sync Jobs when sync_jobs.read is absent', () => {
     renderApp('/sync-jobs');
 
