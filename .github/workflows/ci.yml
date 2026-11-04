@@ -40,6 +40,11 @@ jobs:
         with:
           context: .
           push: true
+          build-args: |
+            VITE_API_BASE_URL=https://api-compareshop-dev.giamha.online
+            VITE_KEYCLOAK_URL=https://keycloak-shortlink-dev.giamha.online
+            VITE_KEYCLOAK_REALM=shortlink
+            VITE_KEYCLOAK_CLIENT_ID=compareshop-admin-ui
           tags: |
             ghcr.io/shortlinkstb/admin-compare-shop-ui:${{ github.sha }}
             ghcr.io/shortlinkstb/admin-compare-shop-ui:dev
