@@ -42,6 +42,8 @@
 .admin-shell[data-theme="dark"] .categories-page{--categories-muted:#a9bac4}
 .admin-shell[data-theme="dark"] .categories-eyebrow{color:#ff7b38}
 .admin-shell[data-theme="dark"] .categories-button{background:#1b2933;color:#e0e7eb}
+.admin-shell[data-theme="dark"] .categories-button-primary{border-color:var(--categories-primary);background:var(--categories-primary);color:#fff}
+.admin-shell[data-theme="dark"] .categories-button-primary:hover:not(:disabled){border-color:var(--categories-primary-hover);background:var(--categories-primary-hover);color:#fff}
 .admin-shell[data-theme="dark"] .categories-alert{border-color:#73483e;background:#38251f;color:#ffd0c5}
 .admin-shell[data-theme="dark"] .categories-table-wrap th{color:#c0ccd3}
 .admin-shell[data-theme="dark"] .categories-table-wrap td{color:#e0e7eb}
