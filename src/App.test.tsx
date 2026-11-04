@@ -62,6 +62,23 @@ describe('mobile application navigation', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent('Could not load offers');
   });
 
+  it('loads Sync Jobs only for admins with sync_jobs.read', async () => {
+    auth.permissions = ['sync_jobs.read'];
+    auth.requestAdmin.mockResolvedValue(Response.json([]));
+    renderApp('/sync-jobs');
+
+    expect(screen.getByRole('heading', { name: 'Sync Jobs' })).toBeInTheDocument();
+    expect(await screen.findByText('No Sync Jobs yet')).toBeInTheDocument();
+    expect(auth.requestAdmin).toHaveBeenCalledWith('/admin/sync-jobs', expect.objectContaining({ signal: expect.any(AbortSignal) }));
+  });
+
+  it('does not request Sync Jobs when sync_jobs.read is absent', () => {
+    renderApp('/sync-jobs');
+
+    expect(auth.requestAdmin).not.toHaveBeenCalled();
+    expect(screen.queryByRole('heading', { name: 'Sync Jobs' })).not.toBeInTheDocument();
+  });
+
   it('restores the requested safe route when the login URL is opened with an authenticated session', () => {
     auth.permissions = ['products.read'];
     renderApp('/login?returnTo=%2Fproducts');
