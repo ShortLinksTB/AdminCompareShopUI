@@ -15,14 +15,35 @@ export class SyncJobsApiError extends Error {
   }
 }
 
-function isSyncJob(value: unknown): value is SyncJob {
-  if (!value || typeof value !== 'object') return false;
+const syncJobStates = ['Queued', 'Running', 'Success', 'Partial', 'Failed'] as const;
+
+function normalizeSyncJob(value: unknown): SyncJob | null {
+  if (!value || typeof value !== 'object') return null;
   const job = value as Record<string, unknown>;
-  return typeof job.id === 'string'
-    && typeof job.dataSource === 'string'
-    && (job.startedAtUtc === null || typeof job.startedAtUtc === 'string')
-    && (job.finishedAtUtc === null || typeof job.finishedAtUtc === 'string')
-    && ['Queued', 'Running', 'Success', 'Partial', 'Failed'].includes(String(job.state));
+  const id = typeof job.id === 'string'
+    ? job.id
+    : typeof job.id === 'number' && Number.isInteger(job.id) && job.id >= 0
+      ? String(job.id)
+      : null;
+  const state = typeof job.state === 'number' && Number.isInteger(job.state)
+    ? syncJobStates[job.state] ?? null
+    : typeof job.state === 'string' && syncJobStates.includes(job.state as typeof syncJobStates[number])
+      ? job.state as SyncJob['state']
+      : null;
+
+  if (id === null
+    || typeof job.dataSource !== 'string'
+    || (job.startedAtUtc !== null && typeof job.startedAtUtc !== 'string')
+    || (job.finishedAtUtc !== null && typeof job.finishedAtUtc !== 'string')
+    || state === null) return null;
+
+  return {
+    id,
+    dataSource: job.dataSource,
+    startedAtUtc: job.startedAtUtc as string | null,
+    finishedAtUtc: job.finishedAtUtc as string | null,
+    state,
+  };
 }
 
 export async function getSyncJobs(requestAdmin: AdminRequest, signal?: AbortSignal): Promise<SyncJob[]> {
@@ -35,10 +56,14 @@ export async function getSyncJobs(requestAdmin: AdminRequest, signal?: AbortSign
   }
 
   const body: unknown = await response.json();
-  if (!Array.isArray(body) || !body.every(isSyncJob)) {
+  if (!Array.isArray(body)) {
     throw new SyncJobsApiError('The Sync Jobs response was invalid. Please try again.', response.status);
   }
-  return body;
+  const jobs = body.map(normalizeSyncJob);
+  if (jobs.some(job => job === null)) {
+    throw new SyncJobsApiError('The Sync Jobs response was invalid. Please try again.', response.status);
+  }
+  return jobs as SyncJob[];
 }
 
 export async function retrySyncJob(requestAdmin: AdminRequest, id: string): Promise<void> {

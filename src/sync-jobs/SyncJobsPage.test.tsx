@@ -55,6 +55,30 @@ describe('SyncJobsPage', () => {
     expect(requestAdmin).toHaveBeenCalledTimes(1);
   });
 
+  it('renders actual numeric API IDs and enum states with Retry gated to Failed and Partial', async () => {
+    const requestAdmin = vi.fn<AdminRequest>()
+      .mockResolvedValueOnce(Response.json([
+        { id: 410, dataSource: 'Failed numeric job', startedAtUtc: null, finishedAtUtc: null, state: 4 },
+        { id: 411, dataSource: 'Partial numeric job', startedAtUtc: null, finishedAtUtc: null, state: 3 },
+        { id: 412, dataSource: 'Success numeric job', startedAtUtc: null, finishedAtUtc: null, state: 2 },
+      ]))
+      .mockResolvedValueOnce(new Response(null, { status: 202 }));
+    render(<SyncJobsPage requestAdmin={requestAdmin} permissions={['sync_jobs.read', 'sync_jobs.execute']} />);
+
+    const failedRow = (await screen.findByText('Failed numeric job')).closest('tr')!;
+    const partialRow = screen.getByText('Partial numeric job').closest('tr')!;
+    const successRow = screen.getByText('Success numeric job').closest('tr')!;
+    expect(failedRow).toHaveTextContent('Failed');
+    expect(partialRow).toHaveTextContent('Partial');
+    expect(successRow).toHaveTextContent('Success');
+    expect(withinRowButton(failedRow)).toBeEnabled();
+    expect(withinRowButton(partialRow)).toBeEnabled();
+    expect(withinRowButton(successRow)).toBeDisabled();
+
+    fireEvent.click(withinRowButton(failedRow));
+    await waitFor(() => expect(requestAdmin).toHaveBeenCalledWith('/admin/sync-jobs/410/retry', { method: 'POST' }));
+  });
+
   it('posts retry once while pending, then refetches after 202 without optimistic row changes', async () => {
     let finishRetry!: (response: Response) => void;
     const queuedJob = { ...jobs[1], state: 'Queued' as const };

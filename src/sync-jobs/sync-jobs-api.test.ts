@@ -14,12 +14,24 @@ describe('Sync Jobs API adapter', () => {
     expect(requestAdmin).toHaveBeenCalledWith('/admin/sync-jobs', { signal });
   });
 
+  it('normalizes serialized numeric IDs and SyncJobState enum values', async () => {
+    const requestAdmin = vi.fn().mockResolvedValue(Response.json([
+      { id: 310, dataSource: 'Phones feed', startedAtUtc: null, finishedAtUtc: null, state: 4 },
+      { id: 311, dataSource: 'Computers feed', startedAtUtc: null, finishedAtUtc: null, state: 3 },
+    ]));
+
+    await expect(getSyncJobs(requestAdmin)).resolves.toEqual([
+      { id: '310', dataSource: 'Phones feed', startedAtUtc: null, finishedAtUtc: null, state: 'Failed' },
+      { id: '311', dataSource: 'Computers feed', startedAtUtc: null, finishedAtUtc: null, state: 'Partial' },
+    ]);
+  });
+
   it.each([401, 403, 500])('surfaces GET status %i as an error', async status => {
     const requestAdmin = vi.fn().mockResolvedValue(new Response('', { status }));
     await expect(getSyncJobs(requestAdmin)).rejects.toMatchObject({ name: 'SyncJobsApiError', status });
   });
 
-  it.each([null, {}, [{ ...job, state: 'Unknown' }], [{ ...job, startedAtUtc: 42 }]])('rejects malformed response data %#', async body => {
+  it.each([null, {}, [{ ...job, state: 'Unknown' }], [{ ...job, startedAtUtc: 42 }], [{ ...job, id: 3.5 }], [{ ...job, state: 5 }]])('rejects malformed response data %#', async body => {
     const requestAdmin = vi.fn().mockResolvedValue(Response.json(body));
     await expect(getSyncJobs(requestAdmin)).rejects.toMatchObject({ name: 'SyncJobsApiError', status: 200 });
   });
