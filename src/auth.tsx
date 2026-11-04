@@ -19,7 +19,7 @@ export type AuthContextValue = {
   login: (returnTo?: string) => Promise<void>;
   logout: () => Promise<void>;
   clearSession: () => void;
-  requestAdmin: (path: string, init?: RequestInit) => Promise<Response>;
+  requestAdmin: (path: string, init?: RequestInit, redirectOnForbidden?: boolean) => Promise<Response>;
   postLogout: boolean;
 };
 
@@ -204,7 +204,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setStatus('anonymous');
     setPermissionState('loading');
   }, []);
-  const requestAdmin = useCallback((path: string, init?: RequestInit) => adminRequest(keycloak, path, init, clearSession, () => navigateRef.current('/forbidden', { replace: true })), [clearSession]);
+  const requestAdmin = useCallback((path: string, init?: RequestInit, redirectOnForbidden = true) => adminRequest(keycloak, path, init, clearSession, redirectOnForbidden ? () => navigateRef.current('/forbidden', { replace: true }) : () => undefined), [clearSession]);
   const value = useMemo<AuthContextValue>(() => ({
     status, permissionState, permissions, callbackError,
     postLogout,

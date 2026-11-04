@@ -147,3 +147,27 @@
 .admin-shell[data-theme="dark"] .offers-page .page-header p,.admin-shell[data-theme="dark"] .offers-page .offer-table-wrap th{color:var(--offers-muted)}
 .admin-shell[data-theme="dark"] .offers-page .status-active{background:var(--offers-active-bg);color:var(--offers-active-text)}
 .admin-shell[data-theme="dark"] .offers-page .status-outlier{background:var(--offers-outlier-bg);color:var(--offers-outlier-text)}
+
+.users-roles-page .users-table-panel{overflow:hidden}
+.users-table-scroll{overflow-x:auto}
+.users-table-panel table{min-width:620px}
+.users-table-panel th:first-child{width:38%}
+.users-table-panel th:nth-child(2){width:30%}
+.users-user-cell{display:flex;flex-direction:column;gap:2px}
+.users-user-cell strong{font-size:13px}
+.users-role-list{display:flex;flex-wrap:wrap;gap:6px}
+.users-role-pill{display:inline-flex;align-items:center;padding:4px 10px;border-radius:999px;background:var(--accent-soft);color:#a33a00;font-size:11px;font-weight:750}
+.users-muted{color:var(--muted);font-size:12px}
+.users-actions{white-space:nowrap}
+.users-actions button+button{margin-left:6px}
+.users-role-options{display:grid;gap:7px;margin:0;padding:0;border:0}
+.users-role-options label{display:flex;align-items:center;gap:7px;font-size:12px}
+.users-role-options input{accent-color:var(--accent)}
+.users-alert,.users-notice{display:flex;align-items:center;gap:12px;margin:0 0 14px;padding:12px 14px;border:1px solid #f0b6b1;border-radius:9px;background:var(--red-soft);color:#9c2a1f;font-size:12px}
+.users-notice{border-color:#b7dfc3;background:var(--green-soft);color:#166534}
+.users-state{padding:40px 20px;text-align:center;color:var(--muted);font-size:13px}
+.users-table-panel .table-footer{padding:14px 20px}
+.admin-shell[data-theme="dark"] .users-role-pill{background:#4a2b1b;color:#ffbd91}
+.admin-shell[data-theme="dark"] .users-alert{border-color:#63332e;background:#351f1d;color:#ffb4ab}
+.admin-shell[data-theme="dark"] .users-notice{border-color:#28583a;background:#183b29;color:#8ee0a5}
+@media(max-width:767px){.users-roles-page .page-header{align-items:flex-start;margin-bottom:20px}.users-table-panel .table-footer{gap:12px;align-items:flex-start;flex-direction:column}.users-table-panel th,.users-table-panel td{padding:12px 14px}}
