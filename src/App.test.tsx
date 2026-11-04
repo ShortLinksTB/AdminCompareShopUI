@@ -53,6 +53,16 @@ afterEach(() => {
 });
 
 describe('mobile application navigation', () => {
+  it('loads Audit Logs at the real /audit-logs route using the authenticated API request', async () => {
+    auth.permissions = ['audit_logs.read'];
+    auth.requestAdmin.mockResolvedValue(new Response(JSON.stringify({ items: [], pageNumber: 1, pageSize: 50, totalItems: 0 }), { status: 200 }));
+    renderApp('/audit-logs');
+
+    expect(screen.getByRole('heading', { name: 'Audit Logs' })).toBeInTheDocument();
+    expect(await screen.findByText('No audit logs found.')).toBeInTheDocument();
+    expect(auth.requestAdmin).toHaveBeenCalledWith('/admin/audit-logs?page=1&pageSize=50', expect.any(Object));
+  });
+
   it('loads the existing Offers route for admins with offers.read', async () => {
     auth.permissions = ['offers.read'];
     auth.requestAdmin.mockResolvedValue(new Response('', { status: 500 }));
