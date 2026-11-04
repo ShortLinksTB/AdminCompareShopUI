@@ -53,6 +53,26 @@ afterEach(() => {
 });
 
 describe('mobile application navigation', () => {
+  it('loads Categories on the existing route for categories.read', async () => {
+    auth.permissions = ['categories.read'];
+    auth.requestAdmin.mockResolvedValue(Response.json({
+      items: [{ id: 12, slug: 'audio', name: 'Audio', isActive: true }], pageNumber: 1, pageSize: 20, totalItems: 1,
+    }));
+    renderApp('/categories');
+
+    expect(await screen.findByRole('heading', { name: 'Categories' })).toBeInTheDocument();
+    expect(await screen.findByText('audio')).toBeInTheDocument();
+    expect(auth.requestAdmin).toHaveBeenCalledWith('/admin/categories?page=1&pageSize=20', expect.objectContaining({ signal: expect.any(AbortSignal) }));
+  });
+
+  it('does not request Categories when categories.read is absent', () => {
+    auth.permissions = ['dashboard.read'];
+    renderApp('/categories');
+
+    expect(screen.queryByRole('heading', { name: 'Categories' })).not.toBeInTheDocument();
+    expect(auth.requestAdmin).not.toHaveBeenCalled();
+  });
+
   it('loads the existing Offers route for admins with offers.read', async () => {
     auth.permissions = ['offers.read'];
     auth.requestAdmin.mockResolvedValue(new Response('', { status: 500 }));
