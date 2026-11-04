@@ -1,0 +1,34 @@
+.users-page .users-table-panel { overflow: hidden; }
+.users-table-scroll { overflow-x: auto; }
+.users-page .users-table-panel th { white-space: nowrap; }
+.users-page .users-table-panel td { vertical-align: middle; }
+.users-page .users-table-panel td strong { color: var(--text); }
+.users-page .users-table-panel td time { color: var(--muted); white-space: nowrap; }
+.users-role-list { display: flex; flex-wrap: wrap; gap: 6px; }
+.users-role-pill { padding: 5px 9px; border: 1px solid var(--border); border-radius: 999px; background: var(--surface-alt); color: var(--text); font-size: 11px; font-weight: 650; }
+.users-no-role { color: var(--muted); font-size: 11px; }
+.users-role-editor { display: grid; min-width: 170px; gap: 8px; }
+.users-role-editor select { min-height: 112px; padding: 6px; border: 1px solid var(--border); border-radius: 7px; background: var(--surface); color: var(--text); }
+.users-edit-actions { display: flex; gap: 7px; }
+.users-edit-actions .primary-button,.users-edit-actions .outline-button { padding: 7px 10px; }
+.users-alert,.users-success { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 0 0 14px; padding: 12px 14px; border-radius: 9px; font-size: 12px; }
+.users-alert { border: 1px solid #f0c4c0; background: #fff4f2; color: #9f2820; }
+.users-success { border: 1px solid #b9dfc5; background: #effaf2; color: #176b32; }
+.users-state { padding: 44px 20px; color: var(--muted); text-align: center; font-size: 13px; }
+.users-table-footer { justify-content: space-between; }
+.users-table-footer > div { display: flex; align-items: center; gap: 12px; }
+.users-table-footer button { min-width: 30px; height: 30px; border: 1px solid var(--border); border-radius: 7px; background: var(--surface); color: var(--text); }
+.users-table-footer button:disabled { cursor: not-allowed; opacity: .45; }
+.dark .users-page .users-table-panel th { color: #b2c0c8; border-bottom-color: #2b3a46; }
+.dark .users-page .users-table-panel td { color: #d1dbe0; border-bottom-color: #2b3a46; }
+.dark .users-page .users-table-panel td strong { color: #eff6f8; }
+.dark .users-role-pill { border-color: #354754; background: #1e2d38; color: #dbe6eb; }
+.dark .users-role-editor select { color-scheme: dark; }
+.dark .users-alert { border-color: #63312d; background: #351f1e; color: #ffb4ab; }
+.dark .users-success { border-color: #28553a; background: #173324; color: #a3e3b3; }
+.dark .users-table-footer button { border-color: #465762; background: #1b2933; color: #e0e7eb; }
+@media (max-width: 700px) {
+  .users-page .page-header { align-items: flex-start; }
+  .users-page .users-table-panel table { min-width: 510px; }
+  .users-table-footer { align-items: flex-start; gap: 12px; flex-direction: column; }
+}
