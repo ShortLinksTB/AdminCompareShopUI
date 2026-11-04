@@ -1,97 +1,218 @@
-import { useCallback, useEffect, useState } from 'react';
-import { getAdminProducts, type AdminProduct, type AdminRequest } from './products-api';
+import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type PointerEvent, type WheelEvent } from 'react';
+import { deleteAdminProduct, getAdminCategories, getAdminProducts, updateAdminProduct, type AdminCategory, type AdminProduct, type AdminRequest, type ProductInput } from './products-api';
+import './products.css';
 
-const PAGE_SIZE = 20;
+type StatusFilter = 'all' | 'active' | 'inactive';
+type Editor = { product: AdminProduct; input: ProductInput } | null;
+const PAGE_SIZES = [10, 20, 50];
+const initialInput = (product: AdminProduct): ProductInput => ({
+  name: product.name, slug: product.slug, categoryId: product.categoryId,
+  brand: product.brand, description: product.description, seoTitle: product.seoTitle,
+  seoDescription: product.seoDescription, isActive: product.isActive,
+  imageUrl: product.imageUrl ?? null,
+});
 
-export function ProductsPage({ requestAdmin }: { requestAdmin: AdminRequest }) {
+export function ProductsPage({ requestAdmin, permissions = [] }: { requestAdmin: AdminRequest; permissions?: string[] }) {
   const [items, setItems] = useState<AdminProduct[]>([]);
-  const [pageNumber, setPageNumber] = useState(1);
-  const [pageSize, setPageSize] = useState(PAGE_SIZE);
+  const [categories, setCategories] = useState<AdminCategory[]>([]);
+  const [categoryError, setCategoryError] = useState('');
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
   const [totalItems, setTotalItems] = useState(0);
+  const [status, setStatus] = useState<StatusFilter>('all');
+  const [search, setSearch] = useState('');
+  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [reloadKey, setReloadKey] = useState(0);
-  const [search, setSearch] = useState('');
-  const [activeFilter, setActiveFilter] = useState<'all' | 'active' | 'inactive'>('all');
-  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
+  const [openMenu, setOpenMenu] = useState<number | null>(null);
+  const [statusOpen, setStatusOpen] = useState(false);
+  const [editor, setEditor] = useState<Editor>(null);
+  const [saving, setSaving] = useState(false);
+  const [deletingId, setDeletingId] = useState<number | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<AdminProduct | null>(null);
+  const [lightbox, setLightbox] = useState<{ src: string; alt: string } | null>(null);
+  const [zoom, setZoom] = useState(1);
+  const [pan, setPan] = useState({ x: 0, y: 0 });
+  const [drag, setDrag] = useState<{ pointerId: number; x: number; y: number; panX: number; panY: number } | null>(null);
+  const loadVersion = useRef(0);
+  const canUpdate = permissions.includes('products.update');
+  const canDelete = permissions.includes('products.delete');
 
-  const loadProducts = useCallback(async (signal: AbortSignal) => {
+  const load = useCallback(async (signal: AbortSignal) => {
+    const version = ++loadVersion.current;
     setLoading(true);
     setError('');
     try {
-      const result = await getAdminProducts(requestAdmin, pageNumber, pageSize, signal);
+      const result = await getAdminProducts(requestAdmin, page, pageSize, signal, status === 'all' ? null : status === 'active');
+      if (signal.aborted || version !== loadVersion.current) return;
       setItems(result.items);
-      setPageNumber(result.pageNumber);
-      setPageSize(result.pageSize);
       setTotalItems(result.totalItems);
+      setPage(result.pageNumber);
+      setPageSize(result.pageSize);
     } catch (reason) {
-      if (signal.aborted) return;
+      if (signal.aborted || version !== loadVersion.current) return;
       setItems([]);
       setTotalItems(0);
       setError(reason instanceof Error ? reason.message : 'Could not load products. Please try again.');
     } finally {
-      if (!signal.aborted) setLoading(false);
+      if (!signal.aborted && version === loadVersion.current) setLoading(false);
     }
-  }, [requestAdmin, pageNumber, pageSize, reloadKey]);
+  }, [requestAdmin, page, pageSize, status, reloadKey]);
 
   useEffect(() => {
     const controller = new AbortController();
-    void loadProducts(controller.signal);
+    void load(controller.signal);
     return () => controller.abort();
-  }, [loadProducts]);
+  }, [load]);
 
-  const pageCount = Math.max(1, Math.ceil(totalItems / pageSize));
-  const normalizedSearch = search.trim().toLocaleLowerCase();
-  const visibleItems = items.filter(product => {
-    const matchesSearch = !normalizedSearch || `${product.name} ${product.brand ?? ''} ${product.slug} ${product.id}`.toLocaleLowerCase().includes(normalizedSearch);
-    const matchesStatus = activeFilter === 'all' || (activeFilter === 'active' ? product.isActive : !product.isActive);
-    return matchesSearch && matchesStatus;
-  });
+  useEffect(() => {
+    const controller = new AbortController();
+    void getAdminCategories(requestAdmin, controller.signal).then(result => {
+      setCategories(result);
+      setCategoryError('');
+    }).catch(reason => {
+      if (!controller.signal.aborted) setCategoryError(reason instanceof Error ? reason.message : 'Could not load categories.');
+    });
+    return () => controller.abort();
+  }, [requestAdmin]);
+
+  const visibleItems = useMemo(() => {
+    const query = search.trim().toLocaleLowerCase();
+    if (!query) return items;
+    return items.filter(product => `${product.name} ${product.brand ?? ''} ${product.slug}`.toLocaleLowerCase().includes(query));
+  }, [items, search]);
+  const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
+  const categoryNames = useMemo(() => new Map(categories.map(category => [category.id, category.name])), [categories]);
   const allVisibleSelected = visibleItems.length > 0 && visibleItems.every(product => selectedIds.has(product.id));
-  const selectedCount = selectedIds.size;
+  function toggleSelection(id: number, checked: boolean) {
+    setSelectedIds(current => { const next = new Set(current); if (checked) next.add(id); else next.delete(id); return next; });
+  }
 
-  const toggleProduct = (productId: number, selected: boolean) => {
-    setSelectedIds(current => {
-      const next = new Set(current);
-      if (selected) next.add(productId);
-      else next.delete(productId);
-      return next;
-    });
-  };
+  const closeLightbox = useCallback(() => { setLightbox(null); setZoom(1); setPan({ x: 0, y: 0 }); setDrag(null); }, []);
+  useEffect(() => {
+    if (!lightbox && !editor && !deleteTarget && openMenu === null && !statusOpen) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return;
+      if (lightbox) closeLightbox();
+      else if (editor) setEditor(null);
+      else if (deleteTarget) setDeleteTarget(null);
+      else { setOpenMenu(null); setStatusOpen(false); }
+    };
+    const onPointerDown = (event: globalThis.PointerEvent) => {
+      const target = event.target as HTMLElement;
+      if (!target.closest('.product-row-menu')) setOpenMenu(null);
+      if (!target.closest('.product-status-filter')) setStatusOpen(false);
+    };
+    document.addEventListener('keydown', onKeyDown);
+    document.addEventListener('pointerdown', onPointerDown);
+    return () => { document.removeEventListener('keydown', onKeyDown); document.removeEventListener('pointerdown', onPointerDown); };
+  }, [lightbox, editor, deleteTarget, openMenu, statusOpen, closeLightbox]);
 
-  const toggleVisibleProducts = (selected: boolean) => {
-    setSelectedIds(current => {
-      const next = new Set(current);
-      visibleItems.forEach(product => selected ? next.add(product.id) : next.delete(product.id));
-      return next;
-    });
-  };
+  function changeStatus(next: StatusFilter) { setStatus(next); setPage(1); setOpenMenu(null); }
+  function changePageSize(size: number) { setPageSize(size); setPage(1); }
+  function openEditor(product: AdminProduct) { setOpenMenu(null); setEditor({ product, input: initialInput(product) }); }
+  function updateInput<K extends keyof ProductInput>(key: K, value: ProductInput[K]) {
+    setEditor(current => current ? { ...current, input: { ...current.input, [key]: value } } : current);
+  }
+
+  async function save(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!editor || !canUpdate) return;
+    setSaving(true); setError('');
+    try {
+      await updateAdminProduct(requestAdmin, editor.product.id, { ...editor.input, imageUrl: editor.input.imageUrl ?? editor.product.imageUrl ?? null });
+      setEditor(null); setReloadKey(value => value + 1);
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : 'Could not save this product. Please try again.');
+    } finally { setSaving(false); }
+  }
+
+  async function remove() {
+    if (!deleteTarget || !canDelete) return;
+    const target = deleteTarget;
+    setDeletingId(target.id); setError('');
+    try {
+      await deleteAdminProduct(requestAdmin, target.id);
+      setDeleteTarget(null);
+      if (items.length === 1 && page > 1) setPage(value => value - 1);
+      else setReloadKey(value => value + 1);
+    } catch (reason) {
+      setDeleteTarget(null);
+      setError(reason instanceof Error ? reason.message : 'Could not delete this product. Please try again.');
+    } finally { setDeletingId(null); }
+  }
+
+  function onWheel(event: WheelEvent<HTMLDivElement>) {
+    event.preventDefault();
+    const bounds = event.currentTarget.getBoundingClientRect();
+    const px = event.clientX - bounds.left - bounds.width / 2;
+    const py = event.clientY - bounds.top - bounds.height / 2;
+    const nextZoom = Math.min(4, Math.max(1, zoom * (event.deltaY < 0 ? 1.15 : 1 / 1.15)));
+    setPan(current => nextZoom === 1 ? { x: 0, y: 0 } : ({ x: px - (px - current.x) * nextZoom / zoom, y: py - (py - current.y) * nextZoom / zoom }));
+    setZoom(nextZoom);
+  }
+
+  function startPan(event: PointerEvent<HTMLDivElement>) {
+    if (zoom <= 1) return;
+    event.currentTarget.setPointerCapture(event.pointerId);
+    setDrag({ pointerId: event.pointerId, x: event.clientX, y: event.clientY, panX: pan.x, panY: pan.y });
+  }
 
   return <div className="products-page">
-    <div className="page-header">
-      <div><span className="eyebrow">CATALOG</span><h1>Products</h1><p>Danh mục sản phẩm chuẩn và trạng thái hoạt động.</p></div>
-    </div>
+    <div className="page-header"><div><span className="eyebrow">CATALOG</span><h1>Products</h1><p>Danh mục sản phẩm chuẩn và trạng thái hoạt động.</p></div></div>
     <div className="toolbar" role="search">
-      <label className="toolbar-search">⌕<input aria-label="Search products" value={search} onChange={event => setSearch(event.target.value)} placeholder="Search product, brand, or slug..." /></label>
-      <label><span className="sr-only">Filter by status</span><select aria-label="Filter by status" value={activeFilter} onChange={event => setActiveFilter(event.target.value as typeof activeFilter)}><option value="all">All status</option><option value="active">Active</option><option value="inactive">Inactive</option></select></label>
+      <label className="toolbar-search"><span aria-hidden="true">⌕</span><input aria-label="Search products" value={search} onChange={event => setSearch(event.target.value)} placeholder="Search product, brand, or slug..." /></label>
+      <div className={`product-status-filter${statusOpen ? ' open' : ''}`}>
+        <button className="product-status-button" type="button" aria-haspopup="listbox" aria-expanded={statusOpen} onClick={() => setStatusOpen(value => !value)}><span>{status === 'all' ? 'All status' : status === 'active' ? 'Active' : 'Inactive'}</span><span aria-hidden="true">▾</span></button>
+        {statusOpen && <div className="product-status-options" role="listbox" aria-label="Filter by status">
+          {(['all', 'active', 'inactive'] as StatusFilter[]).map(value => <button key={value} type="button" role="option" aria-selected={status === value} className={status === value ? 'selected' : ''} onClick={() => changeStatus(value)}><i className={`status-dot ${value}`} />{value === 'all' ? 'All status' : value === 'active' ? 'Active' : 'Inactive'}<span className="status-check">✓</span></button>)}
+        </div>}
+      </div>
     </div>
 
-    {error && <div className="banned-alert" role="alert">{error}<button className="outline-button small" type="button" onClick={() => setReloadKey(value => value + 1)}>Retry</button></div>}
+    {error && <div className="products-alert" role="alert">{error}<button type="button" onClick={() => setReloadKey(value => value + 1)}>Retry</button></div>}
+    {categoryError && <div className="products-alert" role="status">Category names could not be loaded. Product records are still available.</div>}
     <section className="panel table-panel" aria-label="Products list">
-      {loading ? <div className="products-loading" role="status">Loading products…</div>
-        : !error && visibleItems.length === 0 ? <div className="products-empty" role="status"><strong>No products found</strong><span>{items.length === 0 ? 'Products will appear here when available.' : 'Try changing your search or status filter.'}</span></div>
-          : !error && <>
-            {selectedCount > 0 && <p className="products-selection-status" role="status">{selectedCount} selected</p>}
-            <div className="products-table-scroll"><table><thead><tr><th className="products-selection-column"><input type="checkbox" aria-label="Select all visible products" checked={allVisibleSelected} onChange={event => toggleVisibleProducts(event.target.checked)} /></th><th>Product</th><th>Category ID</th><th>Status</th></tr></thead><tbody>
-              {visibleItems.map(product => <tr key={product.id} className={selectedIds.has(product.id) ? 'products-row-selected' : undefined}>
-                <td className="products-selection-column"><input type="checkbox" aria-label={`Select ${product.name}`} checked={selectedIds.has(product.id)} onChange={event => toggleProduct(product.id, event.target.checked)} /></td>
-                <td><strong>{product.name}</strong><small>{product.brand || product.slug} · ID {product.id}</small></td>
-                <td>{product.categoryId}</td>
-                <td><span className={`status status-${product.isActive ? 'active' : 'disabled'}`}>{product.isActive ? 'Active' : 'Inactive'}</span></td>
-              </tr>)}
-            </tbody></table></div>
-            <div className="table-footer"><span>Showing {totalItems === 0 ? 0 : (pageNumber - 1) * pageSize + 1}–{Math.min(pageNumber * pageSize, totalItems)} of {totalItems} products</span><div><button type="button" aria-label="Previous page" disabled={pageNumber <= 1} onClick={() => setPageNumber(value => value - 1)}>‹</button><span className="products-page-number">Page {pageNumber} of {pageCount}</span><button type="button" aria-label="Next page" disabled={pageNumber >= pageCount} onClick={() => setPageNumber(value => value + 1)}>›</button></div></div>
-          </>}
+      {loading ? <div className="products-state" role="status">Loading products…</div>
+        : !error && visibleItems.length === 0 ? <div className="products-state" role="status"><strong>No products found</strong><span>{items.length === 0 ? 'Products will appear here when available.' : 'Try changing your search.'}</span></div>
+          : !error && <div className="products-table-scroll"><table><thead><tr><th className="products-check-col"><input type="checkbox" aria-label="Select all products" checked={allVisibleSelected} onChange={event => visibleItems.forEach(product => toggleSelection(product.id, event.target.checked))} /></th><th>Image</th><th>Product</th><th>Category</th><th>Status</th><th>Actions</th></tr></thead><tbody>
+            {visibleItems.map(product => <tr key={product.id} className={selectedIds.has(product.id) ? 'product-row-selected' : undefined}>
+              <td className="products-check-col"><input type="checkbox" aria-label={`Select ${product.name}`} checked={selectedIds.has(product.id)} onChange={event => toggleSelection(product.id, event.target.checked)} /></td>
+              <td>{product.imageUrl ? <button className="product-thumbnail" type="button" aria-label={`View image of ${product.name}`} onClick={() => { setLightbox({ src: product.imageUrl!, alt: product.name }); setZoom(1); setPan({ x: 0, y: 0 }); }}><img src={product.imageUrl} alt="" /></button> : <span className="product-thumbnail no-image">No image</span>}</td>
+              <td><strong className="product-name">{product.name}</strong><small className="product-slug">{product.slug}</small></td>
+              <td>{categoryNames.get(product.categoryId) ?? '—'}</td>
+              <td><span className={`product-status-pill ${product.isActive ? 'active' : 'inactive'}`}><i />{product.isActive ? 'Active' : 'Inactive'}</span></td>
+              <td>{(canUpdate || canDelete) && <div className={`product-row-menu${openMenu === product.id ? ' open' : ''}`}>
+                <button className="product-row-menu-button" type="button" aria-label={`Actions for ${product.name}`} aria-expanded={openMenu === product.id} onClick={() => setOpenMenu(openMenu === product.id ? null : product.id)}>⋮</button>
+                {openMenu === product.id && <div className="product-row-menu-pop">{canUpdate && <button type="button" onClick={() => openEditor(product)}>Sửa</button>}{canDelete && <button className="danger" type="button" disabled={deletingId === product.id} onClick={() => { setOpenMenu(null); setDeleteTarget(product); }}>Xoá</button>}</div>}
+              </div>}</td>
+            </tr>)}
+          </tbody></table></div>}
+      {!loading && !error && <div className="products-footer">
+        <div className="products-page-size"><label>Hiển thị <select aria-label="Rows per page" value={pageSize} onChange={event => changePageSize(Number(event.target.value))}>{PAGE_SIZES.map(size => <option key={size} value={size}>{size}</option>)}</select> dòng/trang</label><span className="products-total">Tổng <b>{totalItems}</b> sản phẩm</span></div>
+        <span className="products-range">Showing {totalItems ? (page - 1) * pageSize + 1 : 0}–{Math.min(page * pageSize, totalItems)} of {totalItems} products</span>
+        <div className="products-pager"><button type="button" aria-label="Previous page" disabled={page <= 1} onClick={() => setPage(value => value - 1)}>‹</button><span>Page {page} of {totalPages}</span><button type="button" aria-label="Next page" disabled={page >= totalPages} onClick={() => setPage(value => value + 1)}>›</button></div>
+      </div>}
     </section>
+
+    {editor && <div className="product-modal-backdrop" onMouseDown={event => { if (event.target === event.currentTarget && !saving) setEditor(null); }}><section className="product-modal" role="dialog" aria-modal="true" aria-labelledby="edit-product-title"><form onSubmit={event => void save(event)}>
+      <header><h2 id="edit-product-title">Sửa sản phẩm</h2><button type="button" aria-label="Đóng" disabled={saving} onClick={() => setEditor(null)}>✕</button></header>
+      <div className="product-modal-body">
+        <div className="product-image-field"><div className="product-image-preview">{editor.input.imageUrl ? <img key={editor.input.imageUrl} src={editor.input.imageUrl} alt="Product preview" /> : <span>No image</span>}</div><label>Image URL<input type="url" value={editor.input.imageUrl ?? ''} onChange={event => updateInput('imageUrl', event.target.value || null)} placeholder="https://..." /></label></div>
+        <label>Tên sản phẩm<input required value={editor.input.name} onChange={event => updateInput('name', event.target.value)} /></label>
+        <div className="product-form-row"><label>Slug<input required value={editor.input.slug} onChange={event => updateInput('slug', event.target.value)} /></label><label>Category<select required value={editor.input.categoryId} onChange={event => updateInput('categoryId', Number(event.target.value))}>{categories.map(category => <option key={category.id} value={category.id}>{category.name}</option>)}</select></label></div>
+        <label>Brand<input value={editor.input.brand ?? ''} onChange={event => updateInput('brand', event.target.value || null)} placeholder="Không bắt buộc" /></label>
+        <label>Mô tả<textarea value={editor.input.description ?? ''} onChange={event => updateInput('description', event.target.value || null)} placeholder="Không bắt buộc" /></label>
+        <label className="product-active-toggle"><span>Trạng thái hoạt động</span><input type="checkbox" checked={editor.input.isActive} onChange={event => updateInput('isActive', event.target.checked)} /><i /></label>
+      </div>
+      <footer><button type="button" disabled={saving} onClick={() => setEditor(null)}>Huỷ</button><button className="primary" type="submit" disabled={saving}>{saving ? 'Đang lưu…' : 'Lưu thay đổi'}</button></footer>
+    </form></section></div>}
+
+    {deleteTarget && <div className="product-modal-backdrop" onMouseDown={event => { if (event.target === event.currentTarget) setDeleteTarget(null); }}><section className="product-confirm" role="alertdialog" aria-modal="true" aria-labelledby="delete-product-title"><h2 id="delete-product-title">Xoá sản phẩm?</h2><p>Bạn có chắc muốn xoá “{deleteTarget.name}” không? Thao tác này không thể hoàn tác.</p><footer><button type="button" onClick={() => setDeleteTarget(null)}>Huỷ</button><button className="danger" type="button" disabled={deletingId === deleteTarget.id} onClick={() => void remove()}>{deletingId === deleteTarget.id ? 'Đang xoá…' : 'Xoá sản phẩm'}</button></footer></section></div>}
+
+    {lightbox && <div className="product-lightbox" role="presentation" onMouseDown={event => { if (event.target === event.currentTarget) closeLightbox(); }}><div className={`product-lightbox-box${zoom > 1 ? ' zoomed' : ''}`} onWheel={onWheel} onPointerDown={startPan} onPointerMove={event => { if (drag?.pointerId === event.pointerId) setPan({ x: drag.panX + event.clientX - drag.x, y: drag.panY + event.clientY - drag.y }); }} onPointerUp={() => setDrag(null)} onPointerCancel={() => setDrag(null)}>
+      <button className="product-lightbox-close" type="button" aria-label="Đóng ảnh" onClick={closeLightbox}>✕</button><img src={lightbox.src} alt={lightbox.alt} draggable="false" style={{ transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})` }} /><span className="product-lightbox-hint">Scroll để zoom · kéo để di chuyển</span><span className="product-lightbox-zoom">{Math.round(zoom * 100)}%</span>
+    </div></div>}
   </div>;
 }
