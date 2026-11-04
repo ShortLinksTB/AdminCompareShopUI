@@ -109,7 +109,7 @@ export function ProductsPage({ requestAdmin, permissions = [] }: { requestAdmin:
     return () => { document.removeEventListener('keydown', onKeyDown); document.removeEventListener('pointerdown', onPointerDown); };
   }, [lightbox, editor, deleteTarget, openMenu, statusOpen, closeLightbox]);
 
-  function changeStatus(next: StatusFilter) { setStatus(next); setPage(1); setOpenMenu(null); }
+  function changeStatus(next: StatusFilter) { setStatus(next); setPage(1); setOpenMenu(null); setStatusOpen(false); }
   function changePageSize(size: number) { setPageSize(size); setPage(1); }
   function openEditor(product: AdminProduct) { setOpenMenu(null); setEditor({ product, input: initialInput(product) }); }
   function updateInput<K extends keyof ProductInput>(key: K, value: ProductInput[K]) {
