@@ -15,7 +15,7 @@ function requestFor(rows = [phone, inactive]): ReturnType<typeof vi.fn<AdminRequ
     : Promise.resolve(pageResponse(rows, 1, 10, rows.length)));
 }
 
-afterEach(cleanup);
+afterEach(() => { cleanup(); vi.restoreAllMocks(); });
 
 describe('ProductsPage', () => {
   it('loads paged products and category names with the default page size of 10', async () => {
@@ -88,6 +88,7 @@ describe('ProductsPage', () => {
   });
 
   it('shows missing-image text and opens a zoomable lightbox that closes with Escape', async () => {
+    const addEventListener = vi.spyOn(HTMLElement.prototype, 'addEventListener');
     const requestAdmin = requestFor();
     render(<ProductsPage requestAdmin={requestAdmin} />);
     await screen.findByText('Phone A');
@@ -95,6 +96,7 @@ describe('ProductsPage', () => {
     fireEvent.click(screen.getByRole('button', { name: 'View image of Phone A' }));
     const image = screen.getByRole('img', { name: 'Phone A' });
     expect(image).toBeInTheDocument();
+    expect(addEventListener).toHaveBeenCalledWith('wheel', expect.any(Function), { passive: false });
     fireEvent.wheel(image.parentElement!, { deltaY: -100, clientX: 100, clientY: 100 });
     expect(await screen.findByText('115%')).toBeInTheDocument();
     fireEvent.keyDown(document, { key: 'Escape' });
