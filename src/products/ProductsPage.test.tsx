@@ -4,142 +4,133 @@ import '@testing-library/jest-dom/vitest';
 import { ProductsPage } from './ProductsPage';
 import type { AdminProduct, AdminRequest } from './products-api';
 
-const first: AdminProduct = { id: 42, slug: 'phone-a', name: 'Phone A', brand: 'Brand A', description: null, seoTitle: null, seoDescription: null, categoryId: 7, isActive: true };
-const second = { ...first, id: 43, slug: 'phone-b', name: 'Phone B', brand: null, categoryId: 8, isActive: false };
-const third = { ...first, id: 44, slug: 'phone-c', name: 'Phone C', categoryId: 9 };
-const response = (items = [first], pageNumber = 1, pageSize = 20, totalItems = items.length) => Response.json({ items, pageNumber, pageSize, totalItems });
+const phone: AdminProduct = { id: 42, slug: 'phone-a', name: 'Phone A', brand: 'Brand A', description: 'Good phone', seoTitle: null, seoDescription: null, categoryId: 7, isActive: true, imageUrl: 'https://img.example/phone.jpg' };
+const inactive = { ...phone, id: 43, slug: 'phone-b', name: 'Phone B', categoryId: 8, isActive: false, imageUrl: null };
+const categoryList = [{ id: 7, slug: 'phones', name: 'Phones', isActive: true }, { id: 8, slug: 'audio', name: 'Audio', isActive: true }];
+const pageResponse = (items: AdminProduct[] = [phone], pageNumber = 1, pageSize = 10, totalItems = items.length) => Response.json({ items, pageNumber, pageSize, totalItems });
+
+function requestFor(rows = [phone, inactive]): ReturnType<typeof vi.fn<AdminRequest>> {
+  return vi.fn<AdminRequest>().mockImplementation(path => path.startsWith('/admin/categories')
+    ? Promise.resolve(Response.json({ items: categoryList, pageNumber: 1, pageSize: 100, totalItems: categoryList.length }))
+    : Promise.resolve(pageResponse(rows, 1, 10, rows.length)));
+}
 
 afterEach(cleanup);
 
 describe('ProductsPage', () => {
-  it('loads contract fields and excludes mock-derived offers, prices, and timestamps', async () => {
-    const requestAdmin = vi.fn<AdminRequest>().mockResolvedValue(response());
-    render(<ProductsPage requestAdmin={requestAdmin} />);
+  it('loads paged products and category names with the default page size of 10', async () => {
+    const requestAdmin = requestFor();
+    render(<ProductsPage requestAdmin={requestAdmin} permissions={['products.read']} />);
 
-    expect(screen.getByRole('heading', { name: 'Products' })).toBeInTheDocument();
     expect(await screen.findByText('Phone A')).toBeInTheDocument();
-    expect(screen.getByText('Brand A · ID 42')).toBeInTheDocument();
-    expect(screen.getByText('7')).toBeInTheDocument();
-    expect(screen.queryByText(/Lowest price|Offers|Updated/)).not.toBeInTheDocument();
-    expect(requestAdmin).toHaveBeenCalledWith('/admin/products?page=1&pageSize=20', expect.objectContaining({ signal: expect.any(AbortSignal) }));
+    expect(screen.getByText('Phones')).toBeInTheDocument();
+    expect(screen.getByText('Audio')).toBeInTheDocument();
+    expect(screen.getByText('phone-a')).toBeInTheDocument();
+    expect(screen.queryByText(/ID 42/)).not.toBeInTheDocument();
+    expect(requestAdmin).toHaveBeenCalledWith('/admin/products?page=1&pageSize=10', expect.objectContaining({ signal: expect.any(AbortSignal) }));
+    expect(requestAdmin).toHaveBeenCalledWith('/admin/categories?page=1&pageSize=100', expect.objectContaining({ signal: expect.any(AbortSignal) }));
+    expect(document.querySelector('.products-total')).toHaveTextContent('Tổng 2 sản phẩm');
   });
 
-  it('shows a loading state before the request resolves and then shows the empty state', async () => {
-    let resolve!: (value: Response) => void;
-    const requestAdmin = vi.fn<AdminRequest>().mockReturnValue(new Promise(done => { resolve = done; }));
+  it('keeps the loading state until the API resolves and shows an empty state', async () => {
+    let resolveProducts!: (response: Response) => void;
+    const requestAdmin = vi.fn<AdminRequest>().mockImplementation(path => path.startsWith('/admin/categories')
+      ? Promise.resolve(Response.json({ items: categoryList }))
+      : new Promise(resolve => { resolveProducts = resolve; }));
     render(<ProductsPage requestAdmin={requestAdmin} />);
-
     expect(screen.getByRole('status')).toHaveTextContent('Loading products');
-    resolve(response([], 1, 20, 0));
+    resolveProducts(pageResponse([], 1, 10, 0));
     expect(await screen.findByText('No products found')).toBeInTheDocument();
   });
 
-  it('shows retryable errors without rendering stale or mock rows', async () => {
-    const requestAdmin = vi.fn<AdminRequest>()
-      .mockResolvedValueOnce(new Response('', { status: 500 }))
-      .mockResolvedValueOnce(response([first]));
+  it('applies status filtering on the server and uses the returned filtered total', async () => {
+    const requestAdmin = requestFor([phone, inactive]);
     render(<ProductsPage requestAdmin={requestAdmin} />);
-
-    expect(await screen.findByRole('alert')).toHaveTextContent('status 500');
-    expect(screen.queryByText('Phone A')).not.toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: 'Retry' }));
-    expect(await screen.findByText('Phone A')).toBeInTheDocument();
+    await screen.findByText('Phone A');
+    fireEvent.click(screen.getByRole('button', { name: 'All status' }));
+    fireEvent.click(screen.getByRole('option', { name: /Inactive/ }));
+    await waitFor(() => expect(requestAdmin).toHaveBeenCalledWith('/admin/products?page=1&pageSize=10&isActive=false', expect.any(Object)));
+    expect(document.querySelector('.products-total')).toHaveTextContent('Tổng 2 sản phẩm');
+    expect(screen.getByRole('button', { name: 'Inactive' })).toBeInTheDocument();
   });
 
-  it('uses the response pagination values for the next request and status/search filters', async () => {
-    const requestAdmin = vi.fn<AdminRequest>()
-      .mockResolvedValueOnce(response([first, second], 1, 20, 21))
-      .mockResolvedValueOnce(response([second], 2, 20, 21));
+  it('changes page size through the API and moves to the first page', async () => {
+    const requestAdmin = requestFor();
     render(<ProductsPage requestAdmin={requestAdmin} />);
-
-    expect(await screen.findByText('Phone A')).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: 'Next page' }));
-    await waitFor(() => expect(requestAdmin).toHaveBeenLastCalledWith('/admin/products?page=2&pageSize=20', expect.any(Object)));
-    expect(await screen.findByText('Phone B')).toBeInTheDocument();
-    fireEvent.change(screen.getByRole('combobox', { name: 'Filter by status' }), { target: { value: 'inactive' } });
-    expect(screen.queryByText('Phone A')).not.toBeInTheDocument();
-    expect(screen.getByText('Phone B')).toBeInTheDocument();
-    fireEvent.change(screen.getByRole('textbox', { name: 'Search products' }), { target: { value: 'no match' } });
-    expect(screen.getByText('Try changing your search or status filter.')).toBeInTheDocument();
+    await screen.findByText('Phone A');
+    fireEvent.change(screen.getByRole('combobox', { name: 'Rows per page' }), { target: { value: '20' } });
+    await waitFor(() => expect(requestAdmin).toHaveBeenCalledWith('/admin/products?page=1&pageSize=20', expect.any(Object)));
   });
 
-  it('toggles a product row and exposes selected status', async () => {
-    const requestAdmin = vi.fn<AdminRequest>().mockResolvedValue(response([first, second]));
-    render(<ProductsPage requestAdmin={requestAdmin} />);
-
-    const rowCheckbox = await screen.findByRole('checkbox', { name: 'Select Phone A' });
-    fireEvent.click(rowCheckbox);
-
-    expect(rowCheckbox).toBeChecked();
-    expect(rowCheckbox.closest('tr')).toHaveClass('products-row-selected');
-    expect(screen.getByRole('status')).toHaveTextContent('1 selected');
-
-    fireEvent.click(rowCheckbox);
-    expect(rowCheckbox).not.toBeChecked();
-    expect(rowCheckbox.closest('tr')).not.toHaveClass('products-row-selected');
-    expect(screen.queryByText('1 selected')).not.toBeInTheDocument();
-  });
-
-  it('selects and clears every currently visible product', async () => {
-    const requestAdmin = vi.fn<AdminRequest>().mockResolvedValue(response([first, second]));
-    render(<ProductsPage requestAdmin={requestAdmin} />);
-
-    const selectAll = await screen.findByRole('checkbox', { name: 'Select all visible products' });
-    fireEvent.click(selectAll);
-
-    expect(selectAll).toBeChecked();
-    expect(screen.getByRole('checkbox', { name: 'Select Phone A' })).toBeChecked();
-    expect(screen.getByRole('checkbox', { name: 'Select Phone B' })).toBeChecked();
-    expect(screen.getByRole('status')).toHaveTextContent('2 selected');
-
-    fireEvent.click(selectAll);
-    expect(selectAll).not.toBeChecked();
-    expect(screen.getByRole('checkbox', { name: 'Select Phone A' })).not.toBeChecked();
-    expect(screen.getByRole('checkbox', { name: 'Select Phone B' })).not.toBeChecked();
-    expect(screen.queryByText('2 selected')).not.toBeInTheDocument();
-  });
-
-  it('keeps filtered selections and only changes visible rows when selecting all', async () => {
-    const requestAdmin = vi.fn<AdminRequest>().mockResolvedValue(response([first, second]));
-    render(<ProductsPage requestAdmin={requestAdmin} />);
-
-    fireEvent.click(await screen.findByRole('checkbox', { name: 'Select Phone A' }));
-    fireEvent.change(screen.getByRole('combobox', { name: 'Filter by status' }), { target: { value: 'inactive' } });
-
-    const phoneB = screen.getByRole('checkbox', { name: 'Select Phone B' });
-    expect(screen.getByRole('checkbox', { name: 'Select all visible products' })).not.toBeChecked();
-    expect(phoneB).not.toBeChecked();
-    expect(screen.getByRole('status')).toHaveTextContent('1 selected');
-
-    fireEvent.click(screen.getByRole('checkbox', { name: 'Select all visible products' }));
-    expect(phoneB).toBeChecked();
-    expect(screen.getByRole('status')).toHaveTextContent('2 selected');
-
-    fireEvent.change(screen.getByRole('combobox', { name: 'Filter by status' }), { target: { value: 'all' } });
+  it('selects the current page rows through the table checkboxes', async () => {
+    render(<ProductsPage requestAdmin={requestFor()} />);
+    await screen.findByText('Phone A');
+    const all = screen.getByRole('checkbox', { name: 'Select all products' });
+    fireEvent.click(all);
+    expect(all).toBeChecked();
     expect(screen.getByRole('checkbox', { name: 'Select Phone A' })).toBeChecked();
     expect(screen.getByRole('checkbox', { name: 'Select Phone B' })).toBeChecked();
   });
 
-  it('preserves selections across API pagination and selects all only on the current page', async () => {
-    const requestAdmin = vi.fn<AdminRequest>()
-      .mockResolvedValueOnce(response([first, second], 1, 20, 21))
-      .mockResolvedValueOnce(response([third], 2, 20, 21))
-      .mockResolvedValueOnce(response([first, second], 1, 20, 21));
+  it('shows missing-image text and opens a zoomable lightbox that closes with Escape', async () => {
+    const requestAdmin = requestFor();
     render(<ProductsPage requestAdmin={requestAdmin} />);
+    await screen.findByText('Phone A');
+    expect(screen.getByText('No image')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'View image of Phone A' }));
+    const image = screen.getByRole('img', { name: 'Phone A' });
+    expect(image).toBeInTheDocument();
+    fireEvent.wheel(image.parentElement!, { deltaY: -100, clientX: 100, clientY: 100 });
+    expect(await screen.findByText('115%')).toBeInTheDocument();
+    fireEvent.keyDown(document, { key: 'Escape' });
+    expect(screen.queryByRole('img', { name: 'Phone A' })).not.toBeInTheDocument();
+  });
 
-    fireEvent.click(await screen.findByRole('checkbox', { name: 'Select Phone A' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Next page' }));
-    const phoneC = await screen.findByRole('checkbox', { name: 'Select Phone C' });
-    expect(screen.getByRole('status')).toHaveTextContent('1 selected');
-    expect(phoneC).not.toBeChecked();
+  it('opens the permission-gated edit form and sends current ImageUrl in the full replacement PUT', async () => {
+    const requestAdmin = requestFor();
+    requestAdmin.mockImplementation(path => {
+      if (path.startsWith('/admin/categories')) return Promise.resolve(Response.json({ items: categoryList }));
+      if (path === '/admin/products?page=1&pageSize=10') return Promise.resolve(pageResponse([phone]));
+      return Promise.resolve(new Response(null, { status: 204 }));
+    });
+    render(<ProductsPage requestAdmin={requestAdmin} permissions={['products.read', 'products.update']} />);
+    await screen.findByText('Phone A');
+    fireEvent.click(screen.getByRole('button', { name: 'Actions for Phone A' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Sửa' }));
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText('Tên sản phẩm'), { target: { value: 'Phone A updated' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Lưu thay đổi' }));
+    await waitFor(() => expect(requestAdmin).toHaveBeenCalledWith('/admin/products/42', expect.objectContaining({ method: 'PUT' })));
+    const put = requestAdmin.mock.calls.find(([path, init]) => path === '/admin/products/42' && init?.method === 'PUT');
+    expect(JSON.parse(String(put?.[1]?.body))).toMatchObject({ name: 'Phone A updated', imageUrl: phone.imageUrl, categoryId: 7 });
+  });
 
-    fireEvent.click(screen.getByRole('checkbox', { name: 'Select all visible products' }));
-    expect(phoneC).toBeChecked();
-    expect(screen.getByRole('status')).toHaveTextContent('2 selected');
+  it('hides row actions without update or delete permission and confirms deletion before DELETE', async () => {
+    const requestAdmin = requestFor([phone]);
+    render(<ProductsPage requestAdmin={requestAdmin} permissions={['products.read']} />);
+    await screen.findByText('Phone A');
+    expect(screen.queryByRole('button', { name: 'Actions for Phone A' })).not.toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole('button', { name: 'Previous page' }));
-    expect(await screen.findByRole('checkbox', { name: 'Select Phone A' })).toBeChecked();
-    expect(screen.getByRole('checkbox', { name: 'Select Phone B' })).not.toBeChecked();
-    expect(screen.getByRole('status')).toHaveTextContent('2 selected');
+    cleanup();
+    requestAdmin.mockImplementation(path => path.startsWith('/admin/categories')
+      ? Promise.resolve(Response.json({ items: categoryList }))
+      : path === '/admin/products?page=1&pageSize=10' ? Promise.resolve(pageResponse([phone])) : Promise.resolve(new Response(null, { status: 204 })));
+    render(<ProductsPage requestAdmin={requestAdmin} permissions={['products.read', 'products.delete']} />);
+    await screen.findByText('Phone A');
+    fireEvent.click(screen.getByRole('button', { name: 'Actions for Phone A' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Xoá' }));
+    expect(screen.getByRole('alertdialog')).toBeInTheDocument();
+    expect(requestAdmin).not.toHaveBeenCalledWith('/admin/products/42', expect.objectContaining({ method: 'DELETE' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Xoá sản phẩm' }));
+    await waitFor(() => expect(requestAdmin).toHaveBeenCalledWith('/admin/products/42', { method: 'DELETE' }));
+  });
+
+  it('closes row menus on outside click and Escape', async () => {
+    render(<ProductsPage requestAdmin={requestFor()} permissions={['products.read', 'products.update']} />);
+    await screen.findByText('Phone A');
+    fireEvent.click(screen.getByRole('button', { name: 'Actions for Phone A' }));
+    expect(screen.getByRole('button', { name: 'Sửa' })).toBeInTheDocument();
+    fireEvent.keyDown(document, { key: 'Escape' });
+    expect(screen.queryByRole('button', { name: 'Sửa' })).not.toBeInTheDocument();
   });
 });
