@@ -109,7 +109,7 @@ export function CategoriesPage({ requestAdmin, permissions }: { requestAdmin: Ad
 
   return <div className="categories-page">
     <header className="categories-header">
-      <div><h1>Categories</h1><p>Taxonomy sản phẩm — CRUD qua /admin/categories, theo đúng pattern Partner Shops.</p></div>
+      <div><span className="eyebrow">SYSTEM</span><h1>Categories</h1><p>Taxonomy sản phẩm — CRUD qua /admin/categories, theo đúng pattern Partner Shops.</p></div>
       {canCreate && <button className="categories-button categories-button-primary" onClick={openCreate}>+ Thêm category</button>}
     </header>
 

@@ -37,6 +37,7 @@ describe('Categories page', () => {
     expect(screen.getByRole('status', { name: 'Đang tải categories' })).toBeInTheDocument();
     resolve(page());
     expect(await screen.findByText('Audio')).toBeInTheDocument();
+    expect(screen.getByText('SYSTEM')).toHaveClass('eyebrow');
     expect(screen.getByText('audio')).toBeInTheDocument();
     expect(screen.getByText('7')).toBeInTheDocument();
     const table = screen.getByRole('table');
