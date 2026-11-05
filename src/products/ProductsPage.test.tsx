@@ -8,6 +8,7 @@ const phone: AdminProduct = { id: 42, slug: 'phone-a', name: 'Phone A', brand: '
 const inactive = { ...phone, id: 43, slug: 'phone-b', name: 'Phone B', categoryId: 8, isActive: false, imageUrl: null };
 const categoryList = [{ id: 7, slug: 'phones', name: 'Phones', isActive: true }, { id: 8, slug: 'audio', name: 'Audio', isActive: true }];
 const pageResponse = (items: AdminProduct[] = [phone], pageNumber = 1, pageSize = 10, totalItems = items.length) => Response.json({ items, pageNumber, pageSize, totalItems });
+const matching = { id: 501, name: 'Phone A Global Edition', externalSku: 'SKU-501', dataSourceId: 11, dataSourceDisplayName: 'Shop One', createdAtUtc: '2026-10-12T10:00:00Z' };
 
 function requestFor(rows = [phone, inactive]): ReturnType<typeof vi.fn<AdminRequest>> {
   return vi.fn<AdminRequest>().mockImplementation(path => path.startsWith('/admin/categories')
@@ -120,6 +121,84 @@ describe('ProductsPage', () => {
     await waitFor(() => expect(requestAdmin).toHaveBeenCalledWith('/admin/products/42', expect.objectContaining({ method: 'PUT' })));
     const put = requestAdmin.mock.calls.find(([path, init]) => path === '/admin/products/42' && init?.method === 'PUT');
     expect(JSON.parse(String(put?.[1]?.body))).toMatchObject({ name: 'Phone A updated', imageUrl: phone.imageUrl, categoryId: 7 });
+  });
+
+  it('loads attached matchings in edit, displays contract fields, and unlinks only after success', async () => {
+    const requestAdmin = requestFor([phone]);
+    requestAdmin.mockImplementation(path => {
+      if (path.startsWith('/admin/categories')) return Promise.resolve(Response.json({ items: categoryList }));
+      if (path === '/admin/products?page=1&pageSize=10') return Promise.resolve(pageResponse([phone]));
+      if (path === '/admin/products/42/matchings') return Promise.resolve(Response.json([matching]));
+      if (path === '/admin/matching/501') return Promise.resolve(new Response(null, { status: 204 }));
+      return Promise.resolve(new Response(null, { status: 404 }));
+    });
+    render(<ProductsPage requestAdmin={requestAdmin} permissions={['products.read', 'products.update']} />);
+    await screen.findByText('Phone A');
+    fireEvent.click(screen.getByRole('button', { name: 'Actions for Phone A' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Sửa' }));
+    expect(await screen.findByText('Phone A Global Edition')).toBeInTheDocument();
+    expect(screen.getByText(/Shop One/)).toBeInTheDocument();
+    expect(screen.getByText(/SKU-501/)).toBeInTheDocument();
+    expect(screen.getByText(/12\/10\/2026/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Thao tác matching Phone A Global Edition' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Xoá' }));
+    await waitFor(() => expect(requestAdmin).toHaveBeenCalledWith('/admin/matching/501', { method: 'DELETE' }));
+    expect(await screen.findByText('Chưa có product matching nào được gắn.')).toBeInTheDocument();
+  });
+
+  it('keeps matching loading separate until a successful empty response arrives', async () => {
+    let resolveMatchings!: (response: Response) => void;
+    const requestAdmin = requestFor([phone]);
+    requestAdmin.mockImplementation(path => path.startsWith('/admin/categories')
+      ? Promise.resolve(Response.json({ items: categoryList }))
+      : path === '/admin/products?page=1&pageSize=10' ? Promise.resolve(pageResponse([phone]))
+        : path === '/admin/products/42/matchings' ? new Promise(resolve => { resolveMatchings = resolve; })
+          : Promise.resolve(new Response(null, { status: 204 })));
+    render(<ProductsPage requestAdmin={requestAdmin} permissions={['products.read', 'products.update']} />);
+    await screen.findByText('Phone A');
+    fireEvent.click(screen.getByRole('button', { name: 'Actions for Phone A' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Sửa' }));
+    expect(screen.getByRole('status')).toHaveTextContent('Đang tải product matching');
+    expect(screen.queryByText('Chưa có product matching nào được gắn.')).not.toBeInTheDocument();
+    resolveMatchings(Response.json([]));
+    expect(await screen.findByText('Chưa có product matching nào được gắn.')).toBeInTheDocument();
+  });
+
+  it('keeps matching rows and reports unlink failures, with retryable load errors distinct from empty', async () => {
+    const requestAdmin = requestFor([phone]);
+    let failLoad = true;
+    requestAdmin.mockImplementation(path => {
+      if (path.startsWith('/admin/categories')) return Promise.resolve(Response.json({ items: categoryList }));
+      if (path === '/admin/products?page=1&pageSize=10') return Promise.resolve(pageResponse([phone]));
+      if (path === '/admin/products/42/matchings') return Promise.resolve(failLoad ? new Response(null, { status: 403 }) : Response.json([matching]));
+      if (path === '/admin/matching/501') return Promise.resolve(new Response(null, { status: 500 }));
+      return Promise.resolve(new Response(null, { status: 404 }));
+    });
+    render(<ProductsPage requestAdmin={requestAdmin} permissions={['products.read', 'products.update']} />);
+    await screen.findByText('Phone A');
+    fireEvent.click(screen.getByRole('button', { name: 'Actions for Phone A' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Sửa' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent('permission');
+    expect(screen.queryByText('Chưa có product matching nào được gắn.')).not.toBeInTheDocument();
+    failLoad = false;
+    fireEvent.click(screen.getByRole('button', { name: 'Thử lại' }));
+    await screen.findByText('Phone A Global Edition');
+    fireEvent.click(screen.getByRole('button', { name: 'Thao tác matching Phone A Global Edition' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Xoá' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent('status 500');
+    expect(screen.getByText('Phone A Global Edition')).toBeInTheDocument();
+  });
+
+  it('opens image preview in the existing lightbox and keeps No image non-clickable', async () => {
+    render(<ProductsPage requestAdmin={requestFor([phone, inactive])} permissions={['products.read', 'products.update']} />);
+    await screen.findByText('Phone A');
+    fireEvent.click(screen.getByRole('button', { name: 'Actions for Phone A' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Sửa' }));
+    fireEvent.click(screen.getByRole('button', { name: 'View product preview' }));
+    expect(document.querySelector('.product-lightbox-box')).toBeInTheDocument();
+    fireEvent.keyDown(document, { key: 'Escape' });
+    expect(document.querySelector('.product-lightbox')).not.toBeInTheDocument();
+    expect(screen.getByText('No image').closest('button')).toBeNull();
   });
 
   it('hides row actions without update or delete permission and confirms deletion before DELETE', async () => {

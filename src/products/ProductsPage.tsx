@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type PointerEvent } from 'react';
-import { deleteAdminProduct, getAdminCategories, getAdminProducts, updateAdminProduct, type AdminCategory, type AdminProduct, type AdminRequest, type ProductInput } from './products-api';
+import { deleteAdminProduct, getAdminCategories, getAdminProductMatchings, getAdminProducts, unlinkAdminProductMatching, updateAdminProduct, type AdminCategory, type AdminProduct, type AdminProductMatching, type AdminRequest, type ProductInput } from './products-api';
 import './products.css';
 
 type StatusFilter = 'all' | 'active' | 'inactive';
@@ -11,6 +11,10 @@ const initialInput = (product: AdminProduct): ProductInput => ({
   seoDescription: product.seoDescription, isActive: product.isActive,
   imageUrl: product.imageUrl ?? null,
 });
+const formatAttachedDate = (value: string) => {
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? value : new Intl.DateTimeFormat('vi-VN').format(date);
+};
 
 export function ProductsPage({ requestAdmin, permissions = [] }: { requestAdmin: AdminRequest; permissions?: string[] }) {
   const [items, setItems] = useState<AdminProduct[]>([]);
@@ -28,6 +32,12 @@ export function ProductsPage({ requestAdmin, permissions = [] }: { requestAdmin:
   const [openMenu, setOpenMenu] = useState<number | null>(null);
   const [statusOpen, setStatusOpen] = useState(false);
   const [editor, setEditor] = useState<Editor>(null);
+  const [matchings, setMatchings] = useState<AdminProductMatching[]>([]);
+  const [matchingsLoading, setMatchingsLoading] = useState(false);
+  const [matchingsError, setMatchingsError] = useState('');
+  const [matchingActionError, setMatchingActionError] = useState('');
+  const [matchingMenu, setMatchingMenu] = useState<number | null>(null);
+  const [unlinkingId, setUnlinkingId] = useState<number | null>(null);
   const [saving, setSaving] = useState(false);
   const [deletingId, setDeletingId] = useState<number | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<AdminProduct | null>(null);
@@ -39,6 +49,29 @@ export function ProductsPage({ requestAdmin, permissions = [] }: { requestAdmin:
   const lightboxBox = useRef<HTMLDivElement>(null);
   const canUpdate = permissions.includes('products.update');
   const canDelete = permissions.includes('products.delete');
+
+  const loadMatchings = useCallback(async (productId: number, signal?: AbortSignal) => {
+    setMatchingsLoading(true);
+    setMatchingsError('');
+    try {
+      const result = await getAdminProductMatchings(requestAdmin, productId, signal);
+      if (!signal?.aborted) setMatchings(result);
+    } catch (reason) {
+      if (!signal?.aborted) {
+        setMatchings([]);
+        setMatchingsError(reason instanceof Error ? reason.message : 'Could not load product matchings.');
+      }
+    } finally {
+      if (!signal?.aborted) setMatchingsLoading(false);
+    }
+  }, [requestAdmin]);
+
+  useEffect(() => {
+    if (!editor) { setMatchings([]); setMatchingsError(''); setMatchingActionError(''); setMatchingsLoading(false); setMatchingMenu(null); return; }
+    const controller = new AbortController();
+    void loadMatchings(editor.product.id, controller.signal);
+    return () => controller.abort();
+  }, [editor?.product.id, loadMatchings]);
 
   const load = useCallback(async (signal: AbortSignal) => {
     const version = ++loadVersion.current;
@@ -123,6 +156,7 @@ export function ProductsPage({ requestAdmin, permissions = [] }: { requestAdmin:
     const onPointerDown = (event: globalThis.PointerEvent) => {
       const target = event.target as HTMLElement;
       if (!target.closest('.product-row-menu')) setOpenMenu(null);
+      if (!target.closest('.matching-menu-wrap')) setMatchingMenu(null);
       if (!target.closest('.product-status-filter')) setStatusOpen(false);
     };
     document.addEventListener('keydown', onKeyDown);
@@ -135,6 +169,18 @@ export function ProductsPage({ requestAdmin, permissions = [] }: { requestAdmin:
   function openEditor(product: AdminProduct) { setOpenMenu(null); setEditor({ product, input: initialInput(product) }); }
   function updateInput<K extends keyof ProductInput>(key: K, value: ProductInput[K]) {
     setEditor(current => current ? { ...current, input: { ...current.input, [key]: value } } : current);
+  }
+
+  async function unlinkMatching(matchingId: number) {
+    setUnlinkingId(matchingId);
+    setMatchingActionError('');
+    try {
+      await unlinkAdminProductMatching(requestAdmin, matchingId);
+      setMatchings(current => current.filter(matching => matching.id !== matchingId));
+      setMatchingMenu(null);
+    } catch (reason) {
+      setMatchingActionError(reason instanceof Error ? reason.message : 'Could not remove matching. Please try again.');
+    } finally { setUnlinkingId(null); }
   }
 
   async function save(event: FormEvent<HTMLFormElement>) {
@@ -210,12 +256,26 @@ export function ProductsPage({ requestAdmin, permissions = [] }: { requestAdmin:
     {editor && <div className="product-modal-backdrop" onMouseDown={event => { if (event.target === event.currentTarget && !saving) setEditor(null); }}><section className="product-modal" role="dialog" aria-modal="true" aria-labelledby="edit-product-title"><form onSubmit={event => void save(event)}>
       <header><h2 id="edit-product-title">Sửa sản phẩm</h2><button type="button" aria-label="Đóng" disabled={saving} onClick={() => setEditor(null)}>✕</button></header>
       <div className="product-modal-body">
-        <div className="product-image-field"><div className="product-image-preview">{editor.input.imageUrl ? <img key={editor.input.imageUrl} src={editor.input.imageUrl} alt="Product preview" /> : <span>No image</span>}</div><label>Image URL<input type="url" value={editor.input.imageUrl ?? ''} onChange={event => updateInput('imageUrl', event.target.value || null)} placeholder="https://..." /></label></div>
+        <div className="product-image-field">{editor.input.imageUrl ? <button className="product-image-preview" type="button" aria-label="View product preview" onClick={() => { setLightbox({ src: editor.input.imageUrl!, alt: editor.input.name }); setZoom(1); setPan({ x: 0, y: 0 }); }}><img key={editor.input.imageUrl} src={editor.input.imageUrl} alt="Product preview" /></button> : <div className="product-image-preview"><span>No image</span></div>}<label>Image URL<input type="url" value={editor.input.imageUrl ?? ''} onChange={event => updateInput('imageUrl', event.target.value || null)} placeholder="https://..." /></label></div>
         <label>Tên sản phẩm<input required value={editor.input.name} onChange={event => updateInput('name', event.target.value)} /></label>
         <div className="product-form-row"><label>Slug<input required value={editor.input.slug} onChange={event => updateInput('slug', event.target.value)} /></label><label>Category<select required value={editor.input.categoryId} onChange={event => updateInput('categoryId', Number(event.target.value))}>{categories.map(category => <option key={category.id} value={category.id}>{category.name}</option>)}</select></label></div>
         <label>Brand<input value={editor.input.brand ?? ''} onChange={event => updateInput('brand', event.target.value || null)} placeholder="Không bắt buộc" /></label>
         <label>Mô tả<textarea value={editor.input.description ?? ''} onChange={event => updateInput('description', event.target.value || null)} placeholder="Không bắt buộc" /></label>
         <label className="product-active-toggle"><span>Trạng thái hoạt động</span><input type="checkbox" checked={editor.input.isActive} onChange={event => updateInput('isActive', event.target.checked)} /><i /></label>
+        <section className="matching-section" aria-labelledby="product-matching-title">
+          <div className="matching-head"><h3 id="product-matching-title">Product matching</h3>{!matchingsLoading && !matchingsError && <span>{matchings.length} bản ghi</span>}</div>
+          {matchingsLoading ? <div className="matching-state" role="status">Đang tải product matching…</div>
+            : matchingsError ? <div className="matching-error" role="alert">{matchingsError}<button type="button" onClick={() => void loadMatchings(editor.product.id)}>Thử lại</button></div>
+              : <>{matchingActionError && <div className="matching-error" role="alert">{matchingActionError}</div>}{matchings.length === 0 ? <div className="matching-state">Chưa có product matching nào được gắn.</div>
+                : <div className="matching-list">{matchings.map(matching => <div className="matching-row" key={matching.id}>
+                  <span className="matching-badge">{matching.dataSourceDisplayName || matching.dataSourceId || '—'}</span>
+                  <div className="matching-main"><strong>{matching.name}</strong><small>SKU nguồn {matching.externalSku || '—'} · gắn {formatAttachedDate(matching.createdAtUtc)}</small></div>
+                  <div className={`matching-menu-wrap${matchingMenu === matching.id ? ' open' : ''}`}>
+                    <button className="matching-menu" type="button" aria-label={`Thao tác matching ${matching.name}`} aria-expanded={matchingMenu === matching.id} disabled={unlinkingId === matching.id} onClick={() => setMatchingMenu(matchingMenu === matching.id ? null : matching.id)}>⋮</button>
+                    {matchingMenu === matching.id && <div className="matching-menu-pop"><button type="button" disabled={unlinkingId === matching.id} onClick={() => void unlinkMatching(matching.id)}>{unlinkingId === matching.id ? 'Đang xoá…' : 'Xoá'}</button></div>}
+                  </div>
+                </div>)}</div>}</>}
+        </section>
       </div>
       <footer><button type="button" disabled={saving} onClick={() => setEditor(null)}>Huỷ</button><button className="primary" type="submit" disabled={saving}>{saving ? 'Đang lưu…' : 'Lưu thay đổi'}</button></footer>
     </form></section></div>}

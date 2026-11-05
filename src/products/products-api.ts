@@ -32,6 +32,15 @@ export interface ProductInput {
   imageUrl: string | null;
 }
 
+export interface AdminProductMatching {
+  id: number;
+  name: string;
+  externalSku: string | null;
+  dataSourceId: number | string | null;
+  dataSourceDisplayName: string | null;
+  createdAtUtc: string;
+}
+
 export interface AdminProductPage {
   items: AdminProduct[];
   pageNumber: number;
@@ -83,4 +92,20 @@ export async function updateAdminProduct(requestAdmin: AdminRequest, id: number,
 export async function deleteAdminProduct(requestAdmin: AdminRequest, id: number): Promise<void> {
   const response = await requestAdmin(`/admin/products/${encodeURIComponent(id)}`, { method: 'DELETE' });
   if (!response.ok) throw new ProductsApiError(`Could not delete product (request failed with status ${response.status}).`, response.status);
+}
+
+export async function getAdminProductMatchings(requestAdmin: AdminRequest, productId: number, signal?: AbortSignal): Promise<AdminProductMatching[]> {
+  const response = await requestAdmin(`/admin/products/${encodeURIComponent(productId)}/matchings`, { signal });
+  if (!response.ok) {
+    const message = response.status === 401 || response.status === 403
+      ? 'You do not have permission to view product matchings.'
+      : `Could not load product matchings (request failed with status ${response.status}).`;
+    throw new ProductsApiError(message, response.status);
+  }
+  return response.json() as Promise<AdminProductMatching[]>;
+}
+
+export async function unlinkAdminProductMatching(requestAdmin: AdminRequest, matchingId: number): Promise<void> {
+  const response = await requestAdmin(`/admin/matching/${encodeURIComponent(matchingId)}`, { method: 'DELETE' });
+  if (!response.ok) throw new ProductsApiError(`Could not remove matching (request failed with status ${response.status}).`, response.status);
 }
