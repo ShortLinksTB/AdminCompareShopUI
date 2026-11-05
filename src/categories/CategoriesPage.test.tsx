@@ -77,9 +77,37 @@ describe('Categories page', () => {
     await userEvent.type(screen.getByRole('textbox', { name: 'Search categories' }), 'laptop');
     expect(screen.queryByText('Audio')).not.toBeInTheDocument();
     expect(screen.getByText('Computers')).toBeInTheDocument();
+    expect(screen.getByText('Showing 1–1 of 1 categories')).toBeInTheDocument();
+    expect(screen.getByText(/Tổng/).parentElement).toHaveTextContent('1 category');
     await userEvent.click(screen.getByRole('button', { name: 'Actions for Computers' }));
     expect(screen.getByRole('button', { name: 'Sửa' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Xoá' })).toBeInTheDocument();
+  });
+
+  it('shows zero filtered totals and range when a search has no matches', async () => {
+    renderPage();
+    expect(await screen.findByText('Audio')).toBeInTheDocument();
+    await userEvent.type(screen.getByRole('textbox', { name: 'Search categories' }), 'missing');
+    expect(screen.queryByText('Audio')).not.toBeInTheDocument();
+    expect(screen.getByText('Showing 0–0 of 0 categories')).toBeInTheDocument();
+    expect(screen.getByText(/Tổng/).parentElement).toHaveTextContent('0 category');
+  });
+
+  it('preserves the API total and paginated range when search is cleared', async () => {
+    api.getCategories.mockResolvedValueOnce(page([category, { id: 8, slug: 'laptops', name: 'Computers', isActive: true }], 2, 22, 20));
+    renderPage();
+    expect(await screen.findByText('Audio')).toBeInTheDocument();
+    expect(screen.getByText('Showing 21–22 of 22 categories')).toBeInTheDocument();
+    expect(screen.getByText(/Tổng/).parentElement).toHaveTextContent('22 category');
+
+    const search = screen.getByRole('textbox', { name: 'Search categories' });
+    await userEvent.type(search, 'laptop');
+    expect(screen.getByText('Showing 1–1 of 1 categories')).toBeInTheDocument();
+    expect(screen.getByText(/Tổng/).parentElement).toHaveTextContent('1 category');
+
+    await userEvent.clear(search);
+    expect(screen.getByText('Showing 21–22 of 22 categories')).toBeInTheDocument();
+    expect(screen.getByText(/Tổng/).parentElement).toHaveTextContent('22 category');
   });
 
   it('independently exposes the allowed mutation action', async () => {
