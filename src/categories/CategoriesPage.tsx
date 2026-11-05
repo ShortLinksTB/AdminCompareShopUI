@@ -20,6 +20,8 @@ export function CategoriesPage({ requestAdmin, permissions }: { requestAdmin: Ad
   const [editor, setEditor] = useState<EditorState>(null);
   const [saving, setSaving] = useState(false);
   const [deletingId, setDeletingId] = useState<number | null>(null);
+  const [search, setSearch] = useState('');
+  const [openMenu, setOpenMenu] = useState<number | null>(null);
 
   const load = useCallback(async (requestedPage = page, requestedSize = pageSize) => {
     setLoading(true);
@@ -37,6 +39,13 @@ export function CategoriesPage({ requestAdmin, permissions }: { requestAdmin: Ad
   }, [requestAdmin, page, pageSize]);
 
   useEffect(() => { void load(1, 20); }, [requestAdmin]);
+  useEffect(() => {
+    const closeMenu = (event: PointerEvent) => {
+      if (!(event.target instanceof Element) || !event.target.closest('.category-row-menu')) setOpenMenu(null);
+    };
+    document.addEventListener('pointerdown', closeMenu);
+    return () => document.removeEventListener('pointerdown', closeMenu);
+  }, []);
 
   const canCreate = permissions.includes('categories.create');
   const canUpdate = permissions.includes('categories.update');
@@ -96,12 +105,15 @@ export function CategoriesPage({ requestAdmin, permissions }: { requestAdmin: Ad
     }
   }
 
+  const visibleCategories = result.items.filter(category => `${category.name} ${category.slug}`.toLocaleLowerCase().includes(search.trim().toLocaleLowerCase()));
+
   return <div className="categories-page">
-    <div className="categories-eyebrow">System</div>
     <header className="categories-header">
-      <div><h1>Categories</h1><p>Taxonomy sản phẩm — CRUD qua /admin/categories, theo đúng pattern Partner Shops.</p></div>
+      <div><span className="eyebrow">SYSTEM</span><h1>Categories</h1><p>Taxonomy sản phẩm — CRUD qua /admin/categories, theo đúng pattern Partner Shops.</p></div>
       {canCreate && <button className="categories-button categories-button-primary" onClick={openCreate}>+ Thêm category</button>}
     </header>
+
+    <label className="categories-toolbar-search"><span aria-hidden="true">⌕</span><input aria-label="Search categories" value={search} onChange={event => setSearch(event.target.value)} placeholder="Tìm theo tên hoặc slug..." /></label>
 
     {listError && <div className="categories-alert" role="alert"><span>{listError}</span><button className="categories-button" onClick={() => void load()}>Thử lại</button></div>}
     {deleteError && <div className="categories-alert" role="alert">{deleteError}</div>}
@@ -110,21 +122,24 @@ export function CategoriesPage({ requestAdmin, permissions }: { requestAdmin: Ad
         : !listError && result.items.length === 0 ? <div className="categories-state">Chưa có category nào.</div>
           : !listError && <div className="categories-table-wrap"><table>
             <thead><tr><th scope="col">Id</th><th scope="col">Name</th><th scope="col">Slug</th><th scope="col" aria-label="Thao tác" /></tr></thead>
-            <tbody>{result.items.map(category => <tr key={category.id}>
+            <tbody>{visibleCategories.map(category => <tr key={category.id}>
               <td>{category.id}</td><td>{category.name}</td><td><code>{category.slug}</code></td>
-              <td><div className="categories-actions">
-                {canUpdate && <button className="categories-button categories-button-small" disabled={saving || deletingId !== null} onClick={() => openEdit(category)}>Sửa</button>}
-                {canDelete && <button className="categories-button categories-button-small" disabled={deletingId !== null || saving} onClick={() => void remove(category)}>{deletingId === category.id ? 'Đang xoá…' : 'Xoá'}</button>}
-              </div></td>
+              <td>{(canUpdate || canDelete) && <div className={`category-row-menu${openMenu === category.id ? ' open' : ''}`}>
+                <button className="category-row-menu-button" type="button" aria-label={`Actions for ${category.name}`} aria-expanded={openMenu === category.id} onClick={() => setOpenMenu(openMenu === category.id ? null : category.id)}>⋮</button>
+                {openMenu === category.id && <div className="category-row-menu-pop">
+                  {canUpdate && <button type="button" disabled={saving || deletingId !== null} onClick={() => { setOpenMenu(null); openEdit(category); }}>Sửa</button>}
+                  {canDelete && <button className="danger" type="button" disabled={deletingId !== null || saving} onClick={() => { setOpenMenu(null); void remove(category); }}>{deletingId === category.id ? 'Đang xoá…' : 'Xoá'}</button>}
+                </div>}
+              </div>}</td>
             </tr>)}</tbody>
           </table></div>}
       <footer className="categories-footer">
-        <span>{result.totalItems === 0 ? '0 category' : `${(page - 1) * pageSize + 1}–${Math.min(page * pageSize, result.totalItems)} / ${result.totalItems} category`} · trang {page}/{totalPages}</span>
-        <label>Hiển thị <select aria-label="Số dòng mỗi trang" value={pageSize} disabled={loading} onChange={event => { const size = Number(event.target.value); setPage(1); setPageSize(size); void load(1, size); }}>{PAGE_SIZE_OPTIONS.map(size => <option key={size} value={size}>{size}</option>)}</select></label>
-        <div className="categories-pagination"><button aria-label="Trang trước" disabled={page <= 1 || loading} onClick={() => void load(page - 1)}>‹</button><span>Trang {page}/{totalPages}</span><button aria-label="Trang sau" disabled={page >= totalPages || loading} onClick={() => void load(page + 1)}>›</button></div>
-        <span className="categories-permission-hint">categories.create/update/delete yêu cầu Operator trở lên — Viewer chỉ thấy bảng, không thấy nút thao tác</span>
+        <div className="categories-page-size"><label>Hiển thị <select aria-label="Số dòng mỗi trang" value={pageSize} disabled={loading} onChange={event => { const size = Number(event.target.value); setPage(1); setPageSize(size); void load(1, size); }}>{PAGE_SIZE_OPTIONS.map(size => <option key={size} value={size}>{size}</option>)}</select> dòng/trang</label><span className="categories-total">Tổng <b>{result.totalItems}</b> category</span></div>
+        <span className="categories-range">Showing {result.totalItems ? (page - 1) * pageSize + 1 : 0}–{Math.min(page * pageSize, result.totalItems)} of {result.totalItems} categories</span>
+        <div className="categories-pagination"><button aria-label="Trang trước" disabled={page <= 1 || loading} onClick={() => void load(page - 1)}>‹</button><span>Page {page} of {totalPages}</span><button aria-label="Trang sau" disabled={page >= totalPages || loading} onClick={() => void load(page + 1)}>›</button></div>
       </footer>
     </section>
+    <p className="categories-permission-hint">categories.create/update/delete yêu cầu Operator trở lên — Viewer chỉ thấy bảng, không thấy nút thao tác</p>
 
     {editor && <div className="categories-backdrop"><section className="categories-dialog" role="dialog" aria-modal="true" aria-labelledby="categories-form-title"><form onSubmit={event => void submit(event)}>
       <div className="categories-dialog-heading"><div><h2 id="categories-form-title">{editor.category ? 'Sửa category' : 'Thêm category'}</h2><p>Nhập thông tin taxonomy sản phẩm.</p></div><button type="button" className="categories-close" aria-label="Đóng" disabled={saving} onClick={() => setEditor(null)}>×</button></div>

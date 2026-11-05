@@ -37,6 +37,7 @@ describe('Categories page', () => {
     expect(screen.getByRole('status', { name: 'Đang tải categories' })).toBeInTheDocument();
     resolve(page());
     expect(await screen.findByText('Audio')).toBeInTheDocument();
+    expect(screen.getByText('SYSTEM')).toHaveClass('eyebrow');
     expect(screen.getByText('audio')).toBeInTheDocument();
     expect(screen.getByText('7')).toBeInTheDocument();
     const table = screen.getByRole('table');
@@ -63,14 +64,29 @@ describe('Categories page', () => {
     expect(await screen.findByText('Audio')).toBeInTheDocument();
     expect(screen.getByText(/Viewer chỉ thấy bảng/)).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /Thêm category/ })).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Sửa' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Xoá' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Actions for Audio' })).not.toBeInTheDocument();
+    expect(screen.getByText(/Tổng/).parentElement).toHaveTextContent('1 category');
+    expect(screen.getByText('Showing 1–1 of 1 categories')).toBeInTheDocument();
+  });
+
+  it('filters visible categories by name or slug and exposes row mutations through the action menu', async () => {
+    api.getCategories.mockResolvedValueOnce(page([category, { id: 8, slug: 'laptops', name: 'Computers', isActive: true }]));
+    renderPage();
+    expect(await screen.findByText('Audio')).toBeInTheDocument();
+    expect(screen.getByText('Computers')).toBeInTheDocument();
+    await userEvent.type(screen.getByRole('textbox', { name: 'Search categories' }), 'laptop');
+    expect(screen.queryByText('Audio')).not.toBeInTheDocument();
+    expect(screen.getByText('Computers')).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Actions for Computers' }));
+    expect(screen.getByRole('button', { name: 'Sửa' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Xoá' })).toBeInTheDocument();
   });
 
   it('independently exposes the allowed mutation action', async () => {
     renderPage(['categories.read', 'categories.update']);
     expect(await screen.findByText('Audio')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /Thêm category/ })).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Actions for Audio' }));
     expect(screen.getByRole('button', { name: 'Sửa' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Xoá' })).not.toBeInTheDocument();
   });
@@ -105,7 +121,8 @@ describe('Categories page', () => {
   it('updates all DTO values, including isActive, and reloads', async () => {
     const user = userEvent.setup();
     renderPage();
-    await user.click(await screen.findByRole('button', { name: 'Sửa' }));
+    await user.click(await screen.findByRole('button', { name: 'Actions for Audio' }));
+    await user.click(screen.getByRole('button', { name: 'Sửa' }));
     expect(screen.getByLabelText('Active')).not.toBeChecked();
     await user.clear(screen.getByLabelText('Name'));
     await user.type(screen.getByLabelText('Name'), 'Audio gear');
@@ -119,11 +136,12 @@ describe('Categories page', () => {
     const user = userEvent.setup();
     api.getCategories.mockResolvedValueOnce(page([category], 2, 21)).mockResolvedValueOnce(page([category], 1, 20));
     renderPage();
-    expect(await screen.findByText('Trang 2/2')).toBeInTheDocument();
+    expect(await screen.findByText('Page 2 of 2')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Actions for Audio' }));
     await user.click(screen.getByRole('button', { name: 'Xoá' }));
     await waitFor(() => expect(api.deleteCategory).toHaveBeenCalledWith(requestAdmin, 7));
     await waitFor(() => expect(api.getCategories).toHaveBeenLastCalledWith(requestAdmin, 1, 20));
-    expect(await screen.findByText('Trang 1/1')).toBeInTheDocument();
+    expect(await screen.findByText('Page 1 of 1')).toBeInTheDocument();
   });
 
   it('disables all row mutations while a delete is pending', async () => {
@@ -132,7 +150,9 @@ describe('Categories page', () => {
     api.deleteCategory.mockReturnValueOnce(new Promise<void>(resolve => { finishDelete = resolve; }));
     renderPage();
     await screen.findByText('Audio');
+    await user.click(screen.getByRole('button', { name: 'Actions for Audio' }));
     await user.click(screen.getByRole('button', { name: 'Xoá' }));
+    await user.click(screen.getByRole('button', { name: 'Actions for Audio' }));
     expect(screen.getByRole('button', { name: 'Đang xoá…' })).toBeDisabled();
     expect(screen.getByRole('button', { name: 'Sửa' })).toBeDisabled();
     finishDelete();
@@ -144,9 +164,11 @@ describe('Categories page', () => {
     api.deleteCategory.mockRejectedValueOnce(new Error('Delete restricted.'));
     renderPage();
     await screen.findByText('Audio');
+    await user.click(screen.getByRole('button', { name: 'Actions for Audio' }));
     await user.click(screen.getByRole('button', { name: 'Xoá' }));
     expect(await screen.findByRole('alert')).toHaveTextContent('Delete restricted.');
     expect(screen.getByText('Audio')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Actions for Audio' }));
     expect(screen.getByRole('button', { name: 'Sửa' })).toBeInTheDocument();
   });
 });
