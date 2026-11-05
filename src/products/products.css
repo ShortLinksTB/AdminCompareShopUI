@@ -10,3 +10,30 @@
 .admin-shell[data-theme="dark"] .products-page{--prod-surface:#131e27;--prod-bg:#0c141b;--prod-text:#f4f7f9;--prod-muted:#c0ccd3;--prod-border:#34434e;--prod-shadow:0 18px 60px #0008}.admin-shell[data-theme="dark"] .product-status-pill.active{background:#183b29;color:#8ee0a5}.admin-shell[data-theme="dark"] .product-status-pill.inactive{background:#402322;color:#ffb4ab}.admin-shell[data-theme="dark"] .products-alert{background:#3a201f;color:#ffcbc5}.admin-shell[data-theme="dark"] .product-confirm footer .danger{color:white}
 .products-table-scroll tbody .product-row-selected td{background:#fff2e9}.products-table-scroll tbody .product-row-selected td:first-child{box-shadow:inset 3px 0 #ff7a38}.admin-shell[data-theme="dark"] .products-table-scroll tbody .product-row-selected td{background:#352b26}.product-lightbox-box img{max-width:100%;max-height:100%;object-fit:contain}
 @media(max-width:900px){.products-footer{align-items:flex-start}.products-range{display:none}}@media(max-width:640px){.products-page .toolbar{align-items:stretch;flex-direction:column}.product-status-button{width:100%}.products-footer{flex-direction:column}.products-page-size{flex-wrap:wrap}.product-lightbox-box{width:92vw;height:70vh}.product-form-row{grid-template-columns:1fr}.product-modal-backdrop{padding:12px}.product-modal-body{padding:16px}.product-modal header{padding:14px 16px}.product-modal footer{padding:14px 16px}}
+
+.product-image-preview{padding:0;cursor:zoom-in}
+.product-image-preview img{object-fit:cover}
+.matching-section{margin-top:2px;padding-top:18px;border-top:1px solid var(--prod-border)}
+.matching-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
+.matching-head h3{margin:0;color:var(--prod-text);font-size:13px;font-weight:800}
+.matching-head>span{padding:4px 9px;border-radius:999px;background:#fff0e6;color:#c2410c;font-size:10px;font-weight:800}
+.admin-shell[data-theme="dark"] .matching-head>span{background:#3a2416;color:#ffad7a}
+.matching-list{display:grid;gap:7px}
+.matching-row{position:relative;display:flex;align-items:center;gap:10px;padding:9px 10px;border:1px solid var(--prod-border);border-radius:10px;background:var(--prod-surface)}
+.matching-badge{flex:none;max-width:110px;overflow:hidden;padding:5px 8px;border:1px solid #fed7aa;border-radius:6px;background:#fff7ed;color:#c2410c;font-size:10px;font-weight:800;text-overflow:ellipsis;white-space:nowrap}
+.admin-shell[data-theme="dark"] .matching-badge{border-color:#654124;background:#3a2416;color:#ffad7a}
+.matching-main{display:grid;min-width:0;flex:1;gap:4px}
+.matching-main strong{overflow:hidden;color:var(--prod-text);font-size:11px;line-height:1.4;text-overflow:ellipsis}
+.matching-main small{overflow:hidden;color:var(--prod-muted);font-size:9.5px;text-overflow:ellipsis;white-space:nowrap}
+.matching-menu-wrap{position:relative;flex:none}
+.matching-menu{display:grid;width:28px;height:28px;place-items:center;border:0;border-radius:7px;background:transparent;color:var(--prod-muted);cursor:pointer;font-size:15px}
+.matching-menu:hover{background:var(--prod-bg)}
+.matching-menu:disabled{cursor:wait;opacity:.55}
+.matching-menu-pop{position:absolute;z-index:5;top:30px;right:0;min-width:90px;padding:4px;border:1px solid var(--prod-border);border-radius:9px;background:var(--prod-surface);box-shadow:var(--prod-shadow)}
+.matching-menu-pop button{width:100%;padding:7px 8px;border:0;border-radius:6px;background:transparent;color:#dc2626;text-align:left;font-size:12px;font-weight:700;cursor:pointer}
+.matching-menu-pop button:hover{background:#fef2f2}
+.matching-menu-pop button:disabled{opacity:.55;cursor:wait}
+.matching-state{padding:14px 12px;border:1px dashed var(--prod-border);border-radius:9px;color:var(--prod-muted);font-size:11px;text-align:center}
+.matching-error{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px;border:1px solid #fecaca;border-radius:9px;background:#fef2f2;color:#991b1b;font-size:11px}
+.matching-error button{flex:none;border:0;background:transparent;color:inherit;font-weight:800;text-decoration:underline;cursor:pointer}
+@media(max-width:640px){.matching-row{gap:7px;padding:8px}.matching-badge{max-width:82px}.matching-main strong{font-size:10px}.matching-main small{font-size:9px}}
