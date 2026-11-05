@@ -93,6 +93,23 @@ describe('Categories page', () => {
     expect(screen.getByText(/Tổng/).parentElement).toHaveTextContent('0 category');
   });
 
+  it('preserves the API total and paginated range when search is cleared', async () => {
+    api.getCategories.mockResolvedValueOnce(page([category, { id: 8, slug: 'laptops', name: 'Computers', isActive: true }], 2, 22, 20));
+    renderPage();
+    expect(await screen.findByText('Audio')).toBeInTheDocument();
+    expect(screen.getByText('Showing 21–22 of 22 categories')).toBeInTheDocument();
+    expect(screen.getByText(/Tổng/).parentElement).toHaveTextContent('22 category');
+
+    const search = screen.getByRole('textbox', { name: 'Search categories' });
+    await userEvent.type(search, 'laptop');
+    expect(screen.getByText('Showing 1–1 of 1 categories')).toBeInTheDocument();
+    expect(screen.getByText(/Tổng/).parentElement).toHaveTextContent('1 category');
+
+    await userEvent.clear(search);
+    expect(screen.getByText('Showing 21–22 of 22 categories')).toBeInTheDocument();
+    expect(screen.getByText(/Tổng/).parentElement).toHaveTextContent('22 category');
+  });
+
   it('independently exposes the allowed mutation action', async () => {
     renderPage(['categories.read', 'categories.update']);
     expect(await screen.findByText('Audio')).toBeInTheDocument();
