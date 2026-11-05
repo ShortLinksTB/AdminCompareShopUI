@@ -106,6 +106,7 @@ export function CategoriesPage({ requestAdmin, permissions }: { requestAdmin: Ad
   }
 
   const visibleCategories = result.items.filter(category => `${category.name} ${category.slug}`.toLocaleLowerCase().includes(search.trim().toLocaleLowerCase()));
+  const filteredTotal = visibleCategories.length;
 
   return <div className="categories-page">
     <header className="categories-header">
@@ -134,8 +135,8 @@ export function CategoriesPage({ requestAdmin, permissions }: { requestAdmin: Ad
             </tr>)}</tbody>
           </table></div>}
       <footer className="categories-footer">
-        <div className="categories-page-size"><label>Hiển thị <select aria-label="Số dòng mỗi trang" value={pageSize} disabled={loading} onChange={event => { const size = Number(event.target.value); setPage(1); setPageSize(size); void load(1, size); }}>{PAGE_SIZE_OPTIONS.map(size => <option key={size} value={size}>{size}</option>)}</select> dòng/trang</label><span className="categories-total">Tổng <b>{result.totalItems}</b> category</span></div>
-        <span className="categories-range">Showing {result.totalItems ? (page - 1) * pageSize + 1 : 0}–{Math.min(page * pageSize, result.totalItems)} of {result.totalItems} categories</span>
+        <div className="categories-page-size"><label>Hiển thị <select aria-label="Số dòng mỗi trang" value={pageSize} disabled={loading} onChange={event => { const size = Number(event.target.value); setPage(1); setPageSize(size); void load(1, size); }}>{PAGE_SIZE_OPTIONS.map(size => <option key={size} value={size}>{size}</option>)}</select> dòng/trang</label><span className="categories-total">Tổng <b>{search.trim() ? filteredTotal : result.totalItems}</b> category</span></div>
+        <span className="categories-range">Showing {search.trim() ? (filteredTotal ? 1 : 0) : result.totalItems ? (page - 1) * pageSize + 1 : 0}–{search.trim() ? filteredTotal : Math.min(page * pageSize, result.totalItems)} of {search.trim() ? filteredTotal : result.totalItems} categories</span>
         <div className="categories-pagination"><button aria-label="Trang trước" disabled={page <= 1 || loading} onClick={() => void load(page - 1)}>‹</button><span>Page {page} of {totalPages}</span><button aria-label="Trang sau" disabled={page >= totalPages || loading} onClick={() => void load(page + 1)}>›</button></div>
       </footer>
     </section>
