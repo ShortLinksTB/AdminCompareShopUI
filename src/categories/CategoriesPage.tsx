@@ -110,7 +110,7 @@ export function CategoriesPage({ requestAdmin, permissions }: { requestAdmin: Ad
 
   return <div className="categories-page">
     <header className="categories-header">
-      <div><span className="eyebrow">SYSTEM</span><h1>Categories</h1><p>Taxonomy sản phẩm — CRUD qua /admin/categories, theo đúng pattern Partner Shops.</p></div>
+      <div><span className="eyebrow">SYSTEM</span><h1>Categories</h1></div>
       {canCreate && <button className="categories-button categories-button-primary" onClick={openCreate}>+ Thêm category</button>}
     </header>
 
@@ -140,8 +140,6 @@ export function CategoriesPage({ requestAdmin, permissions }: { requestAdmin: Ad
         <div className="categories-pagination"><button aria-label="Trang trước" disabled={page <= 1 || loading} onClick={() => void load(page - 1)}>‹</button><span>Page {page} of {totalPages}</span><button aria-label="Trang sau" disabled={page >= totalPages || loading} onClick={() => void load(page + 1)}>›</button></div>
       </footer>
     </section>
-    <p className="categories-permission-hint">categories.create/update/delete yêu cầu Operator trở lên — Viewer chỉ thấy bảng, không thấy nút thao tác</p>
-
     {editor && <div className="categories-backdrop"><section className="categories-dialog" role="dialog" aria-modal="true" aria-labelledby="categories-form-title"><form onSubmit={event => void submit(event)}>
       <div className="categories-dialog-heading"><div><h2 id="categories-form-title">{editor.category ? 'Sửa category' : 'Thêm category'}</h2><p>Nhập thông tin taxonomy sản phẩm.</p></div><button type="button" className="categories-close" aria-label="Đóng" disabled={saving} onClick={() => setEditor(null)}>×</button></div>
       {formError && <div className="categories-alert" role="alert">{formError}</div>}

@@ -38,6 +38,9 @@ describe('Categories page', () => {
     resolve(page());
     expect(await screen.findByText('Audio')).toBeInTheDocument();
     expect(screen.getByText('SYSTEM')).toHaveClass('eyebrow');
+    expect(screen.getByRole('heading', { name: 'Categories' })).toBeInTheDocument();
+    expect(screen.queryByText(/Taxonomy sản phẩm/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Viewer chỉ thấy bảng/)).not.toBeInTheDocument();
     expect(screen.getByText('audio')).toBeInTheDocument();
     expect(screen.getByText('7')).toBeInTheDocument();
     const table = screen.getByRole('table');
@@ -62,7 +65,7 @@ describe('Categories page', () => {
   it('gates create, update, and delete independently for a read-only viewer', async () => {
     renderPage(['categories.read']);
     expect(await screen.findByText('Audio')).toBeInTheDocument();
-    expect(screen.getByText(/Viewer chỉ thấy bảng/)).toBeInTheDocument();
+    expect(screen.queryByText(/Viewer chỉ thấy bảng/)).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /Thêm category/ })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Actions for Audio' })).not.toBeInTheDocument();
     expect(screen.getByText(/Tổng/).parentElement).toHaveTextContent('1 category');
