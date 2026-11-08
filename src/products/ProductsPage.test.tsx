@@ -136,7 +136,8 @@ describe('ProductsPage', () => {
     await screen.findByText('Phone A');
     fireEvent.click(screen.getByRole('button', { name: 'Actions for Phone A' }));
     fireEvent.click(screen.getByRole('button', { name: 'Sửa' }));
-    const trigger = screen.getByRole('button', { name: /Phones/ });
+    const trigger = screen.getByRole('button', { name: 'Category Phones' });
+    expect(trigger).toHaveAccessibleName('Category Phones');
     await user.click(trigger);
     const listbox = screen.getByRole('listbox', { name: 'Choose a Level 2 category' });
     expect(within(listbox).getByText('Electronics')).toBeInTheDocument();
