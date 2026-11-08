@@ -13,7 +13,7 @@ describe('categories API adapter', () => {
 
   it('posts and puts only the category contract fields', async () => {
     const request = vi.fn<AdminRequest>().mockImplementation(async () => new Response(JSON.stringify(category), { status: 201 }));
-    const input = { slug: 'audio', name: 'Audio', isActive: false };
+    const input = { slug: 'audio', name: 'Audio', isActive: false, parentCategoryId: 42 };
     await createCategory(request, input);
     await updateCategory(request, 7, input);
     expect(request).toHaveBeenNthCalledWith(1, '/admin/categories', expect.objectContaining({ method: 'POST', body: JSON.stringify(input) }));
@@ -38,6 +38,6 @@ describe('categories API adapter', () => {
 
   it('prefers the API validation message when provided', async () => {
     const request = vi.fn<AdminRequest>().mockResolvedValue(new Response(JSON.stringify({ message: 'Slug already exists.' }), { status: 400 }));
-    await expect(createCategory(request, { slug: 'audio', name: 'Audio', isActive: true })).rejects.toThrow('Slug already exists.');
+    await expect(createCategory(request, { slug: 'audio', name: 'Audio', isActive: true, parentCategoryId: null })).rejects.toThrow('Slug already exists.');
   });
 });

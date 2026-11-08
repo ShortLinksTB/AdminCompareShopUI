@@ -89,7 +89,7 @@ describe('mobile application navigation', () => {
 
     expect(screen.getByRole('heading', { name: 'Categories' })).toBeInTheDocument();
     expect(await screen.findByText('Audio')).toBeInTheDocument();
-    expect(auth.requestAdmin).toHaveBeenCalledWith('/admin/categories?page=1&pageSize=20', { signal: undefined });
+    expect(auth.requestAdmin).toHaveBeenCalledWith('/admin/categories?page=1&pageSize=100', { signal: undefined });
   });
 
   it('does not load Categories when categories.read is absent', () => {

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type PointerEvent } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent } from 'react';
 import { deleteAdminProduct, getAdminCategories, getAdminProductMatchings, getAdminProducts, unlinkAdminProductMatching, updateAdminProduct, type AdminCategory, type AdminProduct, type AdminProductMatching, type AdminRequest, type ProductInput } from './products-api';
 import './products.css';
 
@@ -20,6 +20,10 @@ export function ProductsPage({ requestAdmin, permissions = [] }: { requestAdmin:
   const [items, setItems] = useState<AdminProduct[]>([]);
   const [categories, setCategories] = useState<AdminCategory[]>([]);
   const [categoryError, setCategoryError] = useState('');
+  const [categoryPickerOpen, setCategoryPickerOpen] = useState(false);
+  const [activeCategoryId, setActiveCategoryId] = useState<number | null>(null);
+  const categoryPickerTrigger = useRef<HTMLButtonElement>(null);
+  const categoryPickerOptions = useRef<HTMLDivElement>(null);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
   const [totalItems, setTotalItems] = useState(0);
@@ -118,6 +122,21 @@ export function ProductsPage({ requestAdmin, permissions = [] }: { requestAdmin:
   }, [items, search]);
   const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
   const categoryNames = useMemo(() => new Map(categories.map(category => [category.id, category.name])), [categories]);
+  const leafCategories = useMemo(() => categories.filter(category => category.parentCategoryId != null), [categories]);
+  const categoryGroups = useMemo(() => {
+    const parents = new Map(categories.filter(category => category.parentCategoryId == null).map(category => [category.id, category.name]));
+    return [...new Set(leafCategories.map(category => category.parentCategoryId!))].map(parentId => ({ parentId, name: parents.get(parentId) ?? 'Categories', items: leafCategories.filter(category => category.parentCategoryId === parentId) }));
+  }, [categories, leafCategories]);
+  const orderedLeafCategories = useMemo(() => categoryGroups.flatMap(group => group.items), [categoryGroups]);
+  useEffect(() => {
+    if (!categoryPickerOpen) return;
+    const activeId = orderedLeafCategories.some(category => category.id === activeCategoryId)
+      ? activeCategoryId
+      : orderedLeafCategories.find(category => category.id === editor?.input.categoryId)?.id ?? orderedLeafCategories[0]?.id;
+    if (activeId == null) return;
+    setActiveCategoryId(activeId);
+    categoryPickerOptions.current?.querySelector<HTMLButtonElement>(`[data-category-id="${activeId}"]`)?.focus();
+  }, [categoryPickerOpen, activeCategoryId, editor?.input.categoryId, orderedLeafCategories]);
   const allVisibleSelected = visibleItems.length > 0 && visibleItems.every(product => selectedIds.has(product.id));
   function toggleSelection(id: number, checked: boolean) {
     setSelectedIds(current => { const next = new Set(current); if (checked) next.add(id); else next.delete(id); return next; });
@@ -149,26 +168,63 @@ export function ProductsPage({ requestAdmin, permissions = [] }: { requestAdmin:
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key !== 'Escape') return;
       if (lightbox) closeLightbox();
+      else if (categoryPickerOpen) {
+        setCategoryPickerOpen(false);
+        categoryPickerTrigger.current?.focus();
+      }
       else if (editor) setEditor(null);
       else if (deleteTarget) setDeleteTarget(null);
-      else { setOpenMenu(null); setStatusOpen(false); }
+      else { setOpenMenu(null); setStatusOpen(false); setCategoryPickerOpen(false); }
     };
     const onPointerDown = (event: globalThis.PointerEvent) => {
       const target = event.target as HTMLElement;
       if (!target.closest('.product-row-menu')) setOpenMenu(null);
       if (!target.closest('.matching-menu-wrap')) setMatchingMenu(null);
       if (!target.closest('.product-status-filter')) setStatusOpen(false);
+      if (!target.closest('.product-category-picker')) setCategoryPickerOpen(false);
     };
     document.addEventListener('keydown', onKeyDown);
     document.addEventListener('pointerdown', onPointerDown);
     return () => { document.removeEventListener('keydown', onKeyDown); document.removeEventListener('pointerdown', onPointerDown); };
-  }, [lightbox, editor, deleteTarget, openMenu, statusOpen, closeLightbox]);
+  }, [lightbox, editor, deleteTarget, openMenu, statusOpen, categoryPickerOpen, closeLightbox]);
 
   function changeStatus(next: StatusFilter) { setStatus(next); setPage(1); setOpenMenu(null); setStatusOpen(false); }
   function changePageSize(size: number) { setPageSize(size); setPage(1); }
-  function openEditor(product: AdminProduct) { setOpenMenu(null); setEditor({ product, input: initialInput(product) }); }
+  function openEditor(product: AdminProduct) { setOpenMenu(null); setCategoryPickerOpen(false); setEditor({ product, input: initialInput(product) }); }
   function updateInput<K extends keyof ProductInput>(key: K, value: ProductInput[K]) {
     setEditor(current => current ? { ...current, input: { ...current.input, [key]: value } } : current);
+  }
+  function openCategoryPicker(startAtEnd = false) {
+    const selectedId = orderedLeafCategories.find(category => category.id === editor?.input.categoryId)?.id;
+    setActiveCategoryId(selectedId ?? (startAtEnd ? orderedLeafCategories.at(-1)?.id : orderedLeafCategories[0]?.id) ?? null);
+    setCategoryPickerOpen(true);
+  }
+  function selectCategory(categoryId: number) {
+    updateInput('categoryId', categoryId);
+    setActiveCategoryId(categoryId);
+    setCategoryPickerOpen(false);
+    categoryPickerTrigger.current?.focus();
+  }
+  function moveCategoryFocus(currentId: number, key: string) {
+    if (orderedLeafCategories.length === 0) return;
+    const currentIndex = orderedLeafCategories.findIndex(category => category.id === currentId);
+    const nextIndex = key === 'Home'
+      ? 0
+      : key === 'End'
+        ? orderedLeafCategories.length - 1
+        : (currentIndex + (key === 'ArrowDown' ? 1 : -1) + orderedLeafCategories.length) % orderedLeafCategories.length;
+    const nextId = orderedLeafCategories[nextIndex].id;
+    setActiveCategoryId(nextId);
+    categoryPickerOptions.current?.querySelector<HTMLButtonElement>(`[data-category-id="${nextId}"]`)?.focus();
+  }
+  function handleCategoryOptionKeyDown(event: ReactKeyboardEvent<HTMLButtonElement>, categoryId: number) {
+    if (event.key === 'ArrowDown' || event.key === 'ArrowUp' || event.key === 'Home' || event.key === 'End') {
+      event.preventDefault();
+      moveCategoryFocus(categoryId, event.key);
+    } else if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault();
+      selectCategory(categoryId);
+    }
   }
 
   async function unlinkMatching(matchingId: number) {
@@ -258,7 +314,7 @@ export function ProductsPage({ requestAdmin, permissions = [] }: { requestAdmin:
       <div className="product-modal-body">
         <div className="product-image-field">{editor.input.imageUrl ? <button className="product-image-preview" type="button" aria-label="View product preview" onClick={() => { setLightbox({ src: editor.input.imageUrl!, alt: editor.input.name }); setZoom(1); setPan({ x: 0, y: 0 }); }}><img key={editor.input.imageUrl} src={editor.input.imageUrl} alt="Product preview" /></button> : <div className="product-image-preview"><span>No image</span></div>}<label>Image URL<input type="url" value={editor.input.imageUrl ?? ''} onChange={event => updateInput('imageUrl', event.target.value || null)} placeholder="https://..." /></label></div>
         <label>Tên sản phẩm<input required value={editor.input.name} onChange={event => updateInput('name', event.target.value)} /></label>
-        <div className="product-form-row"><label>Slug<input required value={editor.input.slug} onChange={event => updateInput('slug', event.target.value)} /></label><label>Category<select required value={editor.input.categoryId} onChange={event => updateInput('categoryId', Number(event.target.value))}>{categories.map(category => <option key={category.id} value={category.id}>{category.name}</option>)}</select></label></div>
+        <div className="product-form-row"><label>Slug<input required value={editor.input.slug} onChange={event => updateInput('slug', event.target.value)} /></label><div className="product-category-field"><span id="product-category-label">Category</span><div className={`product-category-picker${categoryPickerOpen ? ' open' : ''}`} onBlur={event => { if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setCategoryPickerOpen(false); }}><button ref={categoryPickerTrigger} type="button" className="product-category-button" aria-labelledby="product-category-label product-category-value" aria-haspopup="listbox" aria-expanded={categoryPickerOpen} aria-controls="product-category-options" onClick={() => categoryPickerOpen ? setCategoryPickerOpen(false) : openCategoryPicker()} onKeyDown={event => { if (event.key === 'ArrowDown' || event.key === 'ArrowUp') { event.preventDefault(); openCategoryPicker(event.key === 'ArrowUp'); } else if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); if (!categoryPickerOpen) openCategoryPicker(); } }}><span id="product-category-value">{categoryNames.get(editor.input.categoryId) ?? 'Select category'}</span><span aria-hidden="true">▾</span></button>{categoryPickerOpen && <div ref={categoryPickerOptions} id="product-category-options" className="product-category-options" role="listbox" aria-label="Choose a Level 2 category">{categoryGroups.length === 0 ? <div className="product-category-empty" role="status">{categoryError ? 'Categories could not be loaded.' : 'No Level 2 categories available.'}</div> : categoryGroups.map(group => <div key={group.parentId}><div className="product-category-group" aria-hidden="true">{group.name}</div>{group.items.map(category => <button key={category.id} type="button" role="option" data-category-id={category.id} tabIndex={activeCategoryId === category.id ? 0 : -1} aria-selected={editor.input.categoryId === category.id} className={`${editor.input.categoryId === category.id ? 'selected ' : ''}${activeCategoryId === category.id ? 'focused' : ''}`} onFocus={() => setActiveCategoryId(category.id)} onKeyDown={event => handleCategoryOptionKeyDown(event, category.id)} onClick={() => selectCategory(category.id)}>{category.name}<span aria-hidden="true">✓</span></button>)}</div>)}</div>}</div></div></div>
         <label>Brand<input value={editor.input.brand ?? ''} onChange={event => updateInput('brand', event.target.value || null)} placeholder="Không bắt buộc" /></label>
         <label>Mô tả<textarea value={editor.input.description ?? ''} onChange={event => updateInput('description', event.target.value || null)} placeholder="Không bắt buộc" /></label>
         <label className="product-active-toggle"><span>Trạng thái hoạt động</span><input type="checkbox" checked={editor.input.isActive} onChange={event => updateInput('isActive', event.target.checked)} /><i /></label>

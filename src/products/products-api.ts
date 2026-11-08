@@ -18,6 +18,7 @@ export interface AdminCategory {
   name: string;
   slug: string;
   isActive: boolean;
+  parentCategoryId?: number | null;
 }
 
 export interface ProductInput {
