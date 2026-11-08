@@ -4,9 +4,29 @@ import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
 
 const styles = readFileSync('src/styles.css', 'utf8');
+const productStyles = readFileSync('src/products/products.css', 'utf8').replace(/\s+/g, ' ');
 const normalizedStyles = styles.replace(/\s+/g, ' ');
 
+function luminance(hex: string) {
+  const channels = hex.match(/[0-9a-f]{2}/gi)!.map(channel => {
+    const value = parseInt(channel, 16) / 255;
+    return value <= 0.04045 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4;
+  });
+  return 0.2126 * channels[0]! + 0.7152 * channels[1]! + 0.0722 * channels[2]!;
+}
+
+function contrast(foreground: string, background: string) {
+  const first = luminance(foreground);
+  const second = luminance(background);
+  return (Math.max(first, second) + 0.05) / (Math.min(first, second) + 0.05);
+}
+
 describe('Products theme styles', () => {
+  it('keeps the selected category option legible against its accent in light and dark themes', () => {
+    expect(productStyles).toContain('.product-category-options button.selected{background:#ff5a00;color:#17202a}');
+    expect(contrast('#17202a', '#ff5a00')).toBeGreaterThanOrEqual(4.5);
+  });
+
   it('defines dark surfaces and readable foregrounds within the Products route', () => {
     expect(normalizedStyles).toContain('.admin-shell.products-route.dark{color-scheme:dark;--bg:#0c141b;');
     expect(normalizedStyles).toContain('.admin-shell.products-route.dark .admin-main{background:#0c141b;color:#fff}');
