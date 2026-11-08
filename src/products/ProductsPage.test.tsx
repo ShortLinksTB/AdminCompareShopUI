@@ -141,6 +141,8 @@ describe('ProductsPage', () => {
     await user.click(trigger);
     const listbox = screen.getByRole('listbox', { name: 'Choose a Level 2 category' });
     expect(within(listbox).getByText('Electronics')).toBeInTheDocument();
+    const electronicsGroup = within(listbox).getByRole('group', { name: 'Electronics' });
+    expect(within(electronicsGroup).getAllByRole('option')).toHaveLength(2);
     expect(within(listbox).getByRole('option', { name: /Phones/ })).toBeInTheDocument();
     expect(within(listbox).queryByRole('option', { name: /Electronics/ })).not.toBeInTheDocument();
     const phonesOption = within(listbox).getByRole('option', { name: /Phones/ });
