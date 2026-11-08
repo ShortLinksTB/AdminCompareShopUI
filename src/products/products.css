@@ -38,3 +38,5 @@
 .matching-error{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px;border:1px solid #fecaca;border-radius:9px;background:#fef2f2;color:#991b1b;font-size:11px}
 .matching-error button{flex:none;border:0;background:transparent;color:inherit;font-weight:800;text-decoration:underline;cursor:pointer}
 @media(max-width:640px){.matching-row{gap:7px;padding:8px}.matching-badge{max-width:82px}.matching-main strong{font-size:10px}.matching-main small{font-size:9px}}
+.product-category-options button.focused:not(.selected){background:var(--prod-bg);outline:2px solid #ff5a00;outline-offset:-2px}
+.product-category-options button.selected:focus-visible{outline:2px solid var(--prod-text);outline-offset:-3px}

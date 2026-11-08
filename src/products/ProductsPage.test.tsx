@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import '@testing-library/jest-dom/vitest';
+import userEvent from '@testing-library/user-event';
 import { ProductsPage } from './ProductsPage';
 import type { AdminProduct, AdminRequest } from './products-api';
 
@@ -123,7 +124,8 @@ describe('ProductsPage', () => {
     expect(JSON.parse(String(put?.[1]?.body))).toMatchObject({ name: 'Phone A updated', imageUrl: phone.imageUrl, categoryId: 7 });
   });
 
-  it('offers only grouped Level 2 categories in the custom keyboard accessible picker', async () => {
+  it('supports arrow navigation, Enter and Space selection, and Escape focus restoration in the grouped category picker', async () => {
+    const user = userEvent.setup();
     const requestAdmin = requestFor([phone]);
     requestAdmin.mockImplementation(path => {
       if (path.startsWith('/admin/categories')) return Promise.resolve(Response.json({ items: categoryList }));
@@ -134,17 +136,46 @@ describe('ProductsPage', () => {
     await screen.findByText('Phone A');
     fireEvent.click(screen.getByRole('button', { name: 'Actions for Phone A' }));
     fireEvent.click(screen.getByRole('button', { name: 'Sửa' }));
-    fireEvent.click(screen.getByRole('button', { name: /Phones/ }));
+    const trigger = screen.getByRole('button', { name: /Phones/ });
+    await user.click(trigger);
     const listbox = screen.getByRole('listbox', { name: 'Choose a Level 2 category' });
     expect(within(listbox).getByText('Electronics')).toBeInTheDocument();
     expect(within(listbox).getByRole('option', { name: /Phones/ })).toBeInTheDocument();
     expect(within(listbox).queryByRole('option', { name: /Electronics/ })).not.toBeInTheDocument();
-    fireEvent.click(within(listbox).getByRole('option', { name: /Audio/ }));
+    const phonesOption = within(listbox).getByRole('option', { name: /Phones/ });
+    const audioOption = within(listbox).getByRole('option', { name: /Audio/ });
+    expect(phonesOption).toHaveFocus();
+    expect(phonesOption).toHaveAttribute('aria-selected', 'true');
+    await user.keyboard('{ArrowDown}');
+    expect(audioOption).toHaveFocus();
+    expect(audioOption).toHaveAttribute('aria-selected', 'false');
+    expect(phonesOption).toHaveAttribute('aria-selected', 'true');
+    await user.keyboard('{Enter}');
     expect(screen.queryByRole('listbox', { name: 'Choose a Level 2 category' })).not.toBeInTheDocument();
+    expect(trigger).toHaveTextContent('Audio');
+    expect(trigger).toHaveFocus();
+
+    await user.keyboard('{ArrowDown}');
+    let reopenedListbox = screen.getByRole('listbox', { name: 'Choose a Level 2 category' });
+    let reopenedAudioOption = within(reopenedListbox).getByRole('option', { name: /Audio/ });
+    expect(reopenedAudioOption).toHaveFocus();
+    await user.keyboard('{Escape}');
+    expect(screen.queryByRole('listbox', { name: 'Choose a Level 2 category' })).not.toBeInTheDocument();
+    expect(trigger).toHaveFocus();
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
+
+    await user.keyboard('{ArrowDown}');
+    reopenedListbox = screen.getByRole('listbox', { name: 'Choose a Level 2 category' });
+    const reopenedPhonesOption = within(reopenedListbox).getByRole('option', { name: /Phones/ });
+    await user.keyboard('{ArrowUp}');
+    expect(reopenedPhonesOption).toHaveFocus();
+    await user.keyboard(' ');
+    expect(trigger).toHaveTextContent('Phones');
+    expect(trigger).toHaveFocus();
     fireEvent.click(screen.getByRole('button', { name: 'Lưu thay đổi' }));
     await waitFor(() => expect(requestAdmin).toHaveBeenCalledWith('/admin/products/42', expect.objectContaining({ method: 'PUT' })));
     const put = requestAdmin.mock.calls.find(([path, init]) => path === '/admin/products/42' && init?.method === 'PUT');
-    expect(JSON.parse(String(put?.[1]?.body))).toMatchObject({ categoryId: 8 });
+    expect(JSON.parse(String(put?.[1]?.body))).toMatchObject({ categoryId: 7 });
   });
 
   it('loads attached matchings in edit, displays contract fields, and unlinks only after success', async () => {
