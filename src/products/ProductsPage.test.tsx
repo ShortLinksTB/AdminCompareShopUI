@@ -143,7 +143,9 @@ describe('ProductsPage', () => {
     expect(within(listbox).getByText('Electronics')).toBeInTheDocument();
     const electronicsGroup = within(listbox).getByRole('group', { name: 'Electronics' });
     expect(within(electronicsGroup).getAllByRole('option')).toHaveLength(2);
-    expect(within(listbox).getByRole('option', { name: /Phones/ })).toBeInTheDocument();
+    expect(within(electronicsGroup).getByText('Electronics')).toBeInTheDocument();
+    expect(within(electronicsGroup).getByRole('option', { name: /Phones/ })).toBeInTheDocument();
+    expect(within(electronicsGroup).getByRole('option', { name: /Audio/ })).toBeInTheDocument();
     expect(within(listbox).queryByRole('option', { name: /Electronics/ })).not.toBeInTheDocument();
     const phonesOption = within(listbox).getByRole('option', { name: /Phones/ });
     const audioOption = within(listbox).getByRole('option', { name: /Audio/ });
