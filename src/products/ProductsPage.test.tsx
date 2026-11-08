@@ -1,12 +1,16 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import '@testing-library/jest-dom/vitest';
 import { ProductsPage } from './ProductsPage';
 import type { AdminProduct, AdminRequest } from './products-api';
 
 const phone: AdminProduct = { id: 42, slug: 'phone-a', name: 'Phone A', brand: 'Brand A', description: 'Good phone', seoTitle: null, seoDescription: null, categoryId: 7, isActive: true, imageUrl: 'https://img.example/phone.jpg' };
 const inactive = { ...phone, id: 43, slug: 'phone-b', name: 'Phone B', categoryId: 8, isActive: false, imageUrl: null };
-const categoryList = [{ id: 7, slug: 'phones', name: 'Phones', isActive: true }, { id: 8, slug: 'audio', name: 'Audio', isActive: true }];
+const categoryList = [
+  { id: 6, slug: 'electronics', name: 'Electronics', isActive: true, parentCategoryId: null },
+  { id: 7, slug: 'phones', name: 'Phones', isActive: true, parentCategoryId: 6 },
+  { id: 8, slug: 'audio', name: 'Audio', isActive: true, parentCategoryId: 6 },
+];
 const pageResponse = (items: AdminProduct[] = [phone], pageNumber = 1, pageSize = 10, totalItems = items.length) => Response.json({ items, pageNumber, pageSize, totalItems });
 const matching = { id: 501, name: 'Phone A Global Edition', externalSku: 'SKU-501', dataSourceId: 11, dataSourceDisplayName: 'Shop One', createdAtUtc: '2026-10-12T10:00:00Z' };
 
@@ -121,6 +125,26 @@ describe('ProductsPage', () => {
     await waitFor(() => expect(requestAdmin).toHaveBeenCalledWith('/admin/products/42', expect.objectContaining({ method: 'PUT' })));
     const put = requestAdmin.mock.calls.find(([path, init]) => path === '/admin/products/42' && init?.method === 'PUT');
     expect(JSON.parse(String(put?.[1]?.body))).toMatchObject({ name: 'Phone A updated', imageUrl: phone.imageUrl, categoryId: 7 });
+  });
+
+  it('offers only grouped Level 2 categories in the custom product picker', async () => {
+    const requestAdmin = requestFor([phone]);
+    requestAdmin.mockImplementation(path => path.startsWith('/admin/categories')
+      ? Promise.resolve(Response.json({ items: categoryList }))
+      : path === '/admin/products?page=1&pageSize=10' ? Promise.resolve(pageResponse([phone]))
+        : Promise.resolve(new Response(null, { status: 204 })));
+    render(<ProductsPage requestAdmin={requestAdmin} permissions={['products.read', 'products.update']} />);
+    await screen.findByText('Phone A');
+    fireEvent.click(screen.getByRole('button', { name: 'Actions for Phone A' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Sửa' }));
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Category' })).toBeEnabled());
+    fireEvent.click(screen.getByRole('button', { name: 'Category' }));
+    expect(screen.getByRole('listbox', { name: 'Chọn category cấp 2' })).toBeInTheDocument();
+    expect(screen.getByText('Electronics')).toBeInTheDocument();
+    expect(within(screen.getByRole('listbox', { name: 'Chọn category cấp 2' })).getAllByRole('option')).toHaveLength(2);
+    expect(screen.queryByRole('option', { name: 'Electronics' })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('option', { name: 'Audio' }));
+    expect(document.querySelector('.product-category-button')).toHaveAttribute('aria-expanded', 'false');
   });
 
   it('loads attached matchings in edit, displays contract fields, and unlinks only after success', async () => {

@@ -5,12 +5,14 @@ export interface AdminCategory {
   slug: string;
   name: string;
   isActive: boolean;
+  parentCategoryId?: number | null;
 }
 
 export interface CategoryInput {
   slug: string;
   name: string;
   isActive: boolean;
+  parentCategoryId?: number | null;
 }
 
 export class CategoriesApiError extends Error {

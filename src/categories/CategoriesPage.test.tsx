@@ -45,7 +45,9 @@ describe('Categories page', () => {
     expect(screen.getByText('audio')).toBeInTheDocument();
     expect(screen.getByText('7')).toBeInTheDocument();
     const table = screen.getByRole('table');
-    expect(within(table).getAllByRole('columnheader')).toHaveLength(4);
+    expect(within(table).getAllByRole('columnheader')).toHaveLength(6);
+    expect(within(table).getByRole('columnheader', { name: 'Level' })).toBeInTheDocument();
+    expect(within(table).getByRole('columnheader', { name: 'Parent' })).toBeInTheDocument();
     expect(within(table).queryByRole('columnheader', { name: /Active/i })).not.toBeInTheDocument();
     expect(screen.queryByText(/Phones|Computers|mock/i)).not.toBeInTheDocument();
     expect(api.getCategories).toHaveBeenCalledWith(requestAdmin, 1, 20);
@@ -130,7 +132,7 @@ describe('Categories page', () => {
     await user.type(screen.getByLabelText('Slug'), 'new-cat');
     await user.type(screen.getByLabelText('Name'), 'New category');
     await user.click(screen.getByRole('button', { name: 'Lưu category' }));
-    await waitFor(() => expect(api.createCategory).toHaveBeenCalledWith(requestAdmin, { slug: 'new-cat', name: 'New category', isActive: true }));
+    await waitFor(() => expect(api.createCategory).toHaveBeenCalledWith(requestAdmin, { slug: 'new-cat', name: 'New category', isActive: true, parentCategoryId: null }));
     expect(await screen.findByText('Audio')).toBeInTheDocument();
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
     expect(api.getCategories).toHaveBeenCalledTimes(2);
@@ -160,8 +162,35 @@ describe('Categories page', () => {
     await user.type(screen.getByLabelText('Name'), 'Audio gear');
     await user.click(screen.getByLabelText('Active'));
     await user.click(screen.getByRole('button', { name: 'Lưu category' }));
-    await waitFor(() => expect(api.updateCategory).toHaveBeenCalledWith(requestAdmin, 7, { slug: 'audio', name: 'Audio gear', isActive: true }));
+    await waitFor(() => expect(api.updateCategory).toHaveBeenCalledWith(requestAdmin, 7, { slug: 'audio', name: 'Audio gear', isActive: true, parentCategoryId: null }));
     expect(api.getCategories).toHaveBeenCalledTimes(2);
+  });
+
+  it('groups children under their parent and collapses them accessibly', async () => {
+    api.getCategories.mockResolvedValueOnce(page([
+      { id: 10, slug: 'electronics', name: 'Electronics', isActive: true, parentCategoryId: null },
+      { id: 11, slug: 'phones', name: 'Phones', isActive: true, parentCategoryId: 10 },
+    ]));
+    renderPage();
+    expect(await screen.findByText('Phones')).toBeInTheDocument();
+    expect(screen.getAllByText('Electronics')[0].closest('tr')?.nextElementSibling).toHaveTextContent('Phones');
+    await userEvent.click(screen.getByRole('button', { name: 'Thu gọn Electronics' }));
+    expect(screen.queryByText('Phones')).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Mở rộng Electronics' }));
+    expect(screen.getByText('Phones')).toBeInTheDocument();
+  });
+
+  it('saves a selected active Level 1 parent from the category editor', async () => {
+    api.getCategories.mockResolvedValueOnce(page([
+      { id: 10, slug: 'electronics', name: 'Electronics', isActive: true, parentCategoryId: null },
+    ]));
+    renderPage();
+    await userEvent.click(await screen.findByRole('button', { name: '+ Thêm category' }));
+    await userEvent.type(screen.getByLabelText('Slug'), 'phones');
+    await userEvent.type(screen.getByLabelText('Name'), 'Phones');
+    await userEvent.selectOptions(document.querySelector('select[name="parentCategoryId"]')!, '10');
+    await userEvent.click(screen.getByRole('button', { name: 'Lưu category' }));
+    await waitFor(() => expect(api.createCategory).toHaveBeenCalledWith(requestAdmin, { slug: 'phones', name: 'Phones', isActive: true, parentCategoryId: 10 }));
   });
 
   it('deletes after confirmation and returns to the previous page when the final row is removed', async () => {

@@ -5,7 +5,7 @@ import './categories.css';
 
 const PAGE_SIZE_OPTIONS = [10, 20, 50, 100];
 const emptyPage: Page<AdminCategory> = { items: [], pageNumber: 1, pageSize: 20, totalItems: 0 };
-const emptyInput: CategoryInput = { slug: '', name: '', isActive: true };
+const emptyInput: CategoryInput = { slug: '', name: '', isActive: true, parentCategoryId: null };
 
 type EditorState = { category: AdminCategory | null; initial: CategoryInput } | null;
 
@@ -22,6 +22,7 @@ export function CategoriesPage({ requestAdmin, permissions }: { requestAdmin: Ad
   const [deletingId, setDeletingId] = useState<number | null>(null);
   const [search, setSearch] = useState('');
   const [openMenu, setOpenMenu] = useState<number | null>(null);
+  const [collapsed, setCollapsed] = useState<Set<number>>(new Set());
 
   const load = useCallback(async (requestedPage = page, requestedSize = pageSize) => {
     setLoading(true);
@@ -57,7 +58,7 @@ export function CategoriesPage({ requestAdmin, permissions }: { requestAdmin: Ad
   };
   const openEdit = (category: AdminCategory) => {
     setFormError(null);
-    setEditor({ category, initial: { slug: category.slug, name: category.name, isActive: category.isActive } });
+    setEditor({ category, initial: { slug: category.slug, name: category.name, isActive: category.isActive, parentCategoryId: category.parentCategoryId ?? null } });
   };
 
   async function submit(event: FormEvent<HTMLFormElement>) {
@@ -68,6 +69,7 @@ export function CategoriesPage({ requestAdmin, permissions }: { requestAdmin: Ad
       slug: String(form.get('slug') ?? '').trim(),
       name: String(form.get('name') ?? '').trim(),
       isActive: form.get('isActive') === 'on',
+      parentCategoryId: form.get('parentCategoryId') ? Number(form.get('parentCategoryId')) : null,
     };
     if (!input.slug || !input.name || input.slug.length > 160 || input.name.length > 200) {
       setFormError('Nhập slug và name hợp lệ (slug tối đa 160 ký tự, name tối đa 200 ký tự).');
@@ -105,8 +107,18 @@ export function CategoriesPage({ requestAdmin, permissions }: { requestAdmin: Ad
     }
   }
 
-  const visibleCategories = result.items.filter(category => `${category.name} ${category.slug}`.toLocaleLowerCase().includes(search.trim().toLocaleLowerCase()));
-  const filteredTotal = visibleCategories.length;
+  const activeParents = result.items.filter(category => category.parentCategoryId == null && category.isActive);
+  const categoryById = new Map(result.items.map(category => [category.id, category]));
+  const matchingCategories = result.items.filter(category => `${category.name} ${category.slug}`.toLocaleLowerCase().includes(search.trim().toLocaleLowerCase()));
+  const matchingIds = new Set(matchingCategories.map(category => category.id));
+  const visibleCategories = result.items.filter(category => {
+    const parentId = category.parentCategoryId;
+    if (parentId == null) return matchingIds.has(category.id) || result.items.some(child => child.parentCategoryId === category.id && matchingIds.has(child.id));
+    return (matchingIds.has(category.id) || matchingIds.has(parentId)) && !collapsed.has(parentId);
+  });
+  const roots = visibleCategories.filter(category => category.parentCategoryId == null);
+  const groupedCategories = [...roots.flatMap(parent => [parent, ...visibleCategories.filter(category => category.parentCategoryId === parent.id)]), ...visibleCategories.filter(category => category.parentCategoryId != null && !categoryById.has(category.parentCategoryId))];
+  const filteredTotal = matchingCategories.length;
 
   return <div className="categories-page">
     <header className="categories-header">
@@ -122,9 +134,13 @@ export function CategoriesPage({ requestAdmin, permissions }: { requestAdmin: Ad
       {loading ? <div className="categories-state" role="status" aria-label="Đang tải categories">Đang tải categories…</div>
         : !listError && result.items.length === 0 ? <div className="categories-state">Chưa có category nào.</div>
           : !listError && <div className="categories-table-wrap"><table>
-            <thead><tr><th scope="col">Id</th><th scope="col">Name</th><th scope="col">Slug</th><th scope="col" aria-label="Thao tác" /></tr></thead>
-            <tbody>{visibleCategories.map(category => <tr key={category.id}>
-              <td>{category.id}</td><td>{category.name}</td><td><code>{category.slug}</code></td>
+            <thead><tr><th scope="col">Id</th><th scope="col">Name</th><th scope="col">Slug</th><th scope="col">Level</th><th scope="col">Parent</th><th scope="col" aria-label="Thao tác" /></tr></thead>
+            <tbody>{groupedCategories.map(category => {
+              const parent = category.parentCategoryId == null;
+              const children = result.items.some(item => item.parentCategoryId === category.id);
+              return <tr key={category.id} className={`${parent ? 'category-parent-row' : 'category-child-row'}${!parent && !categoryById.has(category.parentCategoryId!) ? ' orphan' : ''}`}>
+              <td>{category.id}</td><td>{parent && children && <button className={`category-tree-toggle${collapsed.has(category.id) ? ' collapsed' : ''}`} type="button" aria-label={`${collapsed.has(category.id) ? 'Mở rộng' : 'Thu gọn'} ${category.name}`} aria-expanded={!collapsed.has(category.id)} onClick={() => setCollapsed(current => { const next = new Set(current); if (next.has(category.id)) next.delete(category.id); else next.add(category.id); return next; })}>⌄</button>}{!parent && <span className="category-tree-indent" aria-hidden="true" />}{category.name}</td><td><code>{category.slug}</code></td>
+              <td><span className="category-level-pill">Level {parent ? 1 : 2}</span></td><td className="category-parent-cell">{parent ? '—' : categoryById.get(category.parentCategoryId!)?.name ?? '—'}</td>
               <td>{(canUpdate || canDelete) && <div className={`category-row-menu${openMenu === category.id ? ' open' : ''}`}>
                 <button className="category-row-menu-button" type="button" aria-label={`Actions for ${category.name}`} aria-expanded={openMenu === category.id} onClick={() => setOpenMenu(openMenu === category.id ? null : category.id)}>⋮</button>
                 {openMenu === category.id && <div className="category-row-menu-pop">
@@ -132,7 +148,7 @@ export function CategoriesPage({ requestAdmin, permissions }: { requestAdmin: Ad
                   {canDelete && <button className="danger" type="button" disabled={deletingId !== null || saving} onClick={() => { setOpenMenu(null); void remove(category); }}>{deletingId === category.id ? 'Đang xoá…' : 'Xoá'}</button>}
                 </div>}
               </div>}</td>
-            </tr>)}</tbody>
+            </tr>})}</tbody>
           </table></div>}
       <footer className="categories-footer">
         <div className="categories-page-size"><label>Hiển thị <select aria-label="Số dòng mỗi trang" value={pageSize} disabled={loading} onChange={event => { const size = Number(event.target.value); setPage(1); setPageSize(size); void load(1, size); }}>{PAGE_SIZE_OPTIONS.map(size => <option key={size} value={size}>{size}</option>)}</select> dòng/trang</label><span className="categories-total">Tổng <b>{search.trim() ? filteredTotal : result.totalItems}</b> category</span></div>
@@ -145,6 +161,7 @@ export function CategoriesPage({ requestAdmin, permissions }: { requestAdmin: Ad
       {formError && <div className="categories-alert" role="alert">{formError}</div>}
       <label>Slug<input name="slug" required maxLength={160} defaultValue={editor.initial.slug} /></label>
       <label>Name<input name="name" required maxLength={200} defaultValue={editor.initial.name} /></label>
+      <label>Parent category<select name="parentCategoryId" defaultValue={editor.initial.parentCategoryId ?? ''}><option value="">— Không có cha (tạo Level 1) —</option>{activeParents.filter(parent => parent.id !== editor.category?.id).map(parent => <option key={parent.id} value={parent.id}>{parent.name}</option>)}</select><span className="categories-field-hint">Chọn category Level 1 làm cha để tạo Level 2. Để trống sẽ tạo category gốc.</span></label>
       <label className="categories-active"><input name="isActive" type="checkbox" defaultChecked={editor.initial.isActive} /> Active</label>
       <div className="categories-dialog-actions"><button type="button" className="categories-button" disabled={saving} onClick={() => setEditor(null)}>Huỷ</button><button type="submit" className="categories-button categories-button-primary" disabled={saving}>{saving ? 'Đang lưu…' : 'Lưu category'}</button></div>
     </form></section></div>}
