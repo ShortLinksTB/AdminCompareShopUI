@@ -1,12 +1,12 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import '@testing-library/jest-dom/vitest';
 import { ProductsPage } from './ProductsPage';
 import type { AdminProduct, AdminRequest } from './products-api';
 
 const phone: AdminProduct = { id: 42, slug: 'phone-a', name: 'Phone A', brand: 'Brand A', description: 'Good phone', seoTitle: null, seoDescription: null, categoryId: 7, isActive: true, imageUrl: 'https://img.example/phone.jpg' };
 const inactive = { ...phone, id: 43, slug: 'phone-b', name: 'Phone B', categoryId: 8, isActive: false, imageUrl: null };
-const categoryList = [{ id: 7, slug: 'phones', name: 'Phones', isActive: true }, { id: 8, slug: 'audio', name: 'Audio', isActive: true }];
+const categoryList = [{ id: 1006, slug: 'electronics', name: 'Electronics', isActive: true, parentCategoryId: null }, { id: 7, slug: 'phones', name: 'Phones', isActive: true, parentCategoryId: 1006 }, { id: 8, slug: 'audio', name: 'Audio', isActive: true, parentCategoryId: 1006 }];
 const pageResponse = (items: AdminProduct[] = [phone], pageNumber = 1, pageSize = 10, totalItems = items.length) => Response.json({ items, pageNumber, pageSize, totalItems });
 const matching = { id: 501, name: 'Phone A Global Edition', externalSku: 'SKU-501', dataSourceId: 11, dataSourceDisplayName: 'Shop One', createdAtUtc: '2026-10-12T10:00:00Z' };
 
@@ -121,6 +121,30 @@ describe('ProductsPage', () => {
     await waitFor(() => expect(requestAdmin).toHaveBeenCalledWith('/admin/products/42', expect.objectContaining({ method: 'PUT' })));
     const put = requestAdmin.mock.calls.find(([path, init]) => path === '/admin/products/42' && init?.method === 'PUT');
     expect(JSON.parse(String(put?.[1]?.body))).toMatchObject({ name: 'Phone A updated', imageUrl: phone.imageUrl, categoryId: 7 });
+  });
+
+  it('offers only grouped Level 2 categories in the custom keyboard accessible picker', async () => {
+    const requestAdmin = requestFor([phone]);
+    requestAdmin.mockImplementation(path => {
+      if (path.startsWith('/admin/categories')) return Promise.resolve(Response.json({ items: categoryList }));
+      if (path === '/admin/products?page=1&pageSize=10') return Promise.resolve(pageResponse([phone]));
+      return Promise.resolve(new Response(null, { status: 204 }));
+    });
+    render(<ProductsPage requestAdmin={requestAdmin} permissions={['products.read', 'products.update']} />);
+    await screen.findByText('Phone A');
+    fireEvent.click(screen.getByRole('button', { name: 'Actions for Phone A' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Sửa' }));
+    fireEvent.click(screen.getByRole('button', { name: /Phones/ }));
+    const listbox = screen.getByRole('listbox', { name: 'Choose a Level 2 category' });
+    expect(within(listbox).getByText('Electronics')).toBeInTheDocument();
+    expect(within(listbox).getByRole('option', { name: /Phones/ })).toBeInTheDocument();
+    expect(within(listbox).queryByRole('option', { name: /Electronics/ })).not.toBeInTheDocument();
+    fireEvent.click(within(listbox).getByRole('option', { name: /Audio/ }));
+    expect(screen.queryByRole('listbox', { name: 'Choose a Level 2 category' })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Lưu thay đổi' }));
+    await waitFor(() => expect(requestAdmin).toHaveBeenCalledWith('/admin/products/42', expect.objectContaining({ method: 'PUT' })));
+    const put = requestAdmin.mock.calls.find(([path, init]) => path === '/admin/products/42' && init?.method === 'PUT');
+    expect(JSON.parse(String(put?.[1]?.body))).toMatchObject({ categoryId: 8 });
   });
 
   it('loads attached matchings in edit, displays contract fields, and unlinks only after success', async () => {

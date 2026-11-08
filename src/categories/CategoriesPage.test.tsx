@@ -30,7 +30,7 @@ describe('Categories page', () => {
   });
   afterEach(() => cleanup());
 
-  it('shows loading, then renders only wireframe columns and contract fields', async () => {
+  it('shows loading, then renders the wireframe columns and contract fields', async () => {
     let resolve!: (value: Page<AdminCategory>) => void;
     api.getCategories.mockReturnValueOnce(new Promise<Page<AdminCategory>>(done => { resolve = done; }));
     renderPage();
@@ -45,10 +45,10 @@ describe('Categories page', () => {
     expect(screen.getByText('audio')).toBeInTheDocument();
     expect(screen.getByText('7')).toBeInTheDocument();
     const table = screen.getByRole('table');
-    expect(within(table).getAllByRole('columnheader')).toHaveLength(4);
+    expect(within(table).getAllByRole('columnheader')).toHaveLength(6);
     expect(within(table).queryByRole('columnheader', { name: /Active/i })).not.toBeInTheDocument();
     expect(screen.queryByText(/Phones|Computers|mock/i)).not.toBeInTheDocument();
-    expect(api.getCategories).toHaveBeenCalledWith(requestAdmin, 1, 20);
+    expect(api.getCategories).toHaveBeenCalledWith(requestAdmin, 1, 100);
   });
 
   it('shows an API empty state and a retryable list error without mock rows', async () => {
@@ -61,6 +61,28 @@ describe('Categories page', () => {
     expect(screen.queryByText('Audio')).not.toBeInTheDocument();
     await userEvent.click(screen.getByRole('button', { name: 'Thử lại' }));
     await waitFor(() => expect(api.getCategories).toHaveBeenCalledTimes(3));
+  });
+
+  it('renders expandable parent and indented child rows, and saves an optional parent id', async () => {
+    const root = { id: 1006, slug: 'electronics', name: 'Electronics', isActive: true, parentCategoryId: null };
+    const leaf = { id: 7, slug: 'phones', name: 'Phones', isActive: true, parentCategoryId: 1006 };
+    api.getCategories.mockResolvedValue(page([root, leaf]));
+    renderPage();
+    expect(await screen.findByText('Phones')).toBeInTheDocument();
+    const table = screen.getByRole('table');
+    expect(within(table).getAllByRole('columnheader').map(header => header.textContent)).toEqual(['Id', 'Name', 'Slug', 'Level', 'Parent', '']);
+    expect(screen.getByText('Level 1')).toBeInTheDocument();
+    expect(screen.getByText('Level 2')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Thu gọn Electronics' })).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Thu gọn Electronics' }));
+    expect(screen.queryByText('Phones')).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Mở rộng Electronics' }));
+    expect(screen.getByText('Phones')).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Actions for Phones' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Sửa' }));
+    expect(screen.getByLabelText('Parent category')).toHaveValue('1006');
+    await userEvent.click(screen.getByRole('button', { name: 'Lưu category' }));
+    await waitFor(() => expect(api.updateCategory).toHaveBeenCalledWith(requestAdmin, 7, { slug: 'phones', name: 'Phones', isActive: true, parentCategoryId: 1006 }));
   });
 
   it('gates create, update, and delete independently for a read-only viewer', async () => {
@@ -130,7 +152,7 @@ describe('Categories page', () => {
     await user.type(screen.getByLabelText('Slug'), 'new-cat');
     await user.type(screen.getByLabelText('Name'), 'New category');
     await user.click(screen.getByRole('button', { name: 'Lưu category' }));
-    await waitFor(() => expect(api.createCategory).toHaveBeenCalledWith(requestAdmin, { slug: 'new-cat', name: 'New category', isActive: true }));
+    await waitFor(() => expect(api.createCategory).toHaveBeenCalledWith(requestAdmin, { slug: 'new-cat', name: 'New category', isActive: true, parentCategoryId: null }));
     expect(await screen.findByText('Audio')).toBeInTheDocument();
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
     expect(api.getCategories).toHaveBeenCalledTimes(2);
@@ -160,7 +182,7 @@ describe('Categories page', () => {
     await user.type(screen.getByLabelText('Name'), 'Audio gear');
     await user.click(screen.getByLabelText('Active'));
     await user.click(screen.getByRole('button', { name: 'Lưu category' }));
-    await waitFor(() => expect(api.updateCategory).toHaveBeenCalledWith(requestAdmin, 7, { slug: 'audio', name: 'Audio gear', isActive: true }));
+    await waitFor(() => expect(api.updateCategory).toHaveBeenCalledWith(requestAdmin, 7, { slug: 'audio', name: 'Audio gear', isActive: true, parentCategoryId: null }));
     expect(api.getCategories).toHaveBeenCalledTimes(2);
   });
 
