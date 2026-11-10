@@ -70,7 +70,6 @@ export async function deleteAdminFile(request: AdminRequest, id: string): Promis
   if (!response.ok) throw apiError(response, 'delete file');
 }
 
-export function publicFileUrl(id: string): string {
-  const base = (import.meta.env.VITE_API_BASE_URL || 'https://api-compareshop-dev.giamha.online').replace(/\/$/, '');
-  return `${base}/files/${encodeURIComponent(id)}`;
+export function publicFileUrl(id: string, apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'https://api-compareshop-dev.giamha.online'): string {
+  return new URL(`/files/${encodeURIComponent(id)}`, apiBaseUrl).toString();
 }

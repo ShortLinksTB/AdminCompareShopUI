@@ -110,6 +110,7 @@ describe('AdminCompareShopBlog', () => {
     await user.click(screen.getByText('Write'));
     await user.click(screen.getByText('Choose from Files'));
     await user.click(await screen.findByText('pic.png'));
+    expect(screen.getByRole('img', { name: 'Selected cover' })).toHaveAttribute('src', 'https://api-compareshop-dev.giamha.online/files/6f9619ff-8b86-d011-b42d-00cf4fc964ff');
     expect(request).toHaveBeenCalledWith(expect.stringContaining('/admin/files?'), expect.anything());
     await user.click(screen.getByRole('button', { name: 'Save draft' }));
     await waitFor(() => {
