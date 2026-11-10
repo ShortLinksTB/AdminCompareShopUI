@@ -9,8 +9,8 @@ export interface ArticleInput { title: string; slug: string; category: ArticleCa
 interface ArticleWire extends Omit<Article, 'category' | 'tags'> { category: ArticleCategoryWire; tags: string[]; }
 interface ArticlePageWire { items: ArticleWire[]; page: number; pageSize: number; totalItems: number; }
 export interface DailyView { dateUtc: string; views: number; }
-export interface ArticleAnalytics { dailyViews: DailyView[]; }
-interface ArticleAnalyticsWire { daily: DailyView[]; }
+export interface ArticleAnalytics { totalViews: number; dailyViews: DailyView[]; }
+interface ArticleAnalyticsWire { totalViews: number; daily: DailyView[]; }
 export class ArticlesApiError extends Error { constructor(message: string, readonly status: number) { super(message); this.name = 'ArticlesApiError'; } }
 function apiErrorMessage(payload: unknown): string | undefined {
   if (!payload || typeof payload !== 'object') return undefined;
@@ -51,7 +51,4 @@ export async function getArticle(request:AdminRequest,id:number,signal?:AbortSig
 export function saveArticle(request:AdminRequest,id:number|null,input:ArticleInput){return json<ArticleWire>(request,id===null?'/admin/articles':`/admin/articles/${id}`,{method:id===null?'POST':'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(toWire(input))},'save article').then(fromWire);}
 export function setArticlePublished(request:AdminRequest,id:number,published:boolean){return json<void>(request,`/admin/articles/${id}/${published?'publish':'unpublish'}`,{method:'POST'},published?'publish article':'unpublish article');}
 export function deleteArticle(request:AdminRequest,id:number){return json<void>(request,`/admin/articles/${id}`,{method:'DELETE'},'delete article');}
-export async function getArticleAnalytics(request:AdminRequest,id:number,range:7|30|90,signal?:AbortSignal):Promise<ArticleAnalytics>{
-  const result=await json<ArticleAnalyticsWire>(request,`/admin/articles/${id}/analytics?range=${range}`,{signal},'load article analytics');
-  return {dailyViews:result.daily??[]};
-}
+export async function getArticleAnalytics(request:AdminRequest,id:number,range:7|30|90,signal?:AbortSignal):Promise<ArticleAnalytics>{const result=await json<ArticleAnalyticsWire>(request,`/admin/articles/${id}/analytics?range=${range}`,{signal},'load article analytics');return{totalViews:result.totalViews,dailyViews:result.daily??[]};}
