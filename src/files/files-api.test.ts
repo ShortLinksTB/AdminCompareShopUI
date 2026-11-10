@@ -10,6 +10,12 @@ describe('Files API', () => {
     expect(request).toHaveBeenCalledWith('/admin/files?page=2&pageSize=20&q=banner&type=images', { signal: undefined });
   });
 
+  it('preserves the supported other file type filter', async () => {
+    const request = vi.fn<AdminRequest>().mockResolvedValue(Response.json({ items: [], pageNumber: 1, pageSize: 10, totalItems: 0 }));
+    await getAdminFiles(request, 1, 10, '', 'other');
+    expect(request).toHaveBeenCalledWith('/admin/files?page=1&pageSize=10&type=other', { signal: undefined });
+  });
+
   it('omits empty search and all type filters, and passes cancellation', async () => {
     const controller = new AbortController();
     const request = vi.fn<AdminRequest>().mockResolvedValue(Response.json({ items: [], pageNumber: 1, pageSize: 10, totalItems: 0 }));
