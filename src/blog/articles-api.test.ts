@@ -44,7 +44,7 @@ describe('articles-api', () => {
     await setArticlePublished(request, 3, false);
     expect(request).toHaveBeenLastCalledWith('/admin/articles/3/unpublish', { method: 'POST' });
     await deleteArticle(request, 3);
-    request.mockResolvedValue(Response.json({ totalViews: 0, daily: [] }));
+    request.mockResolvedValueOnce(Response.json({ totalViews: 0, daily: [] }));
     await getArticleAnalytics(request, 3, 90);
     expect(request).toHaveBeenLastCalledWith('/admin/articles/3/analytics?range=90', { signal: undefined });
   });
@@ -87,5 +87,18 @@ describe('articles-api', () => {
     const request = vi.fn<AdminRequest>().mockResolvedValue(Response.json({ items: [], page: 1, pageSize: 10, totalItems: 0 }));
     await getArticles(request, { page: 1, pageSize: 10, q: '', category: 'Đánh giá sản phẩm', status: 'all' });
     expect(request).toHaveBeenCalledWith('/admin/articles?page=1&pageSize=10&category=product-reviews', { signal: undefined });
+  });
+
+  it('maps the Article Analytics API daily field and total into the UI model', async () => {
+    const request = vi.fn<AdminRequest>().mockResolvedValue(Response.json({
+      rangeDays: 30, fromDateUtc: '2026-10-12', throughDateUtc: '2026-11-10', totalViews: 1,
+      averageViewsPerDay: 0.03, peakDateUtc: '2026-11-10', peakViews: 1,
+      previousPeriodTotalViews: 0, changePercent: null,
+      daily: [{ dateUtc: '2026-11-10', views: 1 }],
+    }));
+
+    await expect(getArticleAnalytics(request, 3012, 30)).resolves.toEqual({
+      totalViews: 1, dailyViews: [{ dateUtc: '2026-11-10', views: 1 }],
+    });
   });
 });

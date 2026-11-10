@@ -173,4 +173,28 @@ describe('AdminCompareShopBlog', () => {
     expect(screen.getAllByRole('row').length).toBeGreaterThan(90);
     expect(within(dialog).getByRole('row', { name: `${new Date().toISOString().slice(0, 10)} 1` })).toBeInTheDocument();
   });
+
+  it('shows analytics totals and daily counts from the API response shape', async () => {
+    const user = userEvent.setup();
+    const date = new Date().toISOString().slice(0, 10);
+    const request = setup(ALL, path => path.includes('/analytics')
+      ? Response.json({
+        rangeDays: 30, fromDateUtc: '2026-10-12', throughDateUtc: date, totalViews: 1,
+        averageViewsPerDay: 0.03, peakDateUtc: date, peakViews: 1,
+        previousPeriodTotalViews: 0, changePercent: null,
+        daily: [{ dateUtc: date, views: 1 }],
+      })
+      : undefined);
+    await screen.findByText('Cách săn sale');
+    await user.click(screen.getByLabelText('Actions for Cách săn sale'));
+    await user.click(screen.getByText('View analytics'));
+    const dialog = await screen.findByRole('dialog', { name: 'Analytics: Cách săn sale' });
+    const viewsCard = dialog.querySelector('.blog-metrics article') as HTMLElement;
+    expect(within(viewsCard).getByText('1')).toBeInTheDocument();
+    await user.click(within(dialog).getByText('Table'));
+    await waitFor(() => expect(request).toHaveBeenCalledWith('/admin/articles/1/analytics?range=30', expect.anything()));
+    const dateCell = within(dialog).getAllByText(date).find(element => element.tagName === 'TD')!;
+    const dailyRow = dateCell.closest('tr') as HTMLElement;
+    expect(within(dailyRow).getByText('1')).toBeInTheDocument();
+  });
 });
