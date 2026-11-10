@@ -18,6 +18,8 @@ export interface AdminFilePage {
   totalItems: number;
 }
 
+export type AdminFileTypeFilter = 'all' | 'image' | 'other';
+
 export class FilesApiError extends Error {
   constructor(message: string, readonly status: number) {
     super(message);
@@ -31,10 +33,10 @@ function apiError(response: Response, action: string): FilesApiError {
     : `Could not ${action} (request failed with status ${response.status}).`, response.status);
 }
 
-export async function getAdminFiles(request: AdminRequest, page: number, pageSize: number, q: string, type: string, signal?: AbortSignal): Promise<AdminFilePage> {
+export async function getAdminFiles(request: AdminRequest, page: number, pageSize: number, q: string, type: AdminFileTypeFilter, signal?: AbortSignal): Promise<AdminFilePage> {
   const params = new URLSearchParams({ page: String(page), pageSize: String(pageSize) });
   if (q.trim()) params.set('q', q.trim());
-  if (type !== 'all') params.set('type', type);
+  if (type !== 'all') params.set('type', type === 'image' ? 'images' : type);
   const response = await request(`/admin/files?${params}`, { signal });
   if (!response.ok) throw apiError(response, 'load files');
   return response.json() as Promise<AdminFilePage>;
