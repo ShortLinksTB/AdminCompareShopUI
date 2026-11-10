@@ -11,7 +11,30 @@ interface ArticlePageWire { items: ArticleWire[]; page: number; pageSize: number
 export interface DailyView { dateUtc: string; views: number; }
 export interface ArticleAnalytics { dailyViews: DailyView[]; }
 export class ArticlesApiError extends Error { constructor(message: string, readonly status: number) { super(message); this.name = 'ArticlesApiError'; } }
-async function json<T>(request: AdminRequest, path: string, init?: RequestInit, action = 'load articles'): Promise<T> { const response = await request(path, init); if (!response.ok) throw new ArticlesApiError(response.status === 401 || response.status === 403 ? `You do not have permission to ${action}.` : `Could not ${action} (request failed with status ${response.status}).`, response.status); return response.status === 204 ? undefined as T : response.json() as Promise<T>; }
+function apiErrorMessage(payload: unknown): string | undefined {
+  if (!payload || typeof payload !== 'object') return undefined;
+  const body = payload as Record<string, unknown>;
+  if (body.errors && typeof body.errors === 'object') {
+    const messages = Object.values(body.errors as Record<string, unknown>)
+      .flatMap(value => Array.isArray(value) ? value : [value])
+      .filter((value): value is string => typeof value === 'string' && Boolean(value.trim()));
+    if (messages.length) return messages.join(' ');
+  }
+  for (const key of ['detail', 'message', 'title']) {
+    if (typeof body[key] === 'string' && body[key].trim()) return body[key].trim();
+  }
+  return undefined;
+}
+async function json<T>(request: AdminRequest, path: string, init?: RequestInit, action = 'load articles'): Promise<T> {
+  const response = await request(path, init);
+  if (!response.ok) {
+    if (response.status === 401 || response.status === 403) throw new ArticlesApiError(`You do not have permission to ${action}.`, response.status);
+    let detail: string | undefined;
+    try { detail = apiErrorMessage(await response.clone().json()); } catch { /* The API may return an empty or non-JSON error body. */ }
+    throw new ArticlesApiError(detail ?? `Could not ${action} (request failed with status ${response.status}).`, response.status);
+  }
+  return response.status === 204 ? undefined as T : response.json() as Promise<T>;
+}
 const CATEGORY_TO_WIRE: Record<ArticleCategory, ArticleCategoryWire> = { 'Kinh nghiệm mua sắm': 'shopping-tips', 'Đánh giá sản phẩm': 'product-reviews', 'Xu hướng thị trường': 'market-trends' };
 const CATEGORY_FROM_WIRE: Record<ArticleCategoryWire, ArticleCategory> = { 'shopping-tips': 'Kinh nghiệm mua sắm', 'product-reviews': 'Đánh giá sản phẩm', 'market-trends': 'Xu hướng thị trường' };
 function fromWire(article: ArticleWire): Article { return { ...article, category: CATEGORY_FROM_WIRE[article.category] ?? 'Kinh nghiệm mua sắm', tags: Array.isArray(article.tags) ? article.tags.join(', ') : '' }; }

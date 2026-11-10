@@ -103,6 +103,7 @@ describe('AdminCompareShopBlog', () => {
     await user.type(screen.getByLabelText('Article title'), 'Bài mới');
     await user.type(screen.getByLabelText('Tags'), 'shopping, review');
     await user.type(screen.getByLabelText('Article Markdown'), 'hello');
+    await user.type(screen.getByPlaceholderText('A short summary for the article card'), 'Tóm tắt bài viết');
     await user.click(screen.getByText('H2'));
     await user.click(screen.getByText('Preview'));
     expect(screen.getByRole('heading', { name: 'Bài mới' })).toBeInTheDocument();
@@ -114,7 +115,7 @@ describe('AdminCompareShopBlog', () => {
     await waitFor(() => {
       const call = request.mock.calls.find(([path, init]) => path === '/admin/articles' && init?.method === 'POST');
       expect(call).toBeTruthy();
-      expect(JSON.parse(String(call![1]!.body))).toMatchObject({ title: 'Bài mới', slug: 'bai-moi', coverFileId: 'f1', category: 'shopping-tips', tags: ['shopping', 'review'] });
+      expect(JSON.parse(String(call![1]!.body))).toMatchObject({ title: 'Bài mới', slug: 'bai-moi', coverFileId: 'f1', category: 'shopping-tips', tags: ['shopping', 'review'], excerptText: 'Tóm tắt bài viết' });
     });
   });
 
