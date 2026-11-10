@@ -3,6 +3,31 @@ import { ArticlesApiError, deleteArticle, getArticle, getArticleAnalytics, getAr
 import type { AdminRequest } from '../products/products-api';
 
 describe('articles-api', () => {
+  it('round-trips coverFileId as a nullable GUID string', async () => {
+    const coverFileId = '6f9619ff-8b86-d011-b42d-00cf4fc964ff';
+    const request = vi.fn<AdminRequest>().mockResolvedValueOnce(Response.json({
+      id: 3, title: 't', slug: 's', category: 'product-reviews', excerptText: '', contentMarkdown: '',
+      coverFileId, tags: [], status: 'Draft', authorName: 'Andy', publishedAtUtc: null,
+      createdAtUtc: '', updatedAtUtc: '', totalViews: 0,
+    })).mockResolvedValueOnce(Response.json({
+      id: 3, title: 't', slug: 's', category: 'product-reviews', excerptText: '', contentMarkdown: '',
+      coverFileId, tags: [], status: 'Draft', authorName: 'Andy', publishedAtUtc: null,
+      createdAtUtc: '', updatedAtUtc: '', totalViews: 0,
+    })).mockResolvedValueOnce(Response.json({
+      id: 3, title: 't', slug: 's', category: 'product-reviews', excerptText: '', contentMarkdown: '',
+      coverFileId: null, tags: [], status: 'Draft', authorName: 'Andy', publishedAtUtc: null,
+      createdAtUtc: '', updatedAtUtc: '', totalViews: 0,
+    }));
+
+    await expect(getArticle(request, 3)).resolves.toMatchObject({ coverFileId });
+    const saved = await saveArticle(request, 3, { title: 't', slug: 's', category: 'Đánh giá sản phẩm', excerptText: '', contentMarkdown: '', coverFileId, tags: null });
+    expect(saved.coverFileId).toBe(coverFileId);
+    expect(JSON.parse(String(request.mock.calls[1][1]?.body))).toMatchObject({ coverFileId });
+
+    await saveArticle(request, 3, { title: 't', slug: 's', category: 'Đánh giá sản phẩm', excerptText: '', contentMarkdown: '', coverFileId: null, tags: null });
+    expect(JSON.parse(String(request.mock.calls[2][1]?.body))).toMatchObject({ coverFileId: null });
+  });
+
   it('builds list, detail, save, publish, delete and analytics requests', async () => {
     const request = vi.fn<AdminRequest>().mockImplementation(() => Promise.resolve(Response.json({ items: [], page: 1, pageSize: 10, totalItems: 0 })));
     await getArticles(request, { page: 2, pageSize: 20, q: ' x ', category: 'all', status: 'Draft' });
