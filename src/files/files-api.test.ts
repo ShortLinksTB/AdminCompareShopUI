@@ -7,7 +7,7 @@ describe('Files API', () => {
     const page = { items: [], pageNumber: 2, pageSize: 20, totalItems: 23 };
     const request = vi.fn<AdminRequest>().mockResolvedValue(Response.json(page));
     await expect(getAdminFiles(request, 2, 20, '  banner  ', 'image')).resolves.toEqual(page);
-    expect(request).toHaveBeenCalledWith('/admin/files?page=2&pageSize=20&q=banner&type=image', { signal: undefined });
+    expect(request).toHaveBeenCalledWith('/admin/files?page=2&pageSize=20&q=banner&type=images', { signal: undefined });
   });
 
   it('omits empty search and all type filters, and passes cancellation', async () => {

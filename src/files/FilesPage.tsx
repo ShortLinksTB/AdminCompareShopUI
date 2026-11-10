@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent, type PointerEvent, type WheelEvent } from 'react';
-import { deleteAdminFile, getAdminFile, getAdminFiles, publicFileUrl, uploadAdminFiles, type AdminFile, type AdminFilePage } from './files-api';
+import { deleteAdminFile, getAdminFile, getAdminFiles, publicFileUrl, uploadAdminFiles, type AdminFile, type AdminFilePage, type AdminFileTypeFilter } from './files-api';
 import type { AdminRequest } from '../products/products-api';
 import './files.css';
 
@@ -35,7 +35,7 @@ export function FilesPage({ requestAdmin, permissions = [] }: { requestAdmin: Ad
   const [pageSize, setPageSize] = useState(10);
   const [query, setQuery] = useState('');
   const [debouncedQuery, setDebouncedQuery] = useState('');
-  const [type, setType] = useState('all');
+  const [type, setType] = useState<AdminFileTypeFilter>('all');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [reload, setReload] = useState(0);
@@ -153,7 +153,7 @@ export function FilesPage({ requestAdmin, permissions = [] }: { requestAdmin: Ad
 
   return <section className="files-page">
     <div className="page-header"><div><span className="eyebrow">MEDIA</span><h1>Files</h1><p>Lưu ảnh và tệp dùng chung, mỗi tệp có link công khai để hiển thị.</p></div>{canWrite && <button className="primary-button" onClick={() => { setUploadOpen(true); setUploads([]); }}>⬆ Upload</button>}</div>
-    <div className="toolbar"><label className="toolbar-search" aria-label="Search file name">⌕<input value={query} onChange={event => { setQuery(event.target.value); setPageNumber(1); }} placeholder="Search file name..." /></label><select aria-label="Filter by type" value={type} onChange={event => { setType(event.target.value); setPageNumber(1); }}><option value="all">All types</option><option value="image">Images</option><option value="other">Other files</option></select></div>
+    <div className="toolbar"><label className="toolbar-search" aria-label="Search file name">⌕<input value={query} onChange={event => { setQuery(event.target.value); setPageNumber(1); }} placeholder="Search file name..." /></label><select aria-label="Filter by type" value={type} onChange={event => { setType(event.target.value as AdminFileTypeFilter); setPageNumber(1); }}><option value="all">All types</option><option value="image">Images</option><option value="other">Other files</option></select></div>
     <section className="panel files-table-panel"><div className="files-table-scroll"><table><thead><tr><th>Preview</th><th>Name</th><th>Type</th><th>Uploaded by</th><th>Uploaded</th><th>Public link</th><th><span className="sr-only">Actions</span></th></tr></thead><tbody>
       {loading ? <tr><td colSpan={7}><div className="files-state" role="status">Loading files…</div></td></tr> : error ? <tr><td colSpan={7}><div className="files-state files-error" role="alert">{error}<button className="outline-button small" onClick={() => setReload(value => value + 1)}>Retry</button></div></td></tr> : files.length === 0 ? <tr><td colSpan={7}><div className="files-state">No files found. Upload a file or adjust your search.</div></td></tr> : files.map(file => <tr key={file.id}>
         <td><button className="file-thumb" aria-label={`Preview ${shortName(file.originalFileName)}`} onClick={() => isImage(file) && setLightbox(file)} disabled={!isImage(file)}>{isImage(file) ? <img src={publicFileUrl(file.id)} alt="" /> : <span>{file.contentType === 'application/pdf' ? 'PDF' : 'FILE'}</span>}</button></td>

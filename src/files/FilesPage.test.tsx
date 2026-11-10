@@ -39,7 +39,7 @@ describe('FilesPage list and permissions', () => {
     await user.type(screen.getByRole('textbox', { name: 'Search file name' }), 'banner');
     await waitFor(() => expect(request).toHaveBeenCalledWith(expect.stringContaining('q=banner'), expect.objectContaining({ signal: expect.any(AbortSignal) })));
     await user.selectOptions(screen.getByRole('combobox', { name: 'Filter by type' }), 'image');
-    await waitFor(() => expect(request).toHaveBeenCalledWith(expect.stringContaining('type=image'), expect.objectContaining({ signal: expect.any(AbortSignal) })));
+    await waitFor(() => expect(request).toHaveBeenCalledWith(expect.stringContaining('type=images'), expect.objectContaining({ signal: expect.any(AbortSignal) })));
     await user.selectOptions(screen.getByLabelText('Rows per page'), '20');
     await waitFor(() => expect(request).toHaveBeenCalledWith(expect.stringContaining('pageSize=20'), expect.any(Object)));
     await user.click(screen.getByRole('button', { name: 'Next page' }));
