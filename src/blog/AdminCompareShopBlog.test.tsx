@@ -16,7 +16,7 @@ function setup(permissions = ALL, overrides: (path: string, init?: RequestInit) 
     const custom = overrides(path, init);
     if (custom) return Promise.resolve(custom);
     if (path.startsWith('/admin/articles?')) return Promise.resolve(Response.json({ items: [article(), draft], page: 1, pageSize: 10, totalItems: 2 }));
-    if (path.includes('/analytics')) return Promise.resolve(Response.json({ dailyViews: [{ dateUtc: new Date().toISOString(), views: 5 }] }));
+    if (path.includes('/analytics')) return Promise.resolve(Response.json({ totalViews: 5, daily: [{ dateUtc: new Date().toISOString().slice(0, 10), views: 5 }] }));
     if (path.startsWith('/admin/files')) return Promise.resolve(Response.json({ items: [{ id: '6f9619ff-8b86-d011-b42d-00cf4fc964ff', originalFileName: 'pic.png', contentType: 'image/png', sizeBytes: 1, width: 1, height: 1, uploadedBy: 'a', uploadedAtUtc: '' }], pageNumber: 1, pageSize: 100, totalItems: 1 }));
     if (init?.method === 'POST' || init?.method === 'PUT' || init?.method === 'DELETE') return Promise.resolve(Response.json(article()));
     return Promise.resolve(Response.json(article()));
@@ -169,5 +169,29 @@ describe('AdminCompareShopBlog', () => {
     await waitFor(() => expect(request).toHaveBeenCalledWith('/admin/articles/1/analytics?range=90', expect.anything()));
     await user.click(screen.getByText('Table'));
     expect(screen.getAllByRole('row').length).toBeGreaterThan(90);
+  });
+
+  it('shows analytics totals and daily counts from the API response shape', async () => {
+    const user = userEvent.setup();
+    const date = new Date().toISOString().slice(0, 10);
+    const request = setup(ALL, path => path.includes('/analytics')
+      ? Response.json({
+        rangeDays: 30, fromDateUtc: '2026-10-12', throughDateUtc: date, totalViews: 1,
+        averageViewsPerDay: 0.03, peakDateUtc: date, peakViews: 1,
+        previousPeriodTotalViews: 0, changePercent: null,
+        daily: [{ dateUtc: date, views: 1 }],
+      })
+      : undefined);
+    await screen.findByText('Cách săn sale');
+    await user.click(screen.getByLabelText('Actions for Cách săn sale'));
+    await user.click(screen.getByText('View analytics'));
+    const dialog = await screen.findByRole('dialog', { name: 'Analytics: Cách săn sale' });
+    const viewsCard = dialog.querySelector('.blog-metrics article') as HTMLElement;
+    expect(within(viewsCard).getByText('1')).toBeInTheDocument();
+    await user.click(within(dialog).getByText('Table'));
+    await waitFor(() => expect(request).toHaveBeenCalledWith('/admin/articles/1/analytics?range=30', expect.anything()));
+    const dateCell = within(dialog).getAllByText(date).find(element => element.tagName === 'TD')!;
+    const dailyRow = dateCell.closest('tr') as HTMLElement;
+    expect(within(dailyRow).getByText('1')).toBeInTheDocument();
   });
 });
