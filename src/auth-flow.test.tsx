@@ -122,6 +122,31 @@ describe('application OIDC browser return flow', () => {
     expect(keycloakMocks.clearToken).not.toHaveBeenCalled();
   });
 
+  it('restores a directly opened /blog route after the authenticated check-sso callback', async () => {
+    setBrowserPath('/blog?status=Published#articles');
+    let finishSilentSso!: (authenticated: boolean) => void;
+    keycloakMocks.init.mockReset().mockImplementationOnce(() => new Promise(resolve => { finishSilentSso = resolve; }));
+    const directEntry = renderBrowserApp();
+
+    await waitFor(() => expect(keycloakMocks.init).toHaveBeenCalled());
+    expect(window.localStorage.getItem('compareshop-auth-return-to-fallback')).toContain('/blog?status=Published#articles');
+
+    directEntry.unmount();
+    await act(async () => { finishSilentSso(false); });
+    await act(async () => { await Promise.resolve(); });
+    window.sessionStorage.clear();
+    document.cookie = 'compareshop-auth-return-to=; Path=/; Max-Age=0; SameSite=Lax';
+    setBrowserPath('/auth/callback?code=authorization-code&state=keycloak-state');
+    keycloakMocks.init.mockReset().mockResolvedValue(true);
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(Response.json({ permissions: ['articles.read'] })));
+    renderBrowserApp();
+
+    await waitFor(() => expect(screen.getByTestId('current-route')).toHaveTextContent('/blog?status=Published'));
+    expect(screen.getByTestId('current-route')).toHaveTextContent('#articles');
+    expect(await screen.findByRole('heading', { name: 'Blog' })).toBeInTheDocument();
+    expect(window.localStorage.getItem('compareshop-auth-return-to-fallback')).toBeNull();
+  });
+
   it('keeps a protocol-relative return target on the application origin after login', async () => {
     setBrowserPath('/login?returnTo=%2F%2Fevil.example%2Fadmin');
     const loginPage = renderBrowserApp();
