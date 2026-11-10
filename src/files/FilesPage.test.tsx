@@ -61,6 +61,18 @@ describe('FilesPage list and permissions', () => {
     expect(await screen.findByText(/No files found/)).toBeInTheDocument();
   });
 
+  it('keeps requested pagination when the list response omits page metadata', async () => {
+    const request = vi.fn<AdminRequest>().mockResolvedValue(Response.json({ items: [], totalItems: 0 }));
+    render(<FilesPage requestAdmin={request} />);
+
+    expect(await screen.findByText(/No files found/)).toBeInTheDocument();
+    expect(request).toHaveBeenCalledTimes(1);
+    expect(request).toHaveBeenCalledWith('/admin/files?page=1&pageSize=10', expect.any(Object));
+    expect(screen.getByText('Showing 0–0 of 0 files')).toBeInTheDocument();
+    expect(screen.getByText('Page 1 of 1')).toBeInTheDocument();
+    expect(screen.queryByText(/NaN/)).not.toBeInTheDocument();
+  });
+
   it('hides upload and delete affordances without files.write', async () => {
     render(<FilesPage requestAdmin={requestFor()} permissions={['files.read']} />);
     await screen.findByText('banner');
