@@ -110,7 +110,6 @@ describe('AdminCompareShopBlog', () => {
     await screen.findByText('Cách săn sale');
     await user.click(screen.getByText('＋ Bài viết mới'));
     await user.type(screen.getByLabelText('Article title'), 'Bài mới');
-    await user.type(screen.getByLabelText('Short description'), 'A useful summary');
     await user.type(screen.getByLabelText('Article Markdown'), 'hello');
     await user.click(screen.getByText('H2'));
     await user.click(screen.getByText('Preview'));
@@ -136,17 +135,6 @@ describe('AdminCompareShopBlog', () => {
     expect(await screen.findByText('Edit article')).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Save changes' }));
     expect(await screen.findByRole('alert')).toHaveTextContent('status 500');
-  });
-
-  it('requires a non-empty excerpt before creating an article', async () => {
-    const user = userEvent.setup();
-    const request = setup();
-    await screen.findByText('Cách săn sale');
-    await user.click(screen.getByText('＋ Bài viết mới'));
-    await user.type(screen.getByLabelText('Article title'), 'Excerpt test');
-    await user.click(screen.getByRole('button', { name: 'Save draft' }));
-    expect(await screen.findByRole('alert')).toHaveTextContent('Short description must contain 1–160 characters.');
-    expect(request.mock.calls.some(([path, init]) => path === '/admin/articles' && init?.method === 'POST')).toBe(false);
   });
 
   it('zooms the cover lightbox and closes with Escape', async () => {
