@@ -24,8 +24,9 @@ describe('articles-api', () => {
   });
 
   it('maps 401/403 and other failures to errors', async () => {
-    const request = vi.fn<AdminRequest>().mockResolvedValueOnce(new Response(null, { status: 403 })).mockResolvedValueOnce(new Response(null, { status: 500 }));
+    const request = vi.fn<AdminRequest>().mockResolvedValueOnce(new Response(null, { status: 403 })).mockResolvedValueOnce(Response.json({ title: 'One or more validation errors occurred.', errors: { ExcerptText: ['Short description is required.'] } }, { status: 400 })).mockResolvedValueOnce(new Response(null, { status: 500 }));
     await expect(getArticle(request, 1)).rejects.toMatchObject({ status: 403, message: expect.stringContaining('permission') });
+    await expect(getArticle(request, 1)).rejects.toMatchObject({ status: 400, message: 'Short description is required.' });
     await expect(getArticle(request, 1)).rejects.toBeInstanceOf(ArticlesApiError);
   });
 
