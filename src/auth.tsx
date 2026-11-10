@@ -144,6 +144,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const requestedReturnPath = new URLSearchParams(window.location.search).get('returnTo');
       if (requestedReturnPath !== null) storeReturnPath(safeReturnPath(requestedReturnPath));
     }
+    // check-sso may send a directly opened protected route through the
+    // callback URL. Preserve that route before Keycloak changes location.
+    const { pathname, search, hash } = window.location;
+    if (pathname !== '/' && pathname !== '/login' && pathname !== '/auth/callback' && pathname !== '/forbidden') {
+      storeReturnPath(`${pathname}${search}${hash}`);
+    }
     initialization ??= keycloak.init({ onLoad: 'check-sso', pkceMethod: 'S256', checkLoginIframe: false, redirectUri: callbackUrl });
     const currentInitialization = initialization;
     currentInitialization.then((authenticated) => {
