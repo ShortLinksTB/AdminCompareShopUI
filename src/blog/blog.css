@@ -57,5 +57,7 @@
 .admin-shell[data-theme="dark"] .blog-table-scroll th{color:#d0d9de;border-color:var(--border)}
 .admin-shell[data-theme="dark"] .blog-table-scroll td{color:#e0e7eb;border-color:var(--border)}
 .admin-shell[data-theme="dark"] .blog-article-title{color:#f4f7f9}
+.admin-shell[data-theme="dark"] .blog-status.published{background:#163a22;color:#7fe3a0}
+.admin-shell[data-theme="dark"] .blog-status.draft{background:#463126;color:#ffb37c}
 @media(max-width:900px){.blog-editor-layout{grid-template-columns:1fr}.blog-metrics{grid-template-columns:repeat(2,1fr)}}
 @media(max-width:640px){.blog-title-row,.blog-editor-heading,.blog-toolbar,.blog-footer{align-items:stretch;flex-direction:column}.blog-search{max-width:none}.blog-lightbox-box{width:92vw}}
