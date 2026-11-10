@@ -13,6 +13,21 @@ const formatDate = (value: string, time = false) => {
 };
 const isImage = (file: AdminFile) => file.contentType.startsWith('image/');
 
+function normalizePage(result: AdminFilePage, requestedPage: number, requestedPageSize: number): AdminFilePage {
+  // Keep client pagination state valid even if an older or partial API response
+  // omits its pagination metadata.
+  const response = result as AdminFilePage & { page?: number };
+  const pageNumber = Number(response.pageNumber ?? response.page);
+  const pageSize = Number(response.pageSize);
+  const totalItems = Number(response.totalItems);
+  return {
+    items: Array.isArray(response.items) ? response.items : [],
+    pageNumber: Number.isSafeInteger(pageNumber) && pageNumber > 0 ? pageNumber : requestedPage,
+    pageSize: Number.isSafeInteger(pageSize) && pageSize > 0 ? pageSize : requestedPageSize,
+    totalItems: Number.isSafeInteger(totalItems) && totalItems >= 0 ? totalItems : 0,
+  };
+}
+
 export function FilesPage({ requestAdmin, permissions = [] }: { requestAdmin: AdminRequest; permissions?: string[] }) {
   const canWrite = permissions.includes('files.write');
   const [page, setPage] = useState<AdminFilePage>({ items: [], pageNumber: 1, pageSize: 10, totalItems: 0 });
@@ -46,7 +61,10 @@ export function FilesPage({ requestAdmin, permissions = [] }: { requestAdmin: Ad
     const controller = new AbortController();
     setLoading(true); setError('');
     void getAdminFiles(requestAdmin, pageNumber, pageSize, debouncedQuery, type, controller.signal)
-      .then(result => { setPage(result); setPageNumber(result.pageNumber); setPageSize(result.pageSize); })
+      .then(result => {
+        const normalized = normalizePage(result, pageNumber, pageSize);
+        setPage(normalized); setPageNumber(normalized.pageNumber); setPageSize(normalized.pageSize);
+      })
       .catch(reason => { if (!controller.signal.aborted) { setPage({ items: [], pageNumber, pageSize, totalItems: 0 }); setError(reason instanceof Error ? reason.message : 'Could not load files.'); } })
       .finally(() => { if (!controller.signal.aborted) setLoading(false); });
     return () => controller.abort();
