@@ -11,7 +11,18 @@ interface ArticlePageDto { items: ArticleDto[]; page: number; pageSize: number; 
 export interface DailyView { dateUtc: string; views: number; }
 export interface ArticleAnalytics { dailyViews: DailyView[]; }
 export class ArticlesApiError extends Error { constructor(message: string, readonly status: number) { super(message); this.name = 'ArticlesApiError'; } }
-async function json<T>(request: AdminRequest, path: string, init?: RequestInit, action = 'load articles'): Promise<T> { const response = await request(path, init); if (!response.ok) throw new ArticlesApiError(response.status === 401 || response.status === 403 ? `You do not have permission to ${action}.` : `Could not ${action} (request failed with status ${response.status}).`, response.status); return response.status === 204 ? undefined as T : response.json() as Promise<T>; }
+async function serverErrorMessage(response: Response, action: string): Promise<string> {
+  if (response.status === 401 || response.status === 403) return `You do not have permission to ${action}.`;
+  try {
+    const body = await response.clone().json() as { detail?: unknown; title?: unknown; errors?: Record<string, unknown> };
+    const errors = body.errors && Object.values(body.errors).flatMap(value => Array.isArray(value) ? value : [value]).filter((value): value is string => typeof value === 'string');
+    if (errors?.length) return errors.join(' ');
+    if (typeof body.detail === 'string' && body.detail.trim()) return body.detail;
+    if (typeof body.title === 'string' && body.title.trim()) return body.title;
+  } catch { /* Keep a useful status fallback for non-JSON responses. */ }
+  return `Could not ${action} (request failed with status ${response.status}).`;
+}
+async function json<T>(request: AdminRequest, path: string, init?: RequestInit, action = 'load articles'): Promise<T> { const response = await request(path, init); if (!response.ok) throw new ArticlesApiError(await serverErrorMessage(response, action), response.status); return response.status === 204 ? undefined as T : response.json() as Promise<T>; }
 const CATEGORY_TO_VALUE: Record<ArticleCategory, ArticleCategoryValue> = { 'Kinh nghiệm mua sắm': 'shopping-tips', 'Đánh giá sản phẩm': 'product-reviews', 'Xu hướng thị trường': 'market-trends' };
 const VALUE_TO_CATEGORY = Object.fromEntries(Object.entries(CATEGORY_TO_VALUE).map(([label, value]) => [value, label])) as Record<ArticleCategoryValue, ArticleCategory>;
 export function toArticleCategoryValue(category: ArticleCategory): ArticleCategoryValue { return CATEGORY_TO_VALUE[category]; }

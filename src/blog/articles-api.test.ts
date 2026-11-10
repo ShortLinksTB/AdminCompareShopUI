@@ -53,4 +53,10 @@ describe('articles-api', () => {
     await expect(getArticle(request, 1)).rejects.toMatchObject({ status: 403, message: expect.stringContaining('permission') });
     await expect(getArticle(request, 1)).rejects.toBeInstanceOf(ArticlesApiError);
   });
+
+  it('surfaces API validation messages when saving an article', async () => {
+    const request = vi.fn<AdminRequest>().mockResolvedValue(Response.json({ errors: { excerptText: ['Excerpt is required.'], category: ['Category is invalid.'] } }, { status: 400 }));
+    await expect(saveArticle(request, null, { title: 't', slug: 's', category: 'Kinh nghiệm mua sắm', excerptText: '', contentMarkdown: '', coverFileId: null, tags: null }))
+      .rejects.toMatchObject({ status: 400, message: 'Excerpt is required. Category is invalid.' });
+  });
 });
