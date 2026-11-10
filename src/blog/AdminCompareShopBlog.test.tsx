@@ -7,7 +7,7 @@ import { AdminCompareShopBlog } from './AdminCompareShopBlog';
 import type { Article } from './articles-api';
 import type { AdminRequest } from '../products/products-api';
 
-const article = (over: Partial<Article> = {}): Article => ({ id: 1, title: 'Cách săn sale', slug: 'cach-san-sale', category: 'Kinh nghiệm mua sắm', excerptText: 'ex', contentMarkdown: '## Hi', coverFileId: 'file-1', tags: 'a', status: 'Published', authorName: 'Andy', publishedAtUtc: '2026-11-01T00:00:00Z', createdAtUtc: '2026-11-01T00:00:00Z', updatedAtUtc: '2026-11-02T00:00:00Z', totalViews: 1234, ...over });
+const article = (over: Partial<Article> = {}): Article => ({ id: 1, title: 'Cách săn sale', slug: 'cach-san-sale', category: 'Kinh nghiệm mua sắm', excerptText: 'ex', contentMarkdown: '## Hi', coverFileId: '6f9619ff-8b86-d011-b42d-00cf4fc964ff', tags: 'a', status: 'Published', authorName: 'Andy', publishedAtUtc: '2026-11-01T00:00:00Z', createdAtUtc: '2026-11-01T00:00:00Z', updatedAtUtc: '2026-11-02T00:00:00Z', totalViews: 1234, ...over });
 const draft = article({ id: 2, title: 'Bản nháp', slug: 'ban-nhap', status: 'Draft', coverFileId: null, publishedAtUtc: null, totalViews: 0 });
 const ALL = ['articles.read', 'articles.create', 'articles.update', 'articles.publish', 'articles.delete'];
 
@@ -17,7 +17,7 @@ function setup(permissions = ALL, overrides: (path: string, init?: RequestInit) 
     if (custom) return Promise.resolve(custom);
     if (path.startsWith('/admin/articles?')) return Promise.resolve(Response.json({ items: [article(), draft], page: 1, pageSize: 10, totalItems: 2 }));
     if (path.includes('/analytics')) return Promise.resolve(Response.json({ dailyViews: [{ dateUtc: new Date().toISOString(), views: 5 }] }));
-    if (path.startsWith('/admin/files')) return Promise.resolve(Response.json({ items: [{ id: 'f1', originalFileName: 'pic.png', contentType: 'image/png', sizeBytes: 1, width: 1, height: 1, uploadedBy: 'a', uploadedAtUtc: '' }], pageNumber: 1, pageSize: 100, totalItems: 1 }));
+    if (path.startsWith('/admin/files')) return Promise.resolve(Response.json({ items: [{ id: '6f9619ff-8b86-d011-b42d-00cf4fc964ff', originalFileName: 'pic.png', contentType: 'image/png', sizeBytes: 1, width: 1, height: 1, uploadedBy: 'a', uploadedAtUtc: '' }], pageNumber: 1, pageSize: 100, totalItems: 1 }));
     if (init?.method === 'POST' || init?.method === 'PUT' || init?.method === 'DELETE') return Promise.resolve(Response.json(article()));
     return Promise.resolve(Response.json(article()));
   });
@@ -115,7 +115,7 @@ describe('AdminCompareShopBlog', () => {
     await waitFor(() => {
       const call = request.mock.calls.find(([path, init]) => path === '/admin/articles' && init?.method === 'POST');
       expect(call).toBeTruthy();
-      expect(JSON.parse(String(call![1]!.body))).toMatchObject({ title: 'Bài mới', slug: 'bai-moi', coverFileId: 'f1', category: 'shopping-tips', tags: ['shopping', 'review'], excerptText: 'Tóm tắt bài viết' });
+      expect(JSON.parse(String(call![1]!.body))).toMatchObject({ title: 'Bài mới', slug: 'bai-moi', coverFileId: '6f9619ff-8b86-d011-b42d-00cf4fc964ff', category: 'shopping-tips', tags: ['shopping', 'review'], excerptText: 'Tóm tắt bài viết' });
     });
   });
 
