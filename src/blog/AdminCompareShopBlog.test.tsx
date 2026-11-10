@@ -15,7 +15,7 @@ function setup(permissions = ALL, overrides: (path: string, init?: RequestInit) 
   const request = vi.fn<AdminRequest>().mockImplementation((path, init) => {
     const custom = overrides(path, init);
     if (custom) return Promise.resolve(custom);
-    if (path.startsWith('/admin/articles?')) return Promise.resolve(Response.json({ items: [article(), draft], pageNumber: 1, pageSize: 10, totalItems: 2 }));
+    if (path.startsWith('/admin/articles?')) return Promise.resolve(Response.json({ items: [article(), draft], page: 1, pageSize: 10, totalItems: 2 }));
     if (path.includes('/analytics')) return Promise.resolve(Response.json({ dailyViews: [{ dateUtc: new Date().toISOString(), views: 5 }] }));
     if (path.startsWith('/admin/files')) return Promise.resolve(Response.json({ items: [{ id: 'f1', originalFileName: 'pic.png', contentType: 'image/png', sizeBytes: 1, width: 1, height: 1, uploadedBy: 'a', uploadedAtUtc: '' }], pageNumber: 1, pageSize: 100, totalItems: 1 }));
     if (init?.method === 'POST' || init?.method === 'PUT' || init?.method === 'DELETE') return Promise.resolve(Response.json(article()));
@@ -50,7 +50,7 @@ describe('AdminCompareShopBlog', () => {
   });
 
   it('shows empty and error states', async () => {
-    setup(ALL, path => path.startsWith('/admin/articles?') ? Response.json({ items: [], pageNumber: 1, pageSize: 10, totalItems: 0 }) : undefined);
+    setup(ALL, path => path.startsWith('/admin/articles?') ? Response.json({ items: [], page: 1, pageSize: 10, totalItems: 0 }) : undefined);
     expect(await screen.findByText('No articles found.')).toBeInTheDocument();
     cleanup();
     setup(ALL, path => path.startsWith('/admin/articles?') ? new Response(null, { status: 403 }) : undefined);
@@ -101,6 +101,7 @@ describe('AdminCompareShopBlog', () => {
     await screen.findByText('Cách săn sale');
     await user.click(screen.getByText('＋ Bài viết mới'));
     await user.type(screen.getByLabelText('Article title'), 'Bài mới');
+    await user.type(screen.getByLabelText('Tags'), 'shopping, review');
     await user.type(screen.getByLabelText('Article Markdown'), 'hello');
     await user.click(screen.getByText('H2'));
     await user.click(screen.getByText('Preview'));
@@ -113,8 +114,15 @@ describe('AdminCompareShopBlog', () => {
     await waitFor(() => {
       const call = request.mock.calls.find(([path, init]) => path === '/admin/articles' && init?.method === 'POST');
       expect(call).toBeTruthy();
-      expect(JSON.parse(String(call![1]!.body))).toMatchObject({ title: 'Bài mới', slug: 'bai-moi', coverFileId: 'f1' });
+      expect(JSON.parse(String(call![1]!.body))).toMatchObject({ title: 'Bài mới', slug: 'bai-moi', coverFileId: 'f1', category: 'shopping-tips', tags: ['shopping', 'review'] });
     });
+  });
+
+  it('uses the API page field without ever requesting an undefined page', async () => {
+    const request = setup();
+    await screen.findByText('Cách săn sale');
+    expect(request.mock.calls.map(([path]) => path).filter(path => path.includes('/admin/articles?'))).toEqual(['/admin/articles?page=1&pageSize=10']);
+    expect(request).not.toHaveBeenCalledWith(expect.stringContaining('page=undefined'), expect.anything());
   });
 
   it('edits an article and shows save errors', async () => {

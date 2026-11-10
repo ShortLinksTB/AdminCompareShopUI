@@ -4,13 +4,15 @@ import type { AdminRequest } from '../products/products-api';
 
 describe('articles-api', () => {
   it('builds list, detail, save, publish, delete and analytics requests', async () => {
-    const request = vi.fn<AdminRequest>().mockImplementation(() => Promise.resolve(Response.json({})));
+    const request = vi.fn<AdminRequest>().mockImplementation(() => Promise.resolve(Response.json({ items: [], page: 1, pageSize: 10, totalItems: 0 })));
     await getArticles(request, { page: 2, pageSize: 20, q: ' x ', category: 'all', status: 'Draft' });
     expect(request).toHaveBeenLastCalledWith('/admin/articles?page=2&pageSize=20&q=x&status=Draft', { signal: undefined });
     await getArticle(request, 3);
     await saveArticle(request, null, { title: 't', slug: 's', category: 'Đánh giá sản phẩm', excerptText: '', contentMarkdown: '', coverFileId: null, tags: null });
+    expect(JSON.parse(request.mock.calls.at(-1)![1]?.body as string)).toMatchObject({ category: 'product-reviews', tags: [] });
     expect(request).toHaveBeenLastCalledWith('/admin/articles', expect.objectContaining({ method: 'POST' }));
-    await saveArticle(request, 3, { title: 't', slug: 's', category: 'Đánh giá sản phẩm', excerptText: '', contentMarkdown: '', coverFileId: null, tags: null });
+    await saveArticle(request, 3, { title: 't', slug: 's', category: 'Xu hướng thị trường', excerptText: '', contentMarkdown: '', coverFileId: null, tags: 'shopping, review' });
+    expect(JSON.parse(request.mock.calls.at(-1)![1]?.body as string)).toMatchObject({ category: 'market-trends', tags: ['shopping', 'review'] });
     expect(request).toHaveBeenLastCalledWith('/admin/articles/3', expect.objectContaining({ method: 'PUT' }));
     request.mockResolvedValue(new Response(null, { status: 204 }));
     expect(await setArticlePublished(request, 3, true)).toBeUndefined();
@@ -25,5 +27,18 @@ describe('articles-api', () => {
     const request = vi.fn<AdminRequest>().mockResolvedValueOnce(new Response(null, { status: 403 })).mockResolvedValueOnce(new Response(null, { status: 500 }));
     await expect(getArticle(request, 1)).rejects.toMatchObject({ status: 403, message: expect.stringContaining('permission') });
     await expect(getArticle(request, 1)).rejects.toBeInstanceOf(ArticlesApiError);
+  });
+
+  it('maps API page and category values into the UI model and guards an invalid requested page', async () => {
+    const request = vi.fn<AdminRequest>().mockImplementation(() => Promise.resolve(Response.json({ items: [{ id: 1, title: 't', slug: 't', category: 'shopping-tips', tags: ['one', 'two'] }], page: 2, pageSize: 10, totalItems: 11 })));
+    await expect(getArticles(request, { page: 1, pageSize: 10, q: '', category: 'all', status: 'all' })).resolves.toMatchObject({ pageNumber: 2, items: [{ category: 'Kinh nghiệm mua sắm', tags: 'one, two' }] });
+    await getArticles(request, { page: Number.NaN, pageSize: 10, q: '', category: 'all', status: 'all' });
+    expect(request).toHaveBeenLastCalledWith('/admin/articles?page=1&pageSize=10', { signal: undefined });
+  });
+
+  it('maps localized category filters to API values', async () => {
+    const request = vi.fn<AdminRequest>().mockResolvedValue(Response.json({ items: [], page: 1, pageSize: 10, totalItems: 0 }));
+    await getArticles(request, { page: 1, pageSize: 10, q: '', category: 'Đánh giá sản phẩm', status: 'all' });
+    expect(request).toHaveBeenCalledWith('/admin/articles?page=1&pageSize=10&category=product-reviews', { signal: undefined });
   });
 });
