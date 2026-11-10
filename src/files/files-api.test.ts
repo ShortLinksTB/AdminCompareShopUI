@@ -66,7 +66,9 @@ describe('Files API', () => {
     await expect(deleteAdminFile(request, 'id 1')).rejects.toBeInstanceOf(FilesApiError);
   });
 
-  it('builds stable public paths from encoded ids', () => {
-    expect(publicFileUrl('id/1')).toContain('/files/id%2F1');
+  it('builds the root public Files route from versioned API bases and encoded ids', () => {
+    const guid = '6f9619ff-8b86-d011-b42d-00cf4fc964ff';
+    expect(publicFileUrl(guid, 'https://api-compareshop-dev.giamha.online/api/v1')).toBe(`https://api-compareshop-dev.giamha.online/files/${guid}`);
+    expect(publicFileUrl('id/1', 'https://api.example.com/api/v1/')).toBe('https://api.example.com/files/id%2F1');
   });
 });
