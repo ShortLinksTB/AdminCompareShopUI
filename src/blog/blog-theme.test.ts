@@ -25,10 +25,10 @@ describe('Blog status badge theme contrast', () => {
   });
 
   it('gives Published and Draft readable dark theme foreground/background pairs', () => {
-    expect(styles).toContain('.admin-shell[data-theme="dark"] .blog-status.published{background:#163a22;color:#7fe3a0}');
-    expect(styles).toContain('.admin-shell[data-theme="dark"] .blog-status.draft{background:#463126;color:#ffb37c}');
-    expect(contrast('#7fe3a0', '#163a22')).toBeGreaterThanOrEqual(4.5);
-    expect(contrast('#ffb37c', '#463126')).toBeGreaterThanOrEqual(4.5);
+    expect(styles).toContain('.dark .blog-status.published,.admin-shell[data-theme="dark"] .blog-status.published{background:#183b29;color:#8ee0a5}');
+    expect(styles).toContain('.dark .blog-status.draft,.admin-shell[data-theme="dark"] .blog-status.draft{background:#3a2a12;color:#ffcf8a}');
+    expect(contrast('#8ee0a5', '#183b29')).toBeGreaterThanOrEqual(4.5);
+    expect(contrast('#ffcf8a', '#3a2a12')).toBeGreaterThanOrEqual(4.5);
   });
 
   it('renders the published badge with the expected colors in both themes', () => {
@@ -36,20 +36,21 @@ describe('Blog status badge theme contrast', () => {
     style.textContent = styles;
     document.head.append(style);
     const shell = document.createElement('div');
-    shell.className = 'admin-shell';
+    shell.className = 'admin-shell dark';
     shell.dataset.theme = 'dark';
     shell.innerHTML = '<section class="blog-page"><span class="blog-status published">Published</span><span class="blog-status draft">Draft</span></section>';
     document.body.append(shell);
 
     const published = shell.querySelector('.published')!;
     const draft = shell.querySelector('.draft')!;
-    expect(getComputedStyle(published).backgroundColor).toBe('rgb(22, 58, 34)');
-    expect(getComputedStyle(published).color).toBe('rgb(127, 227, 160)');
-    expect(getComputedStyle(draft).backgroundColor).toBe('rgb(70, 49, 38)');
-    expect(getComputedStyle(draft).color).toBe('rgb(255, 179, 124)');
+    expect(getComputedStyle(published).backgroundColor).toBe('rgb(24, 59, 41)');
+    expect(getComputedStyle(published).color).toBe('rgb(142, 224, 165)');
+    expect(getComputedStyle(draft).backgroundColor).toBe('rgb(58, 42, 18)');
+    expect(getComputedStyle(draft).color).toBe('rgb(255, 207, 138)');
 
     shell.dataset.theme = 'light';
-    expect(getComputedStyle(published).backgroundColor).not.toBe('rgb(22, 58, 34)');
+    shell.classList.remove('dark');
+    expect(getComputedStyle(published).backgroundColor).not.toBe('rgb(24, 59, 41)');
     expect(getComputedStyle(published).color).toBe('rgb(22, 101, 52)');
     expect(getComputedStyle(draft).color).toBe('rgb(146, 64, 14)');
 

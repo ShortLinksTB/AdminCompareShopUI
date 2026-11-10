@@ -44,7 +44,8 @@ describe('articles-api', () => {
     await setArticlePublished(request, 3, false);
     expect(request).toHaveBeenLastCalledWith('/admin/articles/3/unpublish', { method: 'POST' });
     await deleteArticle(request, 3);
-    await getArticleAnalytics(request, 3, 90);
+    request.mockResolvedValueOnce(Response.json({ rangeDays: 90, totalViews: 1, daily: [{ dateUtc: '2026-11-10', views: 1 }] }));
+    await expect(getArticleAnalytics(request, 3, 90)).resolves.toEqual({ dailyViews: [{ dateUtc: '2026-11-10', views: 1 }] });
     expect(request).toHaveBeenLastCalledWith('/admin/articles/3/analytics?range=90', { signal: undefined });
   });
 
