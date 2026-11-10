@@ -85,6 +85,18 @@ describe('FilesPage list and permissions', () => {
   });
 });
 
+describe('FilesPage thumbnail fallback', () => {
+  it('replaces a broken image thumbnail with a type badge', async () => {
+    render(<FilesPage requestAdmin={requestFor()} permissions={['files.read']} />);
+    const button = await screen.findByRole('button', { name: 'Preview banner' });
+    const img = button.querySelector('img');
+    expect(img).not.toBeNull();
+    fireEvent.error(img as HTMLImageElement);
+    expect(button.querySelector('img')).toBeNull();
+    expect(button).toHaveTextContent('IMG');
+  });
+});
+
 describe('FilesPage details and file actions', () => {
   it('loads full metadata in Details and closes with Escape', async () => {
     const user = userEvent.setup();
