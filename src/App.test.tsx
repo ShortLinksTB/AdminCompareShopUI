@@ -53,6 +53,24 @@ afterEach(() => {
 });
 
 describe('mobile application navigation', () => {
+  it('loads Files on the existing /files route for users with files.read', async () => {
+    auth.permissions = ['files.read'];
+    auth.requestAdmin.mockResolvedValue(Response.json({ items: [], pageNumber: 1, pageSize: 10, totalItems: 0 }));
+    renderApp('/files');
+
+    expect(screen.getByRole('heading', { name: 'Files' })).toBeInTheDocument();
+    expect(await screen.findByText(/No files found/)).toBeInTheDocument();
+    expect(auth.requestAdmin).toHaveBeenCalledWith('/admin/files?page=1&pageSize=10', expect.objectContaining({ signal: expect.any(AbortSignal) }));
+  });
+
+  it('denies the /files route without files.read and makes no Files API request', () => {
+    render(<MemoryRouter initialEntries={['/files']}><App /><RouteProbe /></MemoryRouter>);
+
+    expect(screen.getByTestId('current-route')).toHaveTextContent('/forbidden');
+    expect(screen.queryByRole('heading', { name: 'Files' })).not.toBeInTheDocument();
+    expect(auth.requestAdmin).not.toHaveBeenCalled();
+  });
+
   it('loads Audit Logs at the real /audit-logs route using the authenticated API request', async () => {
     auth.permissions = ['audit_logs.read'];
     auth.requestAdmin.mockResolvedValue(new Response(JSON.stringify({ items: [], pageNumber: 1, pageSize: 50, totalItems: 0 }), { status: 200 }));

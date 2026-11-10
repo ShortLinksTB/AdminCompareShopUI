@@ -8,6 +8,7 @@
     "build": "tsc -b && vite build",
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",
+    "test:coverage:routes": "vitest run --coverage --config vitest.route-coverage.config.ts",
     "lint": "tsc -b --pretty false",
     "preview": "vite preview"
   },
