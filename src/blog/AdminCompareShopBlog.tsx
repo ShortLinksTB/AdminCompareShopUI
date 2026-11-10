@@ -14,9 +14,8 @@ const publicUrl = (slug: string) => `${window.location.origin.replace('admin-com
 const blankInput = (authorName: string): ArticleInput => ({ title:'', slug:'', category:CATEGORIES[0], excerptText:'', contentMarkdown:'', coverFileId:null, tags:'' });
 
 function CoverImage({ id, alt }: { id: string | null; alt: string }) {
-  const [failed, setFailed] = useState(false);
-  useEffect(() => setFailed(false), [id]);
-  return id && !failed ? <img src={publicFileUrl(id)} alt={alt} onError={() => setFailed(true)} /> : <span className="blog-no-img">No img</span>;
+  const [failedId, setFailedId] = useState<string | null>(null);
+  return id && failedId !== id ? <img src={publicFileUrl(id)} alt={alt} onError={() => setFailedId(id)} /> : <span className="blog-no-img">No img</span>;
 }
 
 export function AdminCompareShopBlog({ requestAdmin, permissions, authorName }: { requestAdmin: AdminRequest; permissions: string[]; authorName: string }) {
