@@ -16,7 +16,7 @@ function setup(permissions = ALL, overrides: (path: string, init?: RequestInit) 
     const custom = overrides(path, init);
     if (custom) return Promise.resolve(custom);
     if (path.startsWith('/admin/articles?')) return Promise.resolve(Response.json({ items: [article(), draft], page: 1, pageSize: 10, totalItems: 2 }));
-    if (path.includes('/analytics')) return Promise.resolve(Response.json({ totalViews: 5, daily: [{ dateUtc: new Date().toISOString().slice(0, 10), views: 5 }] }));
+    if (path.includes('/analytics')) return Promise.resolve(Response.json({ rangeDays: 30, fromDateUtc: '', throughDateUtc: '', totalViews: 1, averageViewsPerDay: 1 / 30, peakDateUtc: new Date().toISOString().slice(0, 10), peakViews: 1, previousPeriodTotalViews: 0, changePercent: null, daily: [{ dateUtc: new Date().toISOString().slice(0, 10), views: 1 }] }));
     if (path.startsWith('/admin/files')) return Promise.resolve(Response.json({ items: [{ id: '6f9619ff-8b86-d011-b42d-00cf4fc964ff', originalFileName: 'pic.png', contentType: 'image/png', sizeBytes: 1, width: 1, height: 1, uploadedBy: 'a', uploadedAtUtc: '' }], pageNumber: 1, pageSize: 100, totalItems: 1 }));
     if (init?.method === 'POST' || init?.method === 'PUT' || init?.method === 'DELETE') return Promise.resolve(Response.json(article()));
     return Promise.resolve(Response.json(article()));
@@ -163,12 +163,15 @@ describe('AdminCompareShopBlog', () => {
     await user.click(screen.getByLabelText('Actions for Cách săn sale'));
     await user.click(screen.getByText('View analytics'));
     expect(await screen.findByRole('img', { name: '30 day views chart' })).toBeInTheDocument();
+    const dialog = screen.getByRole('dialog', { name: 'Analytics: Cách săn sale' });
+    expect(within(dialog).getByText('1', { selector: '.blog-metrics article:first-child strong' })).toBeInTheDocument();
     await user.click(screen.getByText('7 days'));
     await waitFor(() => expect(request).toHaveBeenCalledWith('/admin/articles/1/analytics?range=7', expect.anything()));
     await user.click(screen.getByText('90 days'));
     await waitFor(() => expect(request).toHaveBeenCalledWith('/admin/articles/1/analytics?range=90', expect.anything()));
     await user.click(screen.getByText('Table'));
     expect(screen.getAllByRole('row').length).toBeGreaterThan(90);
+    expect(within(dialog).getByRole('row', { name: `${new Date().toISOString().slice(0, 10)} 1` })).toBeInTheDocument();
   });
 
   it('shows analytics totals and daily counts from the API response shape', async () => {

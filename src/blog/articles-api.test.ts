@@ -49,6 +49,26 @@ describe('articles-api', () => {
     expect(request).toHaveBeenLastCalledWith('/admin/articles/3/analytics?range=90', { signal: undefined });
   });
 
+  it('maps the analytics API totalViews and daily fields into the UI model', async () => {
+    const request = vi.fn<AdminRequest>().mockResolvedValue(Response.json({
+      rangeDays: 30,
+      fromDateUtc: '2026-10-12',
+      throughDateUtc: '2026-11-10',
+      totalViews: 1,
+      averageViewsPerDay: 1 / 30,
+      peakDateUtc: '2026-11-10',
+      peakViews: 1,
+      previousPeriodTotalViews: 0,
+      changePercent: null,
+      daily: [{ dateUtc: '2026-11-10', views: 1 }],
+    }));
+
+    await expect(getArticleAnalytics(request, 3012, 30)).resolves.toEqual({
+      totalViews: 1,
+      dailyViews: [{ dateUtc: '2026-11-10', views: 1 }],
+    });
+  });
+
   it('maps 401/403 and other failures to errors', async () => {
     const request = vi.fn<AdminRequest>().mockResolvedValueOnce(new Response(null, { status: 403 })).mockResolvedValueOnce(Response.json({ title: 'One or more validation errors occurred.', errors: { ExcerptText: ['Short description is required.'] } }, { status: 400 })).mockResolvedValueOnce(new Response(null, { status: 500 }));
     await expect(getArticle(request, 1)).rejects.toMatchObject({ status: 403, message: expect.stringContaining('permission') });
