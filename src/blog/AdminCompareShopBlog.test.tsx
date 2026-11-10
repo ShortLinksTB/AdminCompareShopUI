@@ -105,8 +105,12 @@ describe('AdminCompareShopBlog', () => {
     await user.type(screen.getByLabelText('Article Markdown'), 'hello');
     await user.type(screen.getByPlaceholderText('A short summary for the article card'), 'Tóm tắt bài viết');
     await user.click(screen.getByText('H2'));
+    expect(screen.getByRole('tab', { name: 'Write' })).toHaveAttribute('aria-selected', 'true');
+    expect(screen.getByRole('tab', { name: 'Preview' })).toHaveAttribute('aria-selected', 'false');
     await user.click(screen.getByText('Preview'));
     expect(screen.getByRole('heading', { name: 'Bài mới' })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'Write' })).toHaveAttribute('aria-selected', 'false');
+    expect(screen.getByRole('tab', { name: 'Preview' })).toHaveAttribute('aria-selected', 'true');
     await user.click(screen.getByText('Write'));
     await user.click(screen.getByText('Choose from Files'));
     await user.click(await screen.findByText('pic.png'));
