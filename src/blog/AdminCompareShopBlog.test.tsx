@@ -138,6 +138,27 @@ describe('AdminCompareShopBlog', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent('status 500');
   });
 
+  it('exposes editor modes as an accessible segmented tablist with arrow-key navigation', async () => {
+    const user = userEvent.setup();
+    setup();
+    await screen.findByText('Cách săn sale');
+    await user.click(screen.getByText('＋ Bài viết mới'));
+
+    const writeTab = screen.getByRole('tab', { name: 'Write' });
+    const previewTab = screen.getByRole('tab', { name: 'Preview' });
+    expect(screen.getByRole('tablist', { name: 'Editor mode' })).toContainElement(writeTab);
+    expect(writeTab).toHaveAttribute('aria-selected', 'true');
+    expect(previewTab).toHaveAttribute('aria-selected', 'false');
+    expect(screen.getByRole('tabpanel')).toHaveAttribute('aria-labelledby', 'write-tab');
+
+    writeTab.focus();
+    await user.keyboard('{ArrowRight}');
+    expect(previewTab).toHaveFocus();
+    expect(previewTab).toHaveAttribute('aria-selected', 'true');
+    expect(writeTab).toHaveAttribute('aria-selected', 'false');
+    expect(screen.getByRole('tabpanel')).toHaveAttribute('aria-labelledby', 'preview-tab');
+  });
+
   it('zooms the cover lightbox and closes with Escape', async () => {
     const user = userEvent.setup();
     setup();
