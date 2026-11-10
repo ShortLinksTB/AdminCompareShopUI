@@ -46,15 +46,15 @@ export async function getAdminFile(request: AdminRequest, id: string, signal?: A
   return response.json() as Promise<AdminFile>;
 }
 
-export async function uploadAdminFiles(request: AdminRequest, files: File[], onProgress: (file: File, progress: number) => void): Promise<Array<{ file: File; error?: string }>> {
+export async function uploadAdminFiles(request: AdminRequest, files: File[], onFileStart: (file: File) => void): Promise<Array<{ file: File; error?: string }>> {
   const results: Array<{ file: File; error?: string }> = [];
   for (const file of files) {
     const body = new FormData();
     body.append('file', file);
     try {
+      onFileStart(file);
       const response = await request('/admin/files', { method: 'POST', body });
       if (!response.ok) throw apiError(response, 'upload file');
-      onProgress(file, 100);
       results.push({ file });
     } catch (error) {
       results.push({ file, error: error instanceof Error ? error.message : 'Upload failed.' });
