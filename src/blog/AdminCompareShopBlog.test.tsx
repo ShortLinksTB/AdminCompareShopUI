@@ -8,6 +8,7 @@ import type { Article } from './articles-api';
 import type { AdminRequest } from '../products/products-api';
 
 const article = (over: Partial<Article> = {}): Article => ({ id: 1, title: 'Cách săn sale', slug: 'cach-san-sale', category: 'Kinh nghiệm mua sắm', excerptText: 'ex', contentMarkdown: '## Hi', coverFileId: 'file-1', tags: 'a', status: 'Published', authorName: 'Andy', publishedAtUtc: '2026-11-01T00:00:00Z', createdAtUtc: '2026-11-01T00:00:00Z', updatedAtUtc: '2026-11-02T00:00:00Z', totalViews: 1234, ...over });
+const articleDto = (value: Article) => ({ ...value, category: ({ 'Kinh nghiệm mua sắm': 'shopping-tips', 'Đánh giá sản phẩm': 'product-reviews', 'Xu hướng thị trường': 'market-trends' } as const)[value.category], tags: value.tags ? value.tags.split(',').map(tag => tag.trim()) : [] });
 const draft = article({ id: 2, title: 'Bản nháp', slug: 'ban-nhap', status: 'Draft', coverFileId: null, publishedAtUtc: null, totalViews: 0 });
 const ALL = ['articles.read', 'articles.create', 'articles.update', 'articles.publish', 'articles.delete'];
 
@@ -15,11 +16,11 @@ function setup(permissions = ALL, overrides: (path: string, init?: RequestInit) 
   const request = vi.fn<AdminRequest>().mockImplementation((path, init) => {
     const custom = overrides(path, init);
     if (custom) return Promise.resolve(custom);
-    if (path.startsWith('/admin/articles?')) return Promise.resolve(Response.json({ items: [article(), draft], pageNumber: 1, pageSize: 10, totalItems: 2 }));
+    if (path.startsWith('/admin/articles?')) return Promise.resolve(Response.json({ items: [articleDto(article()), articleDto(draft)], page: 1, pageSize: 10, totalItems: 2 }));
     if (path.includes('/analytics')) return Promise.resolve(Response.json({ dailyViews: [{ dateUtc: new Date().toISOString(), views: 5 }] }));
     if (path.startsWith('/admin/files')) return Promise.resolve(Response.json({ items: [{ id: 'f1', originalFileName: 'pic.png', contentType: 'image/png', sizeBytes: 1, width: 1, height: 1, uploadedBy: 'a', uploadedAtUtc: '' }], pageNumber: 1, pageSize: 100, totalItems: 1 }));
-    if (init?.method === 'POST' || init?.method === 'PUT' || init?.method === 'DELETE') return Promise.resolve(Response.json(article()));
-    return Promise.resolve(Response.json(article()));
+    if (init?.method === 'POST' || init?.method === 'PUT' || init?.method === 'DELETE') return Promise.resolve(Response.json(articleDto(article())));
+    return Promise.resolve(Response.json(articleDto(article())));
   });
   render(<MemoryRouter><AdminCompareShopBlog requestAdmin={request} permissions={permissions} authorName="Andy" /></MemoryRouter>);
   return request;
@@ -46,11 +47,19 @@ describe('AdminCompareShopBlog', () => {
     await user.type(screen.getByLabelText('Search posts'), 'sale');
     await user.selectOptions(screen.getByLabelText('Filter by status'), 'Draft');
     await user.selectOptions(screen.getByLabelText('Filter by category'), 'Đánh giá sản phẩm');
-    await waitFor(() => expect(request).toHaveBeenCalledWith(expect.stringMatching(/q=sale.*category=.*status=Draft|status=Draft.*/), expect.anything()));
+    await waitFor(() => expect(request).toHaveBeenCalledWith(expect.stringMatching(/q=sale.*category=product-reviews.*status=Draft|status=Draft.*category=product-reviews/), expect.anything()));
+  });
+
+  it('uses the normalized response page in the follow-up list request', async () => {
+    const request = vi.fn<AdminRequest>().mockResolvedValue(Response.json({ items: [articleDto(article())], page: 2, pageSize: 10, totalItems: 11 }));
+    render(<MemoryRouter><AdminCompareShopBlog requestAdmin={request} permissions={ALL} authorName="Andy" /></MemoryRouter>);
+    await screen.findByText('Cách săn sale');
+    await waitFor(() => expect(request).toHaveBeenCalledWith('/admin/articles?page=2&pageSize=10', expect.anything()));
+    expect(request.mock.calls.every(([path]) => !path.includes('page=undefined'))).toBe(true);
   });
 
   it('shows empty and error states', async () => {
-    setup(ALL, path => path.startsWith('/admin/articles?') ? Response.json({ items: [], pageNumber: 1, pageSize: 10, totalItems: 0 }) : undefined);
+    setup(ALL, path => path.startsWith('/admin/articles?') ? Response.json({ items: [], page: 1, pageSize: 10, totalItems: 0 }) : undefined);
     expect(await screen.findByText('No articles found.')).toBeInTheDocument();
     cleanup();
     setup(ALL, path => path.startsWith('/admin/articles?') ? new Response(null, { status: 403 }) : undefined);
@@ -113,7 +122,7 @@ describe('AdminCompareShopBlog', () => {
     await waitFor(() => {
       const call = request.mock.calls.find(([path, init]) => path === '/admin/articles' && init?.method === 'POST');
       expect(call).toBeTruthy();
-      expect(JSON.parse(String(call![1]!.body))).toMatchObject({ title: 'Bài mới', slug: 'bai-moi', coverFileId: 'f1' });
+      expect(JSON.parse(String(call![1]!.body))).toMatchObject({ title: 'Bài mới', slug: 'bai-moi', coverFileId: 'f1', category: 'shopping-tips', tags: [] });
     });
   });
 
