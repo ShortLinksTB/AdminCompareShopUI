@@ -4,6 +4,7 @@ import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
 
 const styles = readFileSync('src/styles.css', 'utf8').replace(/\s+/g, ' ');
+const sharedUiStyles = readFileSync('src/ui/studio-shell-fixes.css', 'utf8').replace(/\s+/g, ' ');
 
 function luminance(hex: string) {
   const [red, green, blue] = hex.match(/[0-9a-f]{2}/gi)!.map(channel => {
@@ -28,5 +29,11 @@ describe('Studio navigation group label contrast', () => {
 
     expect(contrast('#667785', '#ffffff')).toBeGreaterThanOrEqual(4.5);
     expect(contrast('#7f909d', '#0b131c')).toBeGreaterThanOrEqual(4.5);
+  });
+
+  it('binds shared reference table text to the active theme foreground', () => {
+    expect(sharedUiStyles).toContain('.studio-shell .studio-table td{color:var(--studio-text)}');
+    expect(sharedUiStyles).toContain('.studio-shell .admin-content{color:var(--studio-text)}');
+    expect(contrast('#eef3f7', '#080e15')).toBeGreaterThanOrEqual(4.5);
   });
 });
