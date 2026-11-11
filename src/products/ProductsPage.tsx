@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type KeyboardEvent as ReactKeyboardEvent } from 'react';
 import { deleteAdminProduct, getAdminCategories, getAdminProductMatchings, getAdminProducts, unlinkAdminProductMatching, updateAdminProduct, type AdminCategory, type AdminProduct, type AdminProductMatching, type AdminRequest, type ProductInput } from './products-api';
-import { Button, Card, DataTable, EmptyState, ErrorState, Field, FilterChips, Lightbox, Loading, Modal, PageHeader, Pager, Pill, RowMenu, SearchField, Switch, TableFooter, Toolbar } from '../ui';
+import { Button, Card, Checkbox, DataTable, EmptyState, ErrorState, Field, FilterChips, Lightbox, Loading, Modal, PageHeader, Pager, Pill, RowMenu, SearchField, Switch, TableFooter, Toolbar } from '../ui';
 import './products.css';
 
 type StatusFilter = 'all' | 'active' | 'inactive' | 'missing-image';
@@ -294,9 +294,9 @@ export function ProductsPage({ requestAdmin, permissions = [] }: { requestAdmin:
       {loading ? <Loading label="Loading products" />
         : error ? <ErrorState title="Could not load products">{error} <Button size="sm" onClick={() => setReloadKey(value => value + 1)}>Retry</Button></ErrorState>
           : visibleItems.length === 0 ? <EmptyState title="No products found">{items.length === 0 ? 'Products will appear here when available.' : 'Try changing your search.'}</EmptyState>
-          : <DataTable className="products-table-scroll"><thead><tr><th className="products-check-col"><input type="checkbox" aria-label="Select all products" checked={allVisibleSelected} onChange={event => visibleItems.forEach(product => toggleSelection(product.id, event.target.checked))} /></th><th>Image</th><th>Product</th><th>Category</th><th>Status</th><th>Actions</th></tr></thead><tbody>
+          : <DataTable className="products-table-scroll"><thead><tr><th className="products-check-col"><Checkbox aria-label="Select all products" checked={allVisibleSelected} indeterminate={selectedIds.size > 0 && !allVisibleSelected} onChange={checked => visibleItems.forEach(product => toggleSelection(product.id, checked))} /></th><th>Image</th><th>Product</th><th>Category</th><th>Status</th><th>Actions</th></tr></thead><tbody>
             {visibleItems.map(product => <tr key={product.id} className={selectedIds.has(product.id) ? 'product-row-selected' : undefined}>
-              <td className="products-check-col"><input type="checkbox" aria-label={`Select ${product.name}`} checked={selectedIds.has(product.id)} onChange={event => toggleSelection(product.id, event.target.checked)} /></td>
+              <td className="products-check-col"><Checkbox aria-label={`Select ${product.name}`} checked={selectedIds.has(product.id)} onChange={checked => toggleSelection(product.id, checked)} /></td>
               <td>{product.imageUrl ? <button className="product-thumbnail" type="button" aria-label={`View image of ${product.name}`} onClick={() => setLightbox({ src: product.imageUrl!, alt: product.name })}><img src={product.imageUrl} alt="" /></button> : <span className="product-thumbnail no-image">No image</span>}</td>
               <td><strong className="product-name">{product.name}</strong><small className="product-slug">{product.slug}</small></td>
               <td>{categoryNames.get(product.categoryId) ?? '—'}</td>

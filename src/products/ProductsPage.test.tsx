@@ -98,6 +98,9 @@ describe('ProductsPage', () => {
     render(<ProductsPage requestAdmin={requestFor()} />);
     await screen.findByText('Phone A');
     const all = screen.getByRole('checkbox', { name: 'Select all products' });
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Select Phone A' }));
+    expect(all).toHaveAttribute('aria-checked', 'mixed');
+    expect((all as HTMLInputElement).indeterminate).toBe(true);
     fireEvent.click(all);
     expect(all).toBeChecked();
     expect(screen.getByRole('checkbox', { name: 'Select Phone A' })).toBeChecked();

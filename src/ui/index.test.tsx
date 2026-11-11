@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import '@testing-library/jest-dom/vitest';
-import { Button, Card, DataTable, Drawer, EmptyState, ErrorState, Field, FilterChips, Kbd, Lightbox, Loading, Modal, PageHeader, Pager, Pill, RowMenu, Switch, TableFooter, Toast, Toolbar } from './index';
+import { Button, Card, Checkbox, DataTable, Drawer, EmptyState, ErrorState, Field, FilterChips, Kbd, Lightbox, Loading, Modal, PageHeader, Pager, Pill, RowMenu, Switch, TableFooter, Toast, Toolbar } from './index';
 
 describe('Studio shared components', () => {
   afterEach(cleanup);
@@ -12,6 +12,21 @@ describe('Studio shared components', () => {
     expect(screen.getByRole('button', { name: 'Delete' })).toHaveClass('studio-button-sm');
     expect(screen.getByText('Ready')).toHaveClass('studio-pill-ok');
     expect(screen.getByLabelText('Card')).toBeInTheDocument(); expect(screen.getByText('⌘K')).toBeInTheDocument();
+  });
+
+  it('renders checked, mixed, disabled, focusable shared checkbox states and reports changes', () => {
+    const onChange = vi.fn();
+    render(<><Checkbox aria-label="Checked" checked onChange={onChange} /><Checkbox aria-label="Mixed" checked={false} indeterminate onChange={onChange} /><Checkbox aria-label="Disabled" checked={false} disabled onChange={onChange} /></>);
+    const checked = screen.getByRole('checkbox', { name: 'Checked' });
+    const mixed = screen.getByRole('checkbox', { name: 'Mixed' });
+    const disabled = screen.getByRole('checkbox', { name: 'Disabled' });
+    expect(checked).toHaveClass('studio-checkbox');
+    expect(checked).toBeChecked();
+    expect(mixed).toHaveAttribute('aria-checked', 'mixed');
+    expect((mixed as HTMLInputElement).indeterminate).toBe(true);
+    expect(disabled).toBeDisabled();
+    fireEvent.click(checked);
+    expect(onChange).toHaveBeenCalledWith(false);
   });
   it('changes filter chip and switch through accessible controls', () => {
     const change = vi.fn(); const toggle = vi.fn();
