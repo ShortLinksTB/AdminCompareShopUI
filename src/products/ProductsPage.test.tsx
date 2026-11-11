@@ -86,6 +86,34 @@ describe('ProductsPage', () => {
     expect(document.querySelector('.studio-table-footer')).toHaveTextContent('Hiển thị 1–1 trong 1');
   });
 
+  it('keeps catalog fetch failures distinct from empty results and retries the missing-image filter', async () => {
+    let catalogRequests = 0;
+    const requestAdmin = vi.fn<AdminRequest>().mockImplementation(path => {
+      if (path.startsWith('/admin/categories')) return Promise.resolve(Response.json({ items: categoryList }));
+      if (path === '/admin/products?page=1&pageSize=10') {
+        catalogRequests += 1;
+        if (catalogRequests === 1) return Promise.resolve(new Response(null, { status: 503 }));
+        return Promise.resolve(pageResponse([phone, inactive]));
+      }
+      return Promise.resolve(pageResponse([phone, inactive]));
+    });
+    render(<ProductsPage requestAdmin={requestAdmin} />);
+    await screen.findByText('Phone A');
+    const missingImageFilter = screen.getByRole('button', { name: 'Needs standard image' });
+    expect(missingImageFilter).not.toHaveTextContent('0');
+    fireEvent.click(missingImageFilter);
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Could not load the product catalog');
+    expect(screen.getByRole('alert')).toHaveTextContent('Retry');
+    expect(screen.queryByText('No products found')).not.toBeInTheDocument();
+    expect(document.querySelector('.studio-table-footer')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Needs standard image' })).not.toHaveTextContent('0');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Retry' }));
+    expect(await screen.findByText('Phone B')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Needs standard image 1' })).toBeInTheDocument();
+  });
+
   it('changes page size through the API and moves to the first page', async () => {
     const requestAdmin = requestFor();
     render(<ProductsPage requestAdmin={requestAdmin} />);
