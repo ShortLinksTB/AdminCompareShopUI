@@ -116,6 +116,13 @@ describe('mobile application navigation', () => {
     expect(auth.requestAdmin).toHaveBeenCalledWith('/admin/files?page=1&pageSize=10', expect.objectContaining({ signal: expect.any(AbortSignal) }));
   });
 
+  it('shows the product details breadcrumb for a nested product route', () => {
+    auth.permissions = ['products.read'];
+    renderApp('/products/42');
+
+    expect(document.querySelector('.admin-breadcrumb')).toHaveTextContent('GiaTot Admin / Products / Product details');
+  });
+
   it('denies the /files route without files.read and makes no Files API request', () => {
     render(<MemoryRouter initialEntries={['/files']}><App /><RouteProbe /></MemoryRouter>);
 
