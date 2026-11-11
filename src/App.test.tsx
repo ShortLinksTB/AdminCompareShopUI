@@ -102,6 +102,7 @@ describe('mobile application navigation', () => {
     renderApp('/studio-components');
     expect(screen.getByRole('heading', { name: 'Studio components' })).toBeInTheDocument();
     expect(screen.getByText(/Component reference/)).toBeInTheDocument();
+    expect(document.querySelector('.admin-breadcrumb')).toHaveTextContent('GiaTot Admin / Studio components');
   });
 
   it('loads Files on the existing /files route for users with files.read', async () => {
@@ -110,6 +111,7 @@ describe('mobile application navigation', () => {
     renderApp('/files');
 
     expect(screen.getByRole('heading', { name: 'Files' })).toBeInTheDocument();
+    expect(document.querySelector('.admin-breadcrumb')).toHaveTextContent('GiaTot Admin / Files');
     expect(await screen.findByText(/No files found/)).toBeInTheDocument();
     expect(auth.requestAdmin).toHaveBeenCalledWith('/admin/files?page=1&pageSize=10', expect.objectContaining({ signal: expect.any(AbortSignal) }));
   });
