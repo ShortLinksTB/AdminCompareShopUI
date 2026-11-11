@@ -51,6 +51,19 @@ describe('Studio navigation group label contrast', () => {
     expect(contrast('#7a8794', '#ffffff')).toBeGreaterThanOrEqual(3);
   });
 
+  it('keeps every loading-dot animation phase at 3:1 and stops motion when requested', () => {
+    expect(styles).toContain('--studio-surface:#101b26');
+    expect(styles).toContain('--studio-brand:#ff5a00');
+    expect(componentStyles).toContain('.studio-loading i{width:8px;height:8px;border-radius:50%;background:var(--studio-brand);animation:studio-pulse 1s ease-in-out infinite alternate}');
+    expect(componentStyles).toContain('@keyframes studio-pulse{to{transform:translateY(-4px)}}');
+    expect(componentStyles).not.toMatch(/@keyframes studio-pulse[^}]*opacity/);
+    expect(componentStyles).toContain('@media(prefers-reduced-motion:reduce){.studio-loading i{animation:none}}');
+
+    // All dots use the same fully opaque foreground; delays change timing only.
+    expect(contrast('#ff5a00', '#ffffff')).toBeGreaterThanOrEqual(3);
+    expect(contrast('#ff5a00', '#101b26')).toBeGreaterThanOrEqual(3);
+  });
+
   it('keeps group headings on the shared faint token in both themes', () => {
     expect(styles).toContain('.studio-nav-group h2{margin:14px 10px 5px;color:var(--studio-faint)');
     expect(styles).toContain('.studio-shell[data-theme="light"]');
