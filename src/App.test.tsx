@@ -88,10 +88,13 @@ describe('mobile application navigation', () => {
 
   it('shows the pending matching count and notice only to users with matching permission', () => {
     auth.permissions = ['dashboard.read', 'matching.read'];
+    auth.requestAdmin.mockResolvedValue(Response.json([{ id: 1 }, { id: 2 }, { id: 3 }]));
     renderApp('/');
-    expect(screen.getByRole('link', { name: /Product Matching/ })).toHaveTextContent('3');
-    fireEvent.click(screen.getByRole('button', { name: /Thông báo/ }));
-    expect(screen.getByText(/3 mục đang chờ ghép/)).toBeInTheDocument();
+    return screen.findByRole('link', { name: /Product Matching/ }).then(link => {
+      expect(link).toHaveTextContent('3');
+      fireEvent.click(screen.getByRole('button', { name: /Thông báo/ }));
+      expect(screen.getByText(/3 mục đang chờ ghép/)).toBeInTheDocument();
+    });
   });
 
   it('renders the shared component reference on its actual route for settings managers', () => {

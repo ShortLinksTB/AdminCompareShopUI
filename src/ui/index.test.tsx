@@ -31,6 +31,19 @@ describe('Studio shared components', () => {
     const Demo = () => { const [open, setOpen] = useState(false); return <><button onClick={() => setOpen(true)}>Open</button><Modal open={open} onClose={() => setOpen(false)} title="Edit"><button>First</button><button>Last</button></Modal></>; };
     render(<Demo />); const trigger = screen.getByRole('button', { name: 'Open' }); trigger.focus(); fireEvent.click(trigger); const first = screen.getByRole('button', { name: 'Đóng' }); const last = screen.getByRole('button', { name: 'Last' }); last.focus(); fireEvent.keyDown(window, { key: 'Tab' }); expect(first).toHaveFocus(); fireEvent.keyDown(window, { key: 'Escape' }); expect(screen.queryByRole('dialog')).not.toBeInTheDocument(); expect(trigger).toHaveFocus();
   });
+  it('wraps Shift+Tab from the dialog root and keeps focus during lightbox zoom rerenders', () => {
+    const close = vi.fn();
+    const Demo = () => <><button>Opener</button><Lightbox open onClose={() => close()}><img alt="Zoom image" src="/image.png" /></Lightbox></>;
+    render(<Demo />);
+    const dialog = screen.getByRole('dialog', { name: 'Xem ảnh' });
+    fireEvent.keyDown(window, { key: 'Tab', shiftKey: true });
+    const zoom = screen.getByRole('button', { name: 'Đóng ảnh' });
+    expect(zoom).toHaveFocus();
+    const stage = document.querySelector('.studio-lightbox-stage')!;
+    fireEvent.wheel(stage, { deltaY: -100, clientX: 10, clientY: 10 });
+    expect(zoom).toHaveFocus();
+    expect(dialog).toBeInTheDocument();
+  });
   it('drawer closes on Escape and invokes close callback', () => {
     const close = vi.fn(); render(<Drawer open onClose={close} title="Details">Drawer body</Drawer>); expect(screen.getByText('Drawer body')).toBeInTheDocument(); fireEvent.keyDown(window, { key: 'Escape' }); expect(close).toHaveBeenCalledOnce();
   });

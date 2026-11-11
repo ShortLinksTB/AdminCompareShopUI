@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { NavLink, Navigate, Outlet, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
-import { matchingQueue, offers, products, shops, type Status } from './mockData';
+import { offers, products, shops, type Status } from './mockData';
+import { fetchPendingMatchings } from './matching/matching-api';
 import { AuthLoadingScreen, AuthProvider, CallbackPage, ForbiddenPage, LoginPage, PermissionFailure, useAuth } from './auth';
 import { safeReturnPath } from './auth-utils';
 import { MatchingPage } from './matching/MatchingPage';
@@ -46,19 +47,25 @@ function Shell() {
   const location = useLocation();
   const navigate = useNavigate();
   const { flags } = useContext(FeatureFlagsContext);
-  const { userName, logout, permissions } = useAuth();
+  const { userName, logout, permissions, requestAdmin } = useAuth();
   const [dark, setDark] = useState(() => { const systemDark = typeof window.matchMedia === 'function' && window.matchMedia('(prefers-color-scheme: dark)').matches; try { const saved = window.localStorage.getItem('admin-studio-theme'); return saved ? saved === 'dark' : systemDark; } catch { return systemDark; } });
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [paletteQuery, setPaletteQuery] = useState('');
   const [noticeOpen, setNoticeOpen] = useState(false);
+  const [matchingCount, setMatchingCount] = useState<number | null>(null);
   const paletteInput = useRef<HTMLInputElement>(null);
   const paletteReturnFocus = useRef<HTMLElement | null>(null);
   const mobileNavToggleRef = useRef<HTMLButtonElement>(null);
   const mobileNavCloseRef = useRef<HTMLButtonElement>(null);
   const visibleNav = [...nav.filter(item => (!item.flag || flags[item.flag as FeatureKey]) && (!item.permission || permissions.includes(item.permission))), ...(permissions.includes(studioNavItem.permission) ? [studioNavItem] : [])];
   const initials = userName.slice(0, 1).toUpperCase();
-  const matchingCount = permissions.includes('matching.read') ? matchingQueue.length : 0;
+  useEffect(() => {
+    if (!permissions.includes('matching.read')) { setMatchingCount(null); return; }
+    let active = true;
+    fetchPendingMatchings(requestAdmin).then(queue => { if (active) setMatchingCount(queue.length); }).catch(() => { if (active) setMatchingCount(null); });
+    return () => { active = false; };
+  }, [permissions, requestAdmin]);
 
   const changeTheme = (value: boolean) => { setDark(value); try { window.localStorage.setItem('admin-studio-theme', value ? 'dark' : 'light'); } catch { /* Session theme remains active when storage is blocked. */ } };
   useEffect(() => { if (paletteOpen) paletteInput.current?.focus(); else paletteReturnFocus.current?.focus(); }, [paletteOpen]);
@@ -108,7 +115,7 @@ function Shell() {
         <button ref={mobileNavCloseRef} className="mobile-nav-close" aria-label="Close navigation" onClick={() => { setMobileNavOpen(false); mobileNavToggleRef.current?.focus(); }}>×</button>
       </div>
       <nav aria-label="Application navigation" className="studio-nav">
-        {navGroups.map(group => { const items = visibleNav.filter(item => group.routes.includes(item.to)); return items.length ? <section className="studio-nav-group" key={group.label}><h2>{group.label}</h2>{items.map(item => <NavLink key={item.to} to={item.to} end={item.end} onClick={() => { setMobileNavOpen(false); mobileNavToggleRef.current?.focus(); }}><span>{item.icon}</span>{item.label}{item.to === '/matching' && matchingCount > 0 && <i className="studio-nav-count">{matchingCount}</i>}</NavLink>)}</section> : null; })}
+        {navGroups.map(group => { const items = visibleNav.filter(item => group.routes.includes(item.to)); return items.length ? <section className="studio-nav-group" key={group.label}><h2>{group.label}</h2>{items.map(item => <NavLink key={item.to} to={item.to} end={item.end} onClick={() => { setMobileNavOpen(false); mobileNavToggleRef.current?.focus(); }}><span>{item.icon}</span>{item.label}{item.to === '/matching' && matchingCount !== null && matchingCount > 0 && <i className="studio-nav-count">{matchingCount}</i>}</NavLink>)}</section> : null; })}
       </nav>
       <div className="sidebar-bottom">
         <button className="theme-button" onClick={() => changeTheme(!dark)} aria-label="Đổi giao diện sáng tối">{dark ? '☼' : '◐'} {dark ? 'Giao diện sáng' : 'Giao diện tối'}</button>
@@ -127,7 +134,7 @@ function Shell() {
           <div className="mobile-theme-controls" role="group" aria-label="Color theme"><button type="button" aria-pressed={!dark} onClick={() => changeTheme(false)}>Light</button><button type="button" aria-pressed={dark} onClick={() => changeTheme(true)}>Dark</button></div>
           <button className="studio-command-trigger" aria-label="Mở thanh lệnh" onClick={openPalette}><span>⌕ Tìm trang...</span><kbd>{navigator.platform.includes('Mac') ? '⌘K' : 'Ctrl K'}</kbd></button>
           <button className="studio-theme-toggle" type="button" aria-label={dark ? 'Chuyển sang giao diện sáng' : 'Chuyển sang giao diện tối'} onClick={() => changeTheme(!dark)}>{dark ? '☼' : '◐'}</button>
-          {permissions.includes('matching.read') && <div className="studio-notice-wrap"><button className="studio-theme-toggle studio-bell" aria-label={`Thông báo${matchingCount ? `, ${matchingCount} mục Product Matching đang chờ` : ''}`} aria-expanded={noticeOpen} onClick={() => setNoticeOpen(value => !value)}>♢{matchingCount > 0 && <i>{matchingCount}</i>}</button>{noticeOpen && <div className="studio-notice-pop" role="status">{matchingCount ? <><b>{matchingCount} mục đang chờ ghép</b><NavLink to="/matching" onClick={() => setNoticeOpen(false)}>Mở Product Matching →</NavLink></> : 'Không có mục đang chờ.'}</div>}</div>}
+          {permissions.includes('matching.read') && <div className="studio-notice-wrap"><button className="studio-theme-toggle studio-bell" aria-label={`Thông báo${matchingCount !== null ? `, ${matchingCount} mục Product Matching đang chờ` : ''}`} aria-expanded={noticeOpen} onClick={() => setNoticeOpen(value => !value)}>♢{matchingCount !== null && matchingCount > 0 && <i>{matchingCount}</i>}</button>{noticeOpen && <div className="studio-notice-pop" role="status">{matchingCount === null ? 'Không tải được hàng chờ. Mở Product Matching để kiểm tra.' : matchingCount ? <><b>{matchingCount} mục đang chờ ghép</b><NavLink to="/matching" onClick={() => setNoticeOpen(false)}>Mở Product Matching →</NavLink></> : 'Không có mục đang chờ.'}</div>}</div>}
           <button className="admin-profile" onClick={() => void logout()}>{initials} <span>{userName}</span> · Đăng xuất</button>
         </div>
       </header>
