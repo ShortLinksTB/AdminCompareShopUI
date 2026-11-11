@@ -43,6 +43,7 @@ const breadcrumbRoutes: { path: string; label: string }[] = [
 ];
 function breadcrumbLabel(pathname: string) {
   if (pathname === '/banned-items/new') return 'Banned items / Add item';
+  if (/^\/products\/[^/]+\/?$/.test(pathname)) return 'Products / Product details';
   const match = breadcrumbRoutes
     .filter(route => route.path !== '/')
     .sort((left, right) => right.path.length - left.path.length)
