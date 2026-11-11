@@ -136,11 +136,17 @@ export function ProductsPage({ requestAdmin, permissions = [] }: { requestAdmin:
   }, [requestAdmin, reloadKey]);
 
   useEffect(() => {
-    if (status === 'missing-image') { setLoading(!catalogLoaded && !catalogError); setError(''); return; }
+    if (status === 'missing-image') return;
     const controller = new AbortController();
     void load(controller.signal);
     return () => controller.abort();
-  }, [load, status, catalogLoaded, catalogError]);
+  }, [load, status]);
+
+  useEffect(() => {
+    if (status !== 'missing-image') return;
+    setLoading(!catalogLoaded && !catalogError);
+    setError('');
+  }, [status, catalogLoaded, catalogError]);
 
   useEffect(() => {
     const controller = new AbortController();
