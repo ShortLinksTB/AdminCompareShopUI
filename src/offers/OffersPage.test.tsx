@@ -25,6 +25,8 @@ describe('OffersPage', () => {
     expect(screen.getByText('SKU LA-42 · Offer #201')).toBeInTheDocument();
     expect(screen.getByText('Chưa rõ')).toBeInTheDocument();
     expect(screen.getByText('Hết hàng', { selector: '.studio-pill' })).toBeInTheDocument();
+    expect(screen.getByText('Hết hàng', { selector: '.studio-pill' })).toHaveClass('studio-pill-sm');
+    expect(screen.getByRole('combobox', { name: 'Số dòng mỗi trang' })).toHaveClass('studio-select-sm');
     expect(screen.getByRole('button', { name: /Giá bất thường/ })).toHaveTextContent('4');
     expect(screen.getByText('1–10')).toBeInTheDocument();
     expect(screen.getByText('20', { selector: '.studio-table-footer b' })).toBeInTheDocument();
