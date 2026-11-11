@@ -24,9 +24,10 @@ describe('OffersPage', () => {
     expect(await screen.findByText('Laptop Air')).toBeInTheDocument();
     expect(screen.getByText('SKU LA-42 · Offer #201')).toBeInTheDocument();
     expect(screen.getByText('Chưa rõ')).toBeInTheDocument();
-    expect(screen.getByText('Hết hàng', { selector: '.offers-pill' })).toBeInTheDocument();
+    expect(screen.getByText('Hết hàng', { selector: '.studio-pill' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Giá bất thường/ })).toHaveTextContent('4');
-    expect(screen.getByText('1–10 / 20')).toBeInTheDocument();
+    expect(screen.getByText('1–10')).toBeInTheDocument();
+    expect(screen.getByText('20', { selector: '.studio-table-footer b' })).toBeInTheDocument();
     expect(request).toHaveBeenCalledWith('/admin/offers?page=1&pageSize=10&sort=attention&staleHours=72', expect.objectContaining({ signal: expect.any(AbortSignal) }));
   });
 
@@ -40,7 +41,7 @@ describe('OffersPage', () => {
     await waitFor(() => expect(request).toHaveBeenCalledWith('/admin/offers?page=1&pageSize=10&sort=attention&staleHours=72&q=Laptop&filter=out_of_stock', expect.anything()));
     fireEvent.change(screen.getByRole('combobox', { name: 'Sắp xếp' }), { target: { value: 'oldest' } });
     await waitFor(() => expect(request).toHaveBeenCalledWith('/admin/offers?page=1&pageSize=10&sort=oldest&staleHours=72&q=Laptop&filter=out_of_stock', expect.anything()));
-    fireEvent.click(screen.getByRole('button', { name: 'Trang tiếp' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Trang sau' }));
     await waitFor(() => expect(request).toHaveBeenCalledWith('/admin/offers?page=2&pageSize=10&sort=oldest&staleHours=72&q=Laptop&filter=out_of_stock', expect.anything()));
   });
 
@@ -61,12 +62,21 @@ describe('OffersPage', () => {
     expect(request).toHaveBeenCalledWith('/admin/offers?productId=42&page=1&pageSize=100&sort=priceAsc', expect.anything());
   });
 
+  it('opens the offer detail drawer with the keyboard from a focused row', async () => {
+    const request = vi.fn<AdminRequest>().mockImplementation(async path => path.includes('/price-history') ? Response.json([]) : path.includes('productId=') ? Response.json(pageShape([])) : response([offer]));
+    render(<OffersPage requestAdmin={request} />);
+    const row = await screen.findByRole('row', { name: /Laptop Air/ });
+    row.focus();
+    fireEvent.keyDown(row, { key: 'Enter' });
+    expect(await screen.findByRole('dialog', { name: 'Chi tiết offer' })).toBeInTheDocument();
+  });
+
   it('opens both image sources with the approved black overlay and closes with Escape', async () => {
     const request = vi.fn<AdminRequest>().mockResolvedValue(response([offer]));
     render(<OffersPage requestAdmin={request} />);
     await screen.findByText('Laptop Air');
     fireEvent.click(screen.getByRole('button', { name: 'Xem ảnh lớn của Laptop Air' }));
-    expect(screen.getByRole('dialog', { name: 'Xem ảnh lớn' })).toHaveClass('offers-lightbox');
+    expect(screen.getByRole('dialog', { name: 'Xem ảnh lớn' })).toHaveClass('studio-lightbox', 'offers-image-lightbox');
     fireEvent.click(screen.getByRole('button', { name: 'Ảnh sản phẩm chuẩn' }));
     expect(screen.getByRole('button', { name: 'Ảnh sản phẩm chuẩn' })).toHaveAttribute('aria-pressed', 'true');
     fireEvent.keyDown(window, { key: 'Escape' });
@@ -77,7 +87,7 @@ describe('OffersPage', () => {
     const request = vi.fn<AdminRequest>().mockImplementation(async (_path, init) => init?.method === 'PATCH' ? new Response(null, { status: 204 }) : response([offer]));
     const { rerender } = render(<OffersPage requestAdmin={request} permissions={['offers.read']} />);
     await screen.findByText('Laptop Air');
-    fireEvent.click(screen.getByRole('button', { name: 'Thao tác cho offer 201' }));
+    fireEvent.click(screen.getByLabelText('Thao tác cho offer 201'));
     expect(screen.queryByRole('menuitem', { name: 'Ẩn khỏi trang so sánh' })).not.toBeInTheDocument();
     rerender(<OffersPage requestAdmin={request} permissions={['offers.read', 'offers.update']} />);
     await screen.findByText('Laptop Air');
@@ -92,7 +102,7 @@ describe('OffersPage', () => {
     const request = vi.fn<AdminRequest>().mockImplementation(async () => response([offer]));
     render(<OffersPage requestAdmin={request} />);
     await screen.findByText('Laptop Air');
-    fireEvent.click(screen.getByRole('button', { name: 'Thao tác cho offer 201' }));
+    fireEvent.click(screen.getByLabelText('Thao tác cho offer 201'));
     fireEvent.click(screen.getByRole('menuitem', { name: 'Đánh dấu giá bất thường' }));
     await waitFor(() => expect(request).toHaveBeenCalledWith('/admin/offers/201', expect.objectContaining({ method: 'PATCH', body: JSON.stringify({ priceVnd: offer.priceVnd, url: offer.url, isActive: true, isOutlier: true }) })));
     await waitFor(() => expect(request).toHaveBeenCalledWith('/admin/offers/201/outlier-reason', expect.objectContaining({ method: 'PATCH', body: JSON.stringify({ outlierReason: 'price mismatch' }) })));
@@ -108,7 +118,7 @@ describe('OffersPage', () => {
       return Promise.resolve(response([]));
     });
     render(<OffersPage requestAdmin={request} />);
-    expect(screen.getByRole('status')).toHaveTextContent('Đang tải offers');
+    expect(screen.getByRole('status', { name: 'Đang tải offers' })).toBeInTheDocument();
     resolve(new Response('', { status: 500 }));
     expect(await screen.findByRole('alert')).toHaveTextContent('status 500');
     fireEvent.click(screen.getByRole('button', { name: 'Thử lại' }));
@@ -128,7 +138,7 @@ describe('OffersPage', () => {
     expect(screen.getByText(/-4,5% so với trung bình/)).toBeInTheDocument();
     expect(screen.getByText('Lâu chưa cập nhật', { selector: 'small' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Xem ảnh lớn của offer 301' })).toHaveTextContent('No img');
-    fireEvent.click(screen.getByRole('button', { name: 'Thao tác cho offer 301' }));
+    fireEvent.click(screen.getByLabelText('Thao tác cho offer 301'));
     expect(screen.queryByRole('menuitem', { name: /Mở trang trên cửa hàng/ })).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Xem ảnh lớn của Outlier' }));
     fireEvent.error(screen.getByRole('img', { name: 'Outlier' }));
@@ -146,7 +156,7 @@ describe('OffersPage', () => {
     fireEvent.click(screen.getByRole('row', { name: /Sản phẩm #42/ }));
     expect(await screen.findByText('Chưa có dữ liệu so sánh cho sản phẩm này.')).toBeInTheDocument();
     expect(screen.getByText('Chưa có dữ liệu lịch sử giá trong 30 ngày.')).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: 'Đóng chi tiết' }));
+    fireEvent.mouseDown(document.querySelector('.studio-overlay')!);
     expect(screen.queryByRole('dialog', { name: 'Chi tiết offer' })).not.toBeInTheDocument();
   });
 
@@ -162,10 +172,10 @@ describe('OffersPage', () => {
     fireEvent.change(screen.getByRole('combobox', { name: 'Số dòng mỗi trang' }), { target: { value: '20' } });
     await waitFor(() => expect(request).toHaveBeenCalledWith(expect.stringContaining('pageSize=20'), expect.anything()));
     fireEvent.click(screen.getByRole('button', { name: 'Xem ảnh lớn của Laptop Air' }));
-    const stage = document.querySelector('.offers-lightbox-stage')!;
+    const stage = document.querySelector('.studio-lightbox-stage')!;
     fireEvent.wheel(stage, { deltaY: -100, clientX: 100, clientY: 100 });
     expect(screen.getByText('115%')).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: 'Đóng' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Đóng ảnh' }));
     expect(screen.queryByRole('dialog', { name: 'Xem ảnh lớn' })).not.toBeInTheDocument();
   });
 
@@ -178,7 +188,7 @@ describe('OffersPage', () => {
     });
     render(<OffersPage requestAdmin={request} />);
     await screen.findByText('Laptop Air');
-    fireEvent.click(screen.getByRole('button', { name: 'Thao tác cho offer 201' }));
+    fireEvent.click(screen.getByLabelText('Thao tác cho offer 201'));
     fireEvent.click(screen.getByRole('menuitem', { name: 'Bỏ đánh dấu giá bất thường' }));
     await waitFor(() => expect(request).toHaveBeenCalledWith('/admin/offers/201/outlier-reason', expect.objectContaining({ body: JSON.stringify({ outlierReason: null }) })));
     expect(await screen.findByText('Đã bỏ đánh dấu giá bất thường.')).toBeInTheDocument();
@@ -199,19 +209,17 @@ describe('OffersPage', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Xem ảnh lớn của Laptop Air' }));
     fireEvent.click(screen.getByRole('button', { name: 'Ảnh sản phẩm chuẩn' }));
     const image = screen.getByRole('img', { name: 'Laptop Air' });
-    fireEvent.pointerDown(image, { pointerId: 1, clientX: 10, clientY: 10 });
-    fireEvent.pointerUp(image, { pointerId: 1, clientX: 10, clientY: 10 });
-    expect(image).toHaveStyle({ transform: 'translate(0px,0px) scale(2)' });
-    fireEvent.pointerDown(image, { pointerId: 1, clientX: 10, clientY: 10 });
-    fireEvent.pointerUp(image, { pointerId: 1, clientX: 10, clientY: 10 });
-    expect(image).toHaveStyle({ transform: 'translate(0px,0px) scale(1)' });
+    fireEvent.click(image);
+    expect(document.querySelector('.studio-lightbox-content')).toHaveStyle({ transform: 'translate(0px,0px) scale(2)' });
+    fireEvent.click(image);
+    expect(document.querySelector('.studio-lightbox-content')).toHaveStyle({ transform: 'translate(0px,0px) scale(1)' });
   });
 
   it('keeps the failure message when a full offer update is rejected', async () => {
     const request = vi.fn<AdminRequest>().mockImplementation(async (_path, init) => init?.method === 'PATCH' ? new Response(JSON.stringify({ detail: 'update denied' }), { status: 403, headers: { 'Content-Type': 'application/json' } }) : response([hidden]));
     render(<OffersPage requestAdmin={request} />);
     await screen.findByText('Laptop Hidden');
-    fireEvent.click(screen.getByRole('button', { name: 'Thao tác cho offer 202' }));
+    fireEvent.click(screen.getByLabelText('Thao tác cho offer 202'));
     fireEvent.click(screen.getByRole('menuitem', { name: 'Hiển thị lại trên trang so sánh' }));
     expect(await screen.findByText('You do not have permission to perform this action.')).toBeInTheDocument();
   });

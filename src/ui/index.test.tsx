@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import '@testing-library/jest-dom/vitest';
-import { Button, Card, Checkbox, DataTable, Drawer, EmptyState, ErrorState, Field, FilterChips, Kbd, Lightbox, Loading, Modal, PageHeader, Pager, Pill, RowMenu, Switch, TableFooter, Toast, Toolbar } from './index';
+import { Button, Card, Checkbox, DataTable, Drawer, EmptyState, ErrorState, Field, FilterChips, Kbd, Lightbox, Loading, Modal, PageHeader, Pager, Pill, RowMenu, Select, Switch, TableFooter, Toast, Toolbar } from './index';
 
 describe('Studio shared components', () => {
   afterEach(cleanup);
@@ -30,13 +30,18 @@ describe('Studio shared components', () => {
   });
   it('changes filter chip and switch through accessible controls', () => {
     const change = vi.fn(); const toggle = vi.fn();
-    render(<><FilterChips items={[{ value: 'all', label: 'All', count: 4 }, { value: 'hidden', label: 'Hidden' }]} value="all" onChange={change} /><Switch checked onChange={toggle} label="Visible" /></>);
+    render(<><FilterChips label="Status filters" items={[{ value: 'all', label: 'All', count: 4 }, { value: 'hidden', label: 'Hidden' }]} value="all" onChange={change} /><Switch checked onChange={toggle} label="Visible" /></>);
+    expect(screen.getByRole('group', { name: 'Status filters' })).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Hidden' })); fireEvent.click(screen.getByRole('switch', { name: 'Visible' }));
     expect(change).toHaveBeenCalledWith('hidden'); expect(toggle).toHaveBeenCalledWith(false);
   });
   it('renders searchable toolbar, data table and three-part footer pager', () => {
     const change = vi.fn(); render(<><Toolbar><Field label="Search" placeholder="Name" /></Toolbar><DataTable><thead><tr><th>Name</th></tr></thead><tbody><tr><td>One</td></tr></tbody></DataTable><TableFooter start={1} end={10} total={20}><Pager page={1} pages={2} onChange={change} /></TableFooter></>);
     expect(screen.getByLabelText('Search')).toBeInTheDocument(); expect(screen.getByText('One')).toBeInTheDocument(); fireEvent.click(screen.getByRole('button', { name: 'Trang sau' })); expect(change).toHaveBeenCalledWith(2);
+  });
+  it('styles native selects through the shared Studio control', () => {
+    render(<Select aria-label="Sort"><option value="name">Name</option></Select>);
+    expect(screen.getByRole('combobox', { name: 'Sort' })).toHaveClass('studio-select');
   });
   it('opens row menu and renders empty, error, loading, page header and toast states', () => {
     render(<><RowMenu><button>Archive</button></RowMenu><EmptyState title="Empty" /><ErrorState title="Error" /><Loading /><PageHeader title="Products" eyebrow="CATALOG" description="Manage products" /><Toast>Saved</Toast></>);
