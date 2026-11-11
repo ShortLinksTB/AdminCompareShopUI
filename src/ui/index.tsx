@@ -8,10 +8,25 @@ export function FilterChips({ items, value, onChange }: { items: { value: string
 export function Card({ className = '', ...props }: HTMLAttributes<HTMLElement>) { return <section {...props} className={`studio-card ${className}`} />; }
 export function Toolbar({ children, ...props }: HTMLAttributes<HTMLDivElement>) { return <div {...props} className={`studio-toolbar ${props.className || ''}`}>{children}</div>; }
 export function DataTable({ children, ...props }: HTMLAttributes<HTMLDivElement>) { return <div {...props} className={`studio-table-scroll ${props.className || ''}`}><table className="studio-table">{children}</table></div>; }
-export function TableFooter({ start, end, total, children }: { start: number; end: number; total: number; children?: ReactNode }) { return <footer className="studio-table-footer"><span>Hiển thị <b>{start}–{end}</b> trong <b>{total}</b></span><span className="studio-footer-range">Trang dữ liệu</span><div>{children}</div></footer>; }
+export function TableFooter({ start, end, total, left, children }: { start: number; end: number; total: number; left?: ReactNode; children?: ReactNode }) { return <footer className="studio-table-footer"><div className="studio-footer-left">{left ?? <span>{total} mục</span>}</div><span className="studio-footer-range">Hiển thị <b>{start}–{end}</b> trong <b>{total}</b></span><div>{children}</div></footer>; }
 export function Pager({ page, pages, onChange }: { page: number; pages: number; onChange: (page: number) => void }) { return <div className="studio-pager"><Button size="sm" aria-label="Trang trước" disabled={page <= 1} onClick={() => onChange(page - 1)}>←</Button><span>{page} / {pages}</span><Button size="sm" aria-label="Trang sau" disabled={page >= pages} onClick={() => onChange(page + 1)}>→</Button></div>; }
-export function RowMenu({ children }: { children: ReactNode }) { return <details className="studio-row-menu"><summary aria-label="Thao tác">⋮</summary><div>{children}</div></details>; }
-function FocusLayer({ children, onClose, label, className }: { children: ReactNode; onClose: () => void; label: string; className: string }) {
+export function RowMenu({ children, label = 'Thao tác', open, onOpenChange }: { children: ReactNode; label?: string; open?: boolean; onOpenChange?: (open: boolean) => void }) {
+  const root = useRef<HTMLDetailsElement>(null);
+  const [internalOpen, setInternalOpen] = useState(false);
+  const isOpen = open ?? internalOpen;
+  const setOpen = (next: boolean) => { if (open === undefined) setInternalOpen(next); onOpenChange?.(next); };
+  useEffect(() => {
+    const closeOutside = (event: PointerEvent) => { if (isOpen && !root.current?.contains(event.target as Node)) setOpen(false); };
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape' && isOpen) { setOpen(false); root.current?.querySelector('summary')?.focus(); }
+    };
+    document.addEventListener('pointerdown', closeOutside);
+    document.addEventListener('keydown', closeOnEscape);
+    return () => { document.removeEventListener('pointerdown', closeOutside); document.removeEventListener('keydown', closeOnEscape); };
+  }, [isOpen]);
+  return <details ref={root} open={isOpen} className="studio-row-menu"><summary role="button" tabIndex={0} aria-label={label} aria-expanded={isOpen} onClick={event => { event.preventDefault(); setOpen(!isOpen); }}>⋮</summary>{isOpen && <div>{children}</div>}</details>;
+}
+function FocusLayer({ children, onClose, label, className, role = 'dialog' }: { children: ReactNode; onClose: () => void; label: string; className: string; role?: 'dialog' | 'alertdialog' }) {
   const root = useRef<HTMLDivElement>(null); const previous = useRef<HTMLElement | null>(null);
   const onCloseRef = useRef(onClose);
   useEffect(() => { onCloseRef.current = onClose; }, [onClose]);
@@ -19,9 +34,9 @@ function FocusLayer({ children, onClose, label, className }: { children: ReactNo
     const handle = (event: KeyboardEvent) => { if (event.key === 'Escape') onCloseRef.current(); if (event.key === 'Tab') { const dialog = root.current; const items = [...(dialog?.querySelectorAll<HTMLElement>('button:not([disabled]),a[href],input:not([disabled]),select:not([disabled]),textarea:not([disabled]),[tabindex="0"]') || [])]; if (!items.length) { event.preventDefault(); dialog?.focus(); return; } const first = items[0]; const last = items.at(-1)!; if (event.shiftKey && (document.activeElement === first || document.activeElement === dialog || !dialog?.contains(document.activeElement))) { event.preventDefault(); last.focus(); } else if (!event.shiftKey && (document.activeElement === last || document.activeElement === dialog || !dialog?.contains(document.activeElement))) { event.preventDefault(); first.focus(); } } };
     window.addEventListener('keydown', handle); return () => { window.removeEventListener('keydown', handle); document.body.style.overflow = bodyOverflow; previous.current?.focus(); };
   }, []);
-  return <div className="studio-overlay" onMouseDown={event => { if (event.target === event.currentTarget) onClose(); }}><section ref={root} tabIndex={-1} role="dialog" aria-modal="true" aria-label={label} className={className}>{children}</section></div>;
+  return <div className="studio-overlay" onMouseDown={event => { if (event.target === event.currentTarget) onClose(); }}><section ref={root} tabIndex={-1} role={role} aria-modal="true" aria-label={label} className={className}>{children}</section></div>;
 }
-export function Modal({ open, onClose, title, children, actions }: { open: boolean; onClose: () => void; title: string; children: ReactNode; actions?: ReactNode }) { return open ? <FocusLayer onClose={onClose} label={title} className="studio-modal"><header><h2>{title}</h2><Button tone="ghost" aria-label="Đóng" onClick={onClose}>×</Button></header><div className="studio-modal-body">{children}</div>{actions && <footer>{actions}</footer>}</FocusLayer> : null; }
+export function Modal({ open, onClose, title, children, actions, className = '', role = 'dialog' }: { open: boolean; onClose: () => void; title: string; children: ReactNode; actions?: ReactNode; className?: string; role?: 'dialog' | 'alertdialog' }) { return open ? <FocusLayer onClose={onClose} label={title} className={`studio-modal ${className}`} role={role}><header><h2>{title}</h2><Button tone="ghost" aria-label="Đóng" onClick={onClose}>×</Button></header><div className="studio-modal-body">{children}</div>{actions && <footer>{actions}</footer>}</FocusLayer> : null; }
 export function Drawer({ open, onClose, title, children }: { open: boolean; onClose: () => void; title: string; children: ReactNode }) { return open ? <FocusLayer onClose={onClose} label={title} className="studio-drawer"><header><h2>{title}</h2><Button tone="ghost" aria-label="Đóng" onClick={onClose}>×</Button></header><div className="studio-drawer-body">{children}</div></FocusLayer> : null; }
 export function Switch({ checked, onChange, label }: { checked: boolean; onChange: (checked: boolean) => void; label: string }) { return <label className="studio-switch"><input type="checkbox" role="switch" aria-label={label} checked={checked} onChange={event => onChange(event.target.checked)} /><span aria-hidden="true" /></label>; }
 export function Field({ label, ...props }: InputHTMLAttributes<HTMLInputElement> & { label: string }) { return <label className="studio-field"><span>{label}</span><input {...props} /></label>; }

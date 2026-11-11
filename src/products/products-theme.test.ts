@@ -23,7 +23,8 @@ function contrast(foreground: string, background: string) {
 
 describe('Products theme styles', () => {
   it('keeps the selected category option legible against its accent in light and dark themes', () => {
-    expect(productStyles).toContain('.product-category-options button.selected{background:#ff5a00;color:#17202a}');
+    expect(productStyles).toContain('.product-category-options button.selected{background:var(--studio-brand);color:var(--studio-on-brand)}');
+    expect(normalizedStyles).toContain('--studio-brand:#ff5a00;--studio-brand-soft:#ff5a0022;--studio-on-brand:#17202a;');
     expect(contrast('#17202a', '#ff5a00')).toBeGreaterThanOrEqual(4.5);
   });
 
