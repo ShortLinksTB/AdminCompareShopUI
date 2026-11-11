@@ -301,9 +301,13 @@ describe('dashboard API integration', () => {
   });
   const offer = (id: number, isActive: boolean, isOutlier: boolean) => ({
     id, productId: 7, partnerShopId: 12, priceVnd: 320000, url: null, isActive, isOutlier, updatedAtUtc: '2026-11-03T08:00:00Z',
-    productName: `Product ${id}`, productImageUrl: null, partnerShopName: 'Shop', externalSku: null, imageUrl: null, originalPriceVnd: null, stockStatus: 'unknown', lowestPriceVnd: null, deltaVnd: null, deltaPercent: null, outlierReason: null,
+    productName: 'Catalog Phone', productImageUrl: null, partnerShopName: 'Shop 12', externalSku: null, imageUrl: null,
+    originalPriceVnd: null, stockStatus: 'in_stock' as const, lowestPriceVnd: 320000, deltaVnd: 0, deltaPercent: 0, outlierReason: null,
   });
-  const offersPage = (items: ReturnType<typeof offer>[]) => Response.json({ items, page: 1, pageSize: 100, totalItems: items.length, counts: { all: items.length, outlier: items.filter(item => item.isOutlier).length, stale: 0, outOfStock: 0, inactive: items.filter(item => !item.isActive).length } });
+  const offersPage = (items: ReturnType<typeof offer>[], totalItems = items.length) => Response.json({
+    items, pageNumber: 1, pageSize: 100, totalItems,
+    counts: { all: totalItems, outlier: items.filter(item => item.isOutlier).length, stale: 0, out_of_stock: 0, inactive: items.filter(item => !item.isActive).length },
+  });
 
   it('uses the dedicated API sources and renders only contract-backed product and offer values', async () => {
     auth.permissions = ['products.read', 'offers.read'];
@@ -324,7 +328,7 @@ describe('dashboard API integration', () => {
     expect(screen.getByText('103')).toBeInTheDocument();
     expect(screen.queryByText('Laptop Zenbook Pro')).not.toBeInTheDocument();
     expect(auth.requestAdmin).toHaveBeenCalledWith('/admin/products?page=1&pageSize=20', expect.objectContaining({ signal: expect.any(AbortSignal) }));
-    expect(auth.requestAdmin).toHaveBeenCalledWith('/admin/offers?page=1&pageSize=100', expect.objectContaining({ signal: expect.any(AbortSignal) }));
+    expect(auth.requestAdmin).toHaveBeenCalledWith('/admin/offers?page=1&pageSize=100&sort=attention&staleHours=72', expect.objectContaining({ signal: expect.any(AbortSignal) }));
   });
 
   it('keeps each dataset loading until its own request resolves', async () => {
@@ -406,7 +410,7 @@ describe('dashboard API integration', () => {
     view.unmount();
     expect(signals.every(signal => signal.aborted)).toBe(true);
     resolvers[0](productPage(8));
-    resolvers[1](offersPage([offer(401, true, true)]));
+    resolvers[1](Response.json([offer(401, true, true)]));
     await Promise.resolve();
   });
 });

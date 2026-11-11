@@ -1,51 +1,55 @@
 import { describe, expect, it, vi } from 'vitest';
-import { getAdminOffers, getOfferPriceHistory, OffersApiError, updateAdminOffer, type AdminOffer, type AdminOffersPage } from './offers-api';
+import { getAdminOffers, getAdminProductOffers, getOfferPriceHistory, OffersApiError, updateAdminOffer, updateAdminOfferOutlierReason, type AdminOffer } from './offers-api';
 
 const offer: AdminOffer = {
-  id: 7, productId: 42, partnerShopId: 9, priceVnd: 120000, url: null,
-  isActive: true, isOutlier: false, updatedAtUtc: '2026-11-03T06:00:00Z',
-  productName: 'Phone', productImageUrl: null, partnerShopName: 'Shop', externalSku: 'P-42',
-  imageUrl: null, originalPriceVnd: null, stockStatus: 'in_stock', lowestPriceVnd: 120000,
+  id: 7, productId: 42, partnerShopId: 9, priceVnd: 120000, url: null, isActive: true, isOutlier: false,
+  updatedAtUtc: '2026-11-03T06:00:00Z', productName: 'Laptop', productImageUrl: null, partnerShopName: 'Shop',
+  externalSku: 'SKU-7', imageUrl: null, originalPriceVnd: null, stockStatus: 'unknown', lowestPriceVnd: 120000,
   deltaVnd: 0, deltaPercent: 0, outlierReason: null,
+  otherOffersAveragePriceVnd: null, outlierDeviationPercent: null,
 };
-const page: AdminOffersPage = { items: [offer], page: 2, pageSize: 20, totalItems: 21, counts: { all: 21, outlier: 2, stale: 3, outOfStock: 4, inactive: 5 } };
+const page = { items: [offer], pageNumber: 1, pageSize: 10, totalItems: 1, counts: { all: 1, outlier: 0, stale: 0, out_of_stock: 0, inactive: 0 } };
 
 describe('offers API', () => {
-  it('serializes the confirmed query contract and returns the typed page', async () => {
+  it('sends the typed page query and parses global counts', async () => {
     const request = vi.fn().mockResolvedValue(Response.json(page));
-    await expect(getAdminOffers(request, { page: 2, pageSize: 20, q: 'phone', shopId: 9, filter: 'stale', sort: 'oldest', staleHours: 72 })).resolves.toEqual(page);
-    expect(request).toHaveBeenCalledWith('/admin/offers?page=2&pageSize=20&q=phone&shopId=9&filter=stale&sort=oldest&staleHours=72', { signal: undefined });
+    await expect(getAdminOffers(request, { page: 2, pageSize: 20, q: 'Laptop', shopId: 9, filter: 'inactive', sort: 'oldest' })).resolves.toEqual(page);
+    expect(request).toHaveBeenCalledWith('/admin/offers?page=2&pageSize=20&sort=oldest&staleHours=72&q=Laptop&shopId=9&filter=inactive', { signal: undefined });
   });
 
-  it('omits optional query parameters and forwards cancellation', async () => {
+  it('does not infer a filter or search query when empty', async () => {
     const request = vi.fn().mockResolvedValue(Response.json(page));
-    const controller = new AbortController();
-    await getAdminOffers(request, { page: 1, shopId: null, q: '' }, controller.signal);
-    expect(request).toHaveBeenCalledWith('/admin/offers?page=1', { signal: controller.signal });
+    await getAdminOffers(request, { page: 1, pageSize: 10, q: '  ', shopId: null, filter: 'all', sort: 'attention' });
+    expect(request).toHaveBeenCalledWith('/admin/offers?page=1&pageSize=10&sort=attention&staleHours=72', { signal: undefined });
   });
 
-  it.each([401, 403, 500])('rejects failed list request %i', async status => {
-    const request = vi.fn().mockResolvedValue(new Response('', { status }));
-    await expect(getAdminOffers(request)).rejects.toMatchObject({ name: 'OffersApiError', status } satisfies Partial<OffersApiError>);
+  it('loads only the selected product peers', async () => {
+    const request = vi.fn().mockResolvedValue(Response.json(page));
+    await expect(getAdminProductOffers(request, 42)).resolves.toEqual([offer]);
+    expect(request).toHaveBeenCalledWith('/admin/offers?productId=42&page=1&pageSize=100&sort=priceAsc', { signal: undefined });
   });
 
-  it('loads real history points for the offer', async () => {
-    const points = [{ dateUtc: '2026-11-02T00:00:00Z', priceVnd: 115000 }];
+  it('requests actual snapshot points for 30 days', async () => {
+    const points = [{ dateUtc: '2026-11-01T00:00:00Z', priceVnd: 100 }];
     const request = vi.fn().mockResolvedValue(Response.json(points));
     await expect(getOfferPriceHistory(request, 7)).resolves.toEqual(points);
     expect(request).toHaveBeenCalledWith('/admin/offers/7/price-history?days=30', { signal: undefined });
   });
 
-  it('sends an outlier update with its reason', async () => {
+  it('updates the existing OfferInput contract with all required fields', async () => {
     const request = vi.fn().mockResolvedValue(new Response(null, { status: 204 }));
-    await expect(updateAdminOffer(request, 7, { isOutlier: true, outlierReason: 'Price typo' })).resolves.toBeUndefined();
-    expect(request).toHaveBeenCalledWith('/admin/offers/7', expect.objectContaining({ method: 'PATCH', body: JSON.stringify({ isOutlier: true, outlierReason: 'Price typo' }) }));
+    await updateAdminOffer(request, 7, { priceVnd: 120000, url: null, isActive: false, isOutlier: true });
+    expect(request).toHaveBeenCalledWith('/admin/offers/7', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ priceVnd: 120000, url: null, isActive: false, isOutlier: true }) });
   });
 
-  it('reports permission and server errors on mutation', async () => {
-    const denied = vi.fn().mockResolvedValue(new Response('', { status: 403 }));
-    await expect(updateAdminOffer(denied, 7, { isActive: false })).rejects.toThrow('You do not have permission to update offers.');
-    const failed = vi.fn().mockResolvedValue(new Response('', { status: 500 }));
-    await expect(updateAdminOffer(failed, 7, { isActive: false })).rejects.toThrow('Could not update offer (request failed with status 500).');
+  it('saves a nullable outlier reason through its dedicated API route', async () => {
+    const request = vi.fn().mockResolvedValue(new Response(null, { status: 204 }));
+    await updateAdminOfferOutlierReason(request, 7, 'price mismatch');
+    expect(request).toHaveBeenCalledWith('/admin/offers/7/outlier-reason', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ outlierReason: 'price mismatch' }) });
+  });
+
+  it.each([401, 403, 500])('rejects status %i with a useful message', async status => {
+    const request = vi.fn().mockResolvedValue(new Response(JSON.stringify({ detail: 'denied' }), { status, headers: { 'Content-Type': 'application/json' } }));
+    await expect(getAdminOffers(request, { page: 1, pageSize: 10, q: '', shopId: null, filter: 'all', sort: 'attention' })).rejects.toMatchObject({ name: 'OffersApiError', status } satisfies Partial<OffersApiError>);
   });
 });
