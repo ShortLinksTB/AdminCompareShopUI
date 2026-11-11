@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import '@testing-library/jest-dom/vitest';
 import { BrowserRouter, MemoryRouter, useLocation } from 'react-router-dom';
 import { App } from './App';
@@ -48,7 +48,9 @@ afterEach(() => {
   auth.status = 'authenticated';
   auth.permissionState = 'ready';
   auth.requestAdmin.mockReset();
+  vi.unstubAllGlobals();
   vi.clearAllMocks();
+  window.localStorage.removeItem('admin-studio-theme');
   window.history.replaceState({}, '', '/');
 });
 
@@ -155,7 +157,7 @@ describe('mobile application navigation', () => {
 
     const adminShell = document.querySelector('.admin-shell');
     expect(adminShell).toHaveClass('products-route');
-    expect(adminShell).toHaveAttribute('data-theme', 'light');
+    expect(adminShell).toHaveAttribute('data-theme', 'dark');
 
     fireEvent.click(screen.getByRole('link', { name: /Product Matching/ }));
 
@@ -229,6 +231,81 @@ describe('mobile application navigation', () => {
     expect(screen.queryByRole('link', { name: /Users & Roles/ })).not.toBeInTheDocument();
   });
 
+  it('filters command palette routes by permissions and supports Escape', () => {
+    auth.permissions = ['dashboard.read', 'products.read'];
+    renderApp();
+    fireEvent.keyDown(window, { key: 'k', ctrlKey: true });
+    const palette = screen.getByRole('dialog', { name: 'Command palette' });
+    expect(palette).toBeInTheDocument();
+    expect(within(palette).getByRole('link', { name: /Products/ })).toBeInTheDocument();
+    expect(within(palette).queryByRole('link', { name: /Offers & Prices/ })).not.toBeInTheDocument();
+    fireEvent.keyDown(window, { key: 'Escape' });
+    expect(screen.queryByRole('dialog', { name: 'Command palette' })).not.toBeInTheDocument();
+  });
+
+  it('supports keyboard navigation, focus wrapping, and selecting a permitted command', () => {
+    auth.permissions = ['dashboard.read'];
+    renderApp();
+    fireEvent.keyDown(window, { key: 'k', metaKey: true });
+    const palette = screen.getByRole('dialog', { name: 'Command palette' });
+    const input = within(palette).getByRole('textbox', { name: 'Tìm lệnh' });
+    input.focus();
+    fireEvent.keyDown(palette, { key: 'Tab', shiftKey: true });
+    expect(within(palette).getByRole('link', { name: /Studio components/ })).toHaveFocus();
+    fireEvent.keyDown(palette, { key: 'Tab' });
+    expect(input).toHaveFocus();
+    fireEvent.keyDown(input, { key: 'ArrowDown' });
+    expect(within(palette).getByRole('link', { name: /Studio components/ })).toHaveClass('selected');
+    fireEvent.keyDown(input, { key: 'ArrowUp' });
+    fireEvent.keyDown(input, { key: 'Enter' });
+    expect(screen.queryByRole('dialog', { name: 'Command palette' })).not.toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Dashboard' })).toBeInTheDocument();
+  });
+
+  it('keeps theme changes active when browser storage is unavailable', () => {
+    vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => { throw new Error('storage disabled'); });
+    renderApp();
+    fireEvent.click(document.querySelector<HTMLButtonElement>('.studio-theme-toggle')!);
+    expect(document.querySelector('.admin-shell')).toHaveAttribute('data-theme', 'light');
+  });
+
+  it('falls back to dark theme when reading saved theme fails', () => {
+    vi.spyOn(Storage.prototype, 'getItem').mockImplementation(() => { throw new Error('storage disabled'); });
+    renderApp();
+    expect(document.querySelector('.admin-shell')).toHaveAttribute('data-theme', 'dark');
+  });
+
+  it('tracks system theme changes until the user chooses a theme', () => {
+    let update: ((event: MediaQueryListEvent) => void) | undefined;
+    const preference = { matches: false, addEventListener: vi.fn((_name: string, callback: (event: MediaQueryListEvent) => void) => { update = callback; }), removeEventListener: vi.fn() };
+    vi.stubGlobal('matchMedia', vi.fn(() => preference));
+    renderApp();
+    act(() => update?.({ matches: true } as MediaQueryListEvent));
+    expect(document.querySelector('.admin-shell')).toHaveAttribute('data-theme', 'light');
+    fireEvent.click(document.querySelector<HTMLButtonElement>('.studio-theme-toggle')!);
+    expect(preference.removeEventListener).toHaveBeenCalledWith('change', expect.any(Function));
+  });
+
+  it('opens the palette from its header control', () => {
+    renderApp();
+    fireEvent.click(screen.getByRole('button', { name: 'Open command palette' }));
+    expect(screen.getByRole('dialog', { name: 'Command palette' })).toBeInTheDocument();
+  });
+
+  it('shows notification entry and live count only to Matching readers', async () => {
+    auth.permissions = ['matching.read'];
+    auth.requestAdmin.mockImplementation(() => Promise.resolve(Response.json([{ id: 1, name: 'Waiting laptop', brand: null, productId: null, createdAtUtc: '2026-11-11T00:00:00Z', isApproved: false, externalSku: null, dataSourceId: null, candidates: [] }, { id: 2, name: 'Waiting phone', brand: null, productId: null, createdAtUtc: '2026-11-11T00:00:00Z', isApproved: false, externalSku: null, dataSourceId: null, candidates: [] }])));
+    renderApp();
+    const notification = await screen.findByRole('button', { name: '2 Product Matching items pending' });
+    expect(notification).toBeInTheDocument();
+    fireEvent.click(notification);
+    expect(await screen.findByRole('heading', { name: 'Product Matching' })).toBeInTheDocument();
+    cleanup();
+    auth.permissions = [];
+    renderApp();
+    expect(screen.queryByRole('button', { name: /Product Matching notifications/ })).not.toBeInTheDocument();
+  });
+
   it('wraps keyboard focus at both ends of the open drawer', () => {
     renderApp();
     fireEvent.click(screen.getByRole('button', { name: 'Open navigation' }));
@@ -271,25 +348,19 @@ describe('mobile application navigation', () => {
     expect(screen.getByRole('button', { name: 'Open navigation' })).toHaveFocus();
   });
 
-  it('exposes Light and Dark controls in the mobile header and preserves both theme states', () => {
+  it('toggles the mobile header theme and preserves both theme states', () => {
     renderApp();
-    const themeControls = screen.getByRole('group', { name: 'Color theme' });
-    const light = within(themeControls).getByRole('button', { name: 'Light' });
-    const dark = within(themeControls).getByRole('button', { name: 'Dark' });
-
-    expect(light).toHaveAttribute('aria-pressed', 'true');
-    expect(dark).toHaveAttribute('aria-pressed', 'false');
-    fireEvent.click(dark);
-    expect(dark).toHaveAttribute('aria-pressed', 'true');
-    expect(document.querySelector('.admin-shell')).toHaveClass('dark');
+    const toggle = document.querySelector<HTMLButtonElement>('.studio-theme-toggle')!;
     expect(document.querySelector('.admin-shell')).toHaveAttribute('data-theme', 'dark');
-    fireEvent.click(light);
-    expect(light).toHaveAttribute('aria-pressed', 'true');
+    fireEvent.click(toggle);
     expect(document.querySelector('.admin-shell')).not.toHaveClass('dark');
     expect(document.querySelector('.admin-shell')).toHaveAttribute('data-theme', 'light');
+    fireEvent.click(document.querySelector<HTMLButtonElement>('.studio-theme-toggle')!);
+    expect(document.querySelector('.admin-shell')).toHaveClass('dark');
+    expect(document.querySelector('.admin-shell')).toHaveAttribute('data-theme', 'dark');
 
     fireEvent.click(screen.getByRole('button', { name: 'Open navigation' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Đăng xuất' }));
+    fireEvent.click(screen.getByRole('button', { name: /Test Admin/ }));
     expect(auth.logout).toHaveBeenCalledOnce();
   });
 });
