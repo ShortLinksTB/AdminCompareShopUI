@@ -1,10 +1,12 @@
 import '@testing-library/jest-dom/vitest';
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { MatchingPage } from './MatchingPage';
-import matchingStyles from './matching.css?raw';
+// @ts-expect-error Node's built-in fs module is available to Vitest at runtime.
+import { readFileSync } from 'node:fs';
 import type { AdminRequest } from './matching-api';
 
+const matchingStyles = readFileSync('src/matching/matching.css', 'utf8').replace(/\s+/g, ' ');
 const item = { id: 12, name: 'Laptop source', brand: 'Acme', externalSku: 'SKU-12', dataSourceId: 4, verdict: 'review', status: 'pending', groupKey: 'g1', source: { imageUrl: 'https://img.example/laptop.jpg', price: 24990000, shopName: 'Shop One' }, attributes: { brand: 'Acme', line: 'Notebook', ram: '16GB' }, candidates: [{ productId: 71, name: 'Laptop product', brand: 'Acme', score: 0.9, level: 'review', differences: [{ attribute: 'RAM', source: '16GB', candidate: '8GB', kind: 'diff' }] }] };
 const page = (items: unknown[] = [item]) => Response.json({ items, page: 1, pageSize: 20, total: items.length, counts: { all: 4, pending: 3, skipped: 1, confident: 1, review: 1, likely_new: 1, likely_skip: 1 } });
 const request = (responses: Response[]) => vi.fn<AdminRequest>().mockImplementation(async (path, init) => {
@@ -22,7 +24,12 @@ describe('MatchingPage', () => {
     expect(await screen.findByRole('heading', { name: 'Laptop source' })).toBeInTheDocument();
     expect(screen.getByText('Shop One · SKU SKU-12 · 24.990.000 ₫')).toBeInTheDocument();
     expect(screen.getByText('16GB')).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: /Laptop product/ }));
+    const candidate = screen.getByRole('button', { name: /Laptop product/ });
+    expect(candidate).toHaveClass('studio-button');
+    expect(candidate).toHaveAttribute('aria-pressed', 'false');
+    fireEvent.click(candidate);
+    expect(candidate).toHaveAttribute('aria-pressed', 'true');
+    expect(within(candidate).getByText('Đang chọn')).toBeInTheDocument();
     expect(screen.getByText('8GB')).toBeInTheDocument();
     await waitFor(() => expect(screen.getByRole('button', { name: /Duyệt/ })).toBeEnabled());
     fireEvent.click(screen.getByRole('button', { name: /Duyệt/ }));
@@ -52,8 +59,11 @@ describe('MatchingPage', () => {
     expect(await screen.findByText('laptop.png')).toBeInTheDocument();
     const fileChoice = screen.getByRole('button', { name: /laptop.png/ });
     expect(fileChoice).toHaveClass('studio-button', 'studio-button-secondary');
+    expect(fileChoice).toHaveAttribute('aria-pressed', 'false');
     fireEvent.click(fileChoice);
     expect(screen.getByRole('button', { name: /laptop.png/ })).toHaveClass('studio-button-cool');
+    expect(screen.getByRole('button', { name: /laptop.png/ })).toHaveAttribute('aria-pressed', 'true');
+    expect(within(screen.getByRole('button', { name: /laptop.png/ })).getByText('Đang chọn')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Dùng ảnh này' }));
     expect(screen.getByRole('button', { name: /Tạo và gắn/ })).toBeEnabled();
     cleanup();
@@ -66,6 +76,10 @@ describe('MatchingPage', () => {
     expect(matchingStyles).not.toMatch(/\.matching-file-grid\s+button/);
     expect(matchingStyles).not.toMatch(/\.matching-[^{}]*\.studio-button/);
     expect(matchingStyles).not.toMatch(/\.matching-[^{}]*\.studio-pill/);
+    expect(matchingStyles).not.toMatch(/\.matching-candidate-card\.selected/);
+    expect(matchingStyles).not.toMatch(/\.matching-candidate-card\s*\{[^}]*border:/);
+    expect(matchingStyles).toContain('.matching-file-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr))');
+    expect(matchingStyles).toContain('.matching-file-grid{grid-template-columns:repeat(3,minmax(0,1fr))}');
   });
 
   it('submits skip reason and note, then restores skipped records', async () => {
