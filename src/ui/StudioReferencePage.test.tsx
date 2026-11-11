@@ -7,6 +7,12 @@ describe('Studio component reference', () => {
   afterEach(cleanup);
   it('exercises chip, switch, pager, toast, modal and drawer examples', () => {
     const { container } = render(<StudioReferencePage />);
+    const feedback = container.querySelector('.studio-reference-feedback');
+    const dialog = container.querySelector('.studio-reference-dialog');
+    expect(feedback?.querySelectorAll('.studio-state')).toHaveLength(2);
+    expect(feedback?.querySelector('.studio-loading')).toBeInTheDocument();
+    expect(dialog).toHaveTextContent('Dialog & drawer');
+    expect(dialog?.querySelectorAll('button')).toHaveLength(2);
     expect(container.querySelector('.studio-table td')).toHaveTextContent('MacBook Air M5');
     expect(container.querySelectorAll('.studio-button').length).toBeGreaterThan(0);
     const switchInput = screen.getByRole('switch', { name: 'Bật tùy chọn' });
