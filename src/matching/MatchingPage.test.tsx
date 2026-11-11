@@ -5,7 +5,7 @@ import { MatchingPage } from './MatchingPage';
 import type { AdminRequest } from './matching-api';
 
 const item = { id: 12, name: 'Laptop source', brand: 'Acme', externalSku: 'SKU-12', dataSourceId: 4, verdict: 'review', status: 'pending', groupKey: 'g1', source: { imageUrl: 'https://img.example/laptop.jpg', price: 24990000, shopName: 'Shop One' }, attributes: { brand: 'Acme', line: 'Notebook', ram: '16GB' }, candidates: [{ productId: 71, name: 'Laptop product', brand: 'Acme', score: 0.9, level: 'review', differences: [{ attribute: 'RAM', source: '16GB', candidate: '8GB', kind: 'diff' }] }] };
-const page = (items = [item]) => Response.json({ items, page: 1, pageSize: 20, total: items.length, counts: { all: 4, pending: 3, skipped: 1, confident: 1, review: 1, likely_new: 1, likely_skip: 1 } });
+const page = (items: unknown[] = [item]) => Response.json({ items, page: 1, pageSize: 20, total: items.length, counts: { all: 4, pending: 3, skipped: 1, confident: 1, review: 1, likely_new: 1, likely_skip: 1 } });
 const request = (responses: Response[]) => vi.fn<AdminRequest>().mockImplementation(async (path, init) => {
   if (path.startsWith('/admin/matching?')) return responses.shift() ?? page([]);
   return responses.shift() ?? new Response(null, { status: 204 });
@@ -85,5 +85,72 @@ describe('MatchingPage', () => {
     expect(screen.getByRole('dialog', { name: 'Xem ảnh' })).toBeInTheDocument();
     fireEvent.keyDown(window, { key: 'Escape' });
     expect(screen.queryByRole('dialog', { name: 'Xem ảnh' })).not.toBeInTheDocument();
+  });
+
+  it('approves an explicit candidate for every pending row in a group', async () => {
+    const second = { ...item, id: 13, name: 'Same laptop at shop two', externalSku: 'SKU-13' };
+    const admin = vi.fn<AdminRequest>().mockImplementation(async (path) => path.startsWith('/admin/matching?') ? page([item, second]) : new Response(null, { status: 204 }));
+    renderPage(admin);
+    await screen.findByRole('heading', { name: 'Laptop source' });
+    fireEvent.click(screen.getAllByRole('button', { name: /Laptop product/ })[0]);
+    expect(screen.getByRole('button', { name: /Duyệt 2 mặt hàng/ })).toBeEnabled();
+    fireEvent.click(screen.getByRole('button', { name: /Duyệt 2 mặt hàng/ }));
+    await waitFor(() => expect(admin).toHaveBeenCalledWith('/admin/matching/approve-group', expect.objectContaining({ body: '{"ids":[12,13],"productId":71}' })));
+  });
+
+  it('creates from a shop image with edited fields and reports API rejection in the dialog', async () => {
+    const admin = vi.fn<AdminRequest>().mockImplementation(async path => path.startsWith('/admin/matching?') ? page() : path.includes('/create-product') ? Response.json({ detail: 'Slug already exists' }, { status: 409 }) : new Response(null, { status: 204 }));
+    renderPage(admin);
+    await screen.findByRole('heading', { name: 'Laptop source' });
+    fireEvent.click(screen.getByRole('button', { name: /Tạo sản phẩm mới/ }));
+    expect(screen.getByRole('button', { name: 'Tạo và gắn' })).toBeDisabled();
+    fireEvent.click(screen.getByRole('radio', { name: /Dùng tạm ảnh của shop/ }));
+    expect(screen.getByText('Cần ảnh chuẩn')).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText('Tên sản phẩm chuẩn'), { target: { value: 'Laptop custom' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Tạo và gắn' }));
+    expect((await screen.findAllByRole('alert'))[0]).toHaveTextContent('Slug already exists');
+    expect(admin).toHaveBeenCalledWith('/admin/matching/12/create-product', expect.objectContaining({ body: expect.stringContaining('"imageChoice":"shop"') }));
+  });
+
+  it('surfaces Files picker failures and supports the no-image product choice', async () => {
+    const admin = vi.fn<AdminRequest>().mockImplementation(async path => path.startsWith('/admin/matching?') ? page() : path.startsWith('/admin/files?') ? new Response('', { status: 403 }) : new Response(null, { status: 204 }));
+    renderPage(admin);
+    await screen.findByRole('heading', { name: 'Laptop source' });
+    fireEvent.click(screen.getByRole('button', { name: /Tạo sản phẩm mới/ }));
+    fireEvent.click(screen.getByRole('button', { name: /Chọn ảnh từ Files/ }));
+    expect(await screen.findByText(/permission to load files/i)).toBeInTheDocument();
+    fireEvent.keyDown(window, { key: 'Escape' });
+    fireEvent.click(screen.getByRole('radio', { name: /Chưa có ảnh/ }));
+    expect(screen.getByText('Cần ảnh chuẩn')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Tạo và gắn' })).toBeEnabled();
+  });
+
+  it('renders no-candidate, no-image and skipped-empty states without exposing write actions', async () => {
+    const noCandidate = { ...item, candidates: [], source: { ...item.source, imageUrl: null }, verdict: 'likely_skip' };
+    const admin = vi.fn<AdminRequest>().mockImplementation(async path => path.startsWith('/admin/matching?') ? path.includes('status=skipped') ? page([]) : page([noCandidate]) : new Response(null, { status: 204 }));
+    renderPage(admin, ['matching.read']);
+    await screen.findByText('Không tìm thấy ứng viên phù hợp. Chỉ người duyệt mới có thể quyết định tạo sản phẩm mới.');
+    expect(screen.getByText('Mặt hàng có thể là phụ kiện hoặc ngoài phạm vi laptop. Bạn có thể bỏ qua với lý do.')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Mở ảnh mặt hàng' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: /Duyệt/ })).toBeDisabled();
+    fireEvent.click(screen.getByRole('button', { name: /Đã bỏ qua/ }));
+    expect(await screen.findByText('Chưa có mặt hàng đã bỏ qua')).toBeInTheDocument();
+  });
+
+  it('handles keyboard candidate selection, approve, create, skip and modifier guards', async () => {
+    const admin = vi.fn<AdminRequest>().mockImplementation(async path => path.startsWith('/admin/matching?') ? page() : new Response(null, { status: 204 }));
+    renderPage(admin);
+    await screen.findByRole('heading', { name: 'Laptop source' });
+    fireEvent.keyDown(window, { key: 'n', ctrlKey: true });
+    expect(screen.queryByRole('dialog', { name: 'Tạo sản phẩm mới' })).not.toBeInTheDocument();
+    fireEvent.keyDown(window, { key: 's' });
+    expect(screen.getByRole('dialog', { name: /Bỏ qua mặt hàng/ })).toBeInTheDocument();
+    fireEvent.keyDown(window, { key: 'Escape' });
+    fireEvent.keyDown(window, { key: 'N' });
+    expect(screen.getByRole('dialog', { name: 'Tạo sản phẩm mới' })).toBeInTheDocument();
+    fireEvent.keyDown(window, { key: 'Escape' });
+    fireEvent.keyDown(window, { key: '1' });
+    fireEvent.keyDown(window, { key: 'Enter' });
+    await waitFor(() => expect(admin).toHaveBeenCalledWith('/admin/matching/12/approve', expect.objectContaining({ method: 'POST' })));
   });
 });
