@@ -44,6 +44,7 @@ function RouteProbe() {
 
 afterEach(() => {
   cleanup();
+  window.localStorage.removeItem('giatot-admin-theme');
   auth.permissions = [];
   auth.status = 'authenticated';
   auth.permissionState = 'ready';
@@ -149,7 +150,8 @@ describe('mobile application navigation', () => {
     expect(screen.queryByText(/evil\.example/)).not.toBeInTheDocument();
   });
 
-  it('limits the Products theme scope class to the Products route', () => {
+  it('keeps the selected shared theme active when navigating from Products', () => {
+    window.localStorage.setItem('giatot-admin-theme', 'light');
     auth.permissions = ['products.read', 'matching.read'];
     renderApp('/products');
 
@@ -229,6 +231,46 @@ describe('mobile application navigation', () => {
     expect(screen.queryByRole('link', { name: /Users & Roles/ })).not.toBeInTheDocument();
   });
 
+  it('keeps unauthorized routes out of the command palette', () => {
+    auth.permissions = ['products.read'];
+    renderApp();
+    fireEvent.click(screen.getByRole('button', { name: 'Open command palette' }));
+    fireEvent.change(screen.getByRole('textbox', { name: 'Tìm lệnh' }), { target: { value: 'Users' } });
+    expect(screen.queryByRole('link', { name: /Users & Roles/ })).not.toBeInTheDocument();
+    fireEvent.change(screen.getByRole('textbox', { name: 'Tìm lệnh' }), { target: { value: 'Products' } });
+    expect(within(screen.getByRole('dialog', { name: 'Thanh lệnh' })).getByRole('link', { name: /Products/ })).toBeInTheDocument();
+  });
+
+  it('keeps theme changes working when localStorage is unavailable', () => {
+    const setItem = vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => { throw new Error('blocked'); });
+    renderApp();
+    fireEvent.click(screen.getByRole('button', { name: 'Đổi giao diện sáng/tối' }));
+    expect(document.querySelector('.admin-shell')).toHaveAttribute('data-theme', 'light');
+    setItem.mockRestore();
+  });
+
+  it('shows a pending Matching count only for matching.read after the existing API resolves', async () => {
+    auth.permissions = ['matching.read'];
+    auth.requestAdmin.mockResolvedValue(Response.json([{ id: 1 }, { id: 2 }]));
+    renderApp();
+    expect(await screen.findAllByLabelText('2 pending')).toHaveLength(2);
+    cleanup();
+    auth.permissions = [];
+    renderApp();
+    expect(screen.queryByLabelText(/pending/)).not.toBeInTheDocument();
+  });
+
+  it('serves the component reference on its actual protected route', () => {
+    auth.permissions = ['settings.manage'];
+    renderApp('/studio-components');
+    expect(screen.getByRole('heading', { name: 'Component reference' })).toBeInTheDocument();
+  });
+
+  it('does not expose the component reference to users without settings.manage', () => {
+    renderApp('/studio-components');
+    expect(screen.queryByRole('heading', { name: 'Component reference' })).not.toBeInTheDocument();
+  });
+
   it('wraps keyboard focus at both ends of the open drawer', () => {
     renderApp();
     fireEvent.click(screen.getByRole('button', { name: 'Open navigation' }));
@@ -271,20 +313,15 @@ describe('mobile application navigation', () => {
     expect(screen.getByRole('button', { name: 'Open navigation' })).toHaveFocus();
   });
 
-  it('exposes Light and Dark controls in the mobile header and preserves both theme states', () => {
+  it('toggles and persists the shared theme from the Studio header', () => {
+    window.localStorage.setItem('giatot-admin-theme', 'light');
     renderApp();
-    const themeControls = screen.getByRole('group', { name: 'Color theme' });
-    const light = within(themeControls).getByRole('button', { name: 'Light' });
-    const dark = within(themeControls).getByRole('button', { name: 'Dark' });
-
-    expect(light).toHaveAttribute('aria-pressed', 'true');
-    expect(dark).toHaveAttribute('aria-pressed', 'false');
-    fireEvent.click(dark);
-    expect(dark).toHaveAttribute('aria-pressed', 'true');
+    const toggle = screen.getByRole('button', { name: 'Đổi giao diện sáng/tối' });
+    fireEvent.click(toggle);
     expect(document.querySelector('.admin-shell')).toHaveClass('dark');
     expect(document.querySelector('.admin-shell')).toHaveAttribute('data-theme', 'dark');
-    fireEvent.click(light);
-    expect(light).toHaveAttribute('aria-pressed', 'true');
+    expect(window.localStorage.getItem('giatot-admin-theme')).toBe('dark');
+    fireEvent.click(toggle);
     expect(document.querySelector('.admin-shell')).not.toHaveClass('dark');
     expect(document.querySelector('.admin-shell')).toHaveAttribute('data-theme', 'light');
 
