@@ -1,5 +1,5 @@
 import '@testing-library/jest-dom/vitest';
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { MatchingPage } from './MatchingPage';
 import type { AdminRequest } from './matching-api';
@@ -21,7 +21,11 @@ describe('MatchingPage', () => {
     expect(await screen.findByRole('heading', { name: 'Laptop source' })).toBeInTheDocument();
     expect(screen.getByText('Shop One · SKU SKU-12 · 24.990.000 ₫')).toBeInTheDocument();
     expect(screen.getByText('16GB')).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: /Laptop product/ }));
+    const candidate = screen.getByRole('button', { name: /Laptop product/ });
+    expect(candidate).toHaveClass('studio-button');
+    expect(candidate).toHaveAttribute('aria-pressed', 'false');
+    fireEvent.click(candidate);
+    expect(candidate).toHaveAttribute('aria-pressed', 'true');
     expect(screen.getByText('8GB')).toBeInTheDocument();
     await waitFor(() => expect(screen.getByRole('button', { name: /Duyệt/ })).toBeEnabled());
     fireEvent.click(screen.getByRole('button', { name: /Duyệt/ }));
@@ -49,7 +53,12 @@ describe('MatchingPage', () => {
     fireEvent.click(screen.getByRole('button', { name: /Tạo sản phẩm mới/ }));
     fireEvent.click(screen.getByRole('button', { name: /Chọn ảnh từ Files/ }));
     expect(await screen.findByText('laptop.png')).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: /laptop.png/ }));
+    const fileOption = screen.getByRole('button', { name: /laptop.png/ });
+    expect(fileOption).toHaveClass('studio-button', 'studio-button-sm');
+    expect(fileOption).toHaveAttribute('aria-pressed', 'false');
+    fireEvent.click(fileOption);
+    expect(fileOption).toHaveAttribute('aria-pressed', 'true');
+    expect(within(fileOption).getByText('Đang chọn')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Dùng ảnh này' }));
     expect(screen.getByRole('button', { name: /Tạo và gắn/ })).toBeEnabled();
     cleanup();
