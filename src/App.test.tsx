@@ -50,9 +50,60 @@ afterEach(() => {
   auth.requestAdmin.mockReset();
   vi.clearAllMocks();
   window.history.replaceState({}, '', '/');
+  window.localStorage.removeItem('admin-studio-theme');
 });
 
 describe('mobile application navigation', () => {
+  it('opens a permission-filtered command palette with Ctrl+K and navigates to selected page', () => {
+    auth.permissions = ['dashboard.read', 'products.read', 'matching.read'];
+    renderApp('/');
+    fireEvent.keyDown(window, { key: 'k', ctrlKey: true });
+    const palette = screen.getByRole('dialog', { name: 'Thanh lệnh' });
+    expect(within(palette).getByRole('link', { name: /Products/ })).toBeInTheDocument();
+    expect(within(palette).getByRole('link', { name: /Product Matching/ })).toBeInTheDocument();
+    expect(within(palette).queryByRole('link', { name: /Users & Roles/ })).not.toBeInTheDocument();
+    fireEvent.click(within(palette).getByRole('link', { name: /Products/ }));
+    expect(screen.getByRole('heading', { name: 'Products' })).toBeInTheDocument();
+  });
+
+  it('persists a theme choice and handles unavailable local storage', () => {
+    auth.permissions = ['dashboard.read'];
+    renderApp('/');
+    const toggle = screen.getByRole('button', { name: /Chuyển sang giao diện/i });
+    fireEvent.click(toggle);
+    expect(document.querySelector('.studio-shell')).toHaveAttribute('data-theme', 'dark');
+    expect(window.localStorage.getItem('admin-studio-theme')).toBe('dark');
+  });
+
+  it('keeps theme changes working when local storage reads and writes throw', () => {
+    auth.permissions = ['dashboard.read'];
+    const getItem = vi.spyOn(Storage.prototype, 'getItem').mockImplementation(() => { throw new Error('storage blocked'); });
+    const setItem = vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => { throw new Error('storage blocked'); });
+    renderApp('/');
+    fireEvent.click(screen.getByRole('button', { name: 'Chuyển sang giao diện tối' }));
+    expect(document.querySelector('.studio-shell')).toHaveAttribute('data-theme', 'dark');
+    expect(setItem).toHaveBeenCalled();
+    getItem.mockRestore(); setItem.mockRestore();
+  });
+
+  it('shows the pending matching count and notice only to users with matching permission', () => {
+    auth.permissions = ['dashboard.read', 'matching.read'];
+    auth.requestAdmin.mockResolvedValue(Response.json([{ id: 1 }, { id: 2 }, { id: 3 }]));
+    renderApp('/');
+    return screen.findByRole('link', { name: /Product Matching/ }).then(link => {
+      expect(link).toHaveTextContent('3');
+      fireEvent.click(screen.getByRole('button', { name: /Thông báo/ }));
+      expect(screen.getByText(/3 mục đang chờ ghép/)).toBeInTheDocument();
+    });
+  });
+
+  it('renders the shared component reference on its actual route for settings managers', () => {
+    auth.permissions = ['settings.manage'];
+    renderApp('/studio-components');
+    expect(screen.getByRole('heading', { name: 'Studio components' })).toBeInTheDocument();
+    expect(screen.getByText(/Component reference/)).toBeInTheDocument();
+  });
+
   it('loads Files on the existing /files route for users with files.read', async () => {
     auth.permissions = ['files.read'];
     auth.requestAdmin.mockResolvedValue(Response.json({ items: [], pageNumber: 1, pageSize: 10, totalItems: 0 }));

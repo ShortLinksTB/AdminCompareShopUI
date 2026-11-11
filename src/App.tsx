@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react';
-import { NavLink, Navigate, Outlet, Route, Routes, useLocation } from 'react-router-dom';
-import { matchingQueue, offers, products, shops, type Status } from './mockData';
+import { NavLink, Navigate, Outlet, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
+import { offers, products, shops, type Status } from './mockData';
+import { fetchPendingMatchings } from './matching/matching-api';
 import { AuthLoadingScreen, AuthProvider, CallbackPage, ForbiddenPage, LoginPage, PermissionFailure, useAuth } from './auth';
 import { safeReturnPath } from './auth-utils';
 import { MatchingPage } from './matching/MatchingPage';
@@ -15,6 +16,7 @@ import { UsersPage } from './users/UsersPage';
 import { AuditLogsPage as AuditLogsApiPage } from './auditLogs/AuditLogsPage';
 import { FilesPage } from './files/FilesPage';
 import { AdminCompareShopBlog } from './blog/AdminCompareShopBlog';
+import { StudioReferencePage } from './ui/StudioReferencePage';
 
 const money = (value: number) => new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND', maximumFractionDigits: 0 }).format(value);
 // `permission` must match a key the backend actually grants (see
@@ -24,6 +26,14 @@ const money = (value: number) => new Intl.NumberFormat('vi-VN', { style: 'curren
 // deliberately left out of this list (route still exists for direct nav)
 // until that permission exists.
 const nav = [{ to: '/', label: 'Tổng quan', icon: '▦', end: true, permission: 'dashboard.read' }, { to: '/products', label: 'Products', icon: '□', flag: 'products', permission: 'products.read' }, { to: '/offers', label: 'Offers & Prices', icon: '₫', flag: 'offers', permission: 'offers.read' }, { to: '/matching', label: 'Product Matching', icon: '⇄', flag: 'matching', permission: 'matching.read' }, { to: '/shops', label: 'Partner Shops', icon: '⌂', flag: 'shops', permission: 'shops.read' }, { to: '/data-sources', label: 'Data Sources', icon: '◫', flag: 'dataSources', permission: 'sync_jobs.read' }, { to: '/sync-jobs', label: 'Sync Jobs', icon: '↻', flag: 'syncJobs', permission: 'sync_jobs.read' }, { to: '/price-history', label: 'Price History', icon: '⌁', flag: 'priceHistory', permission: 'offers.read' }, { to: '/price-alerts', label: 'Price Alerts', icon: '◉', flag: 'priceAlerts', permission: 'price_alerts.read_all' }, { to: '/categories', label: 'Categories', icon: '◇', flag: 'categories', permission: 'categories.read' }, { to: '/files', label: 'Files', icon: '▧', permission: 'files.read' }, { to: '/banned-items', label: 'Banned items', icon: '⊘', permission: 'compliance.read' }, { to: '/blog', label: 'Blog CMS', icon: '▤', flag: 'blog', permission: 'articles.read' }, { to: '/analytics', label: 'Analytics', icon: '⌁', flag: 'analytics', permission: 'analytics.read' }, { to: '/seo', label: 'SEO', icon: '◎', flag: 'seo', permission: 'seo.read' }, { to: '/users', label: 'Users & Roles', icon: '♙', flag: 'users', permission: 'users.manage' }, { to: '/audit-logs', label: 'Audit Logs', icon: '≡', flag: 'auditLogs', permission: 'audit_logs.read' }, { to: '/feature-flags', label: 'Feature Flags', icon: '⚑', permission: 'feature_flags.read' }, { to: '/settings', label: 'Settings', icon: '⚙', permission: 'settings.manage' }];
+const navGroups: { label: string; routes: string[] }[] = [
+  { label: 'Tổng quan', routes: ['/'] },
+  { label: 'Catalog', routes: ['/products', '/matching', '/shops', '/categories'] },
+  { label: 'Dữ liệu', routes: ['/offers', '/data-sources', '/sync-jobs', '/price-history', '/price-alerts'] },
+  { label: 'Nội dung', routes: ['/files', '/banned-items', '/blog', '/seo'] },
+  { label: 'Hệ thống', routes: ['/analytics', '/users', '/audit-logs', '/feature-flags', '/settings', '/studio-components'] },
+];
+const studioNavItem = { to: '/studio-components', label: 'Studio components', icon: '◈', permission: 'settings.manage', end: false };
 
 type FeatureKey = 'products' | 'offers' | 'matching' | 'shops' | 'dataSources' | 'syncJobs' | 'affiliateLinks' | 'priceHistory' | 'priceAlerts' | 'categories' | 'blog' | 'analytics' | 'seo' | 'users' | 'auditLogs';
 type FeatureFlags = Record<FeatureKey, boolean>;
@@ -35,15 +45,31 @@ function FeatureFlagsProvider({ children }: { children: React.ReactNode }) { con
 function StatusBadge({ status }: { status: Status }) { return <span className={`status status-${status.toLowerCase()}`}>{status}</span>; }
 function Shell() {
   const location = useLocation();
+  const navigate = useNavigate();
   const { flags } = useContext(FeatureFlagsContext);
-  const { userName, logout, permissions } = useAuth();
-  const [dark, setDark] = useState(false);
+  const { userName, logout, permissions, requestAdmin } = useAuth();
+  const [dark, setDark] = useState(() => { const systemDark = typeof window.matchMedia === 'function' && window.matchMedia('(prefers-color-scheme: dark)').matches; try { const saved = window.localStorage.getItem('admin-studio-theme'); return saved ? saved === 'dark' : systemDark; } catch { return systemDark; } });
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  const [paletteOpen, setPaletteOpen] = useState(false);
+  const [paletteQuery, setPaletteQuery] = useState('');
+  const [noticeOpen, setNoticeOpen] = useState(false);
+  const [matchingCount, setMatchingCount] = useState<number | null>(null);
+  const paletteInput = useRef<HTMLInputElement>(null);
+  const paletteReturnFocus = useRef<HTMLElement | null>(null);
   const mobileNavToggleRef = useRef<HTMLButtonElement>(null);
   const mobileNavCloseRef = useRef<HTMLButtonElement>(null);
-  const visibleNav = nav.filter(item => (!item.flag || flags[item.flag as FeatureKey]) && (!item.permission || permissions.includes(item.permission)));
+  const visibleNav = [...nav.filter(item => (!item.flag || flags[item.flag as FeatureKey]) && (!item.permission || permissions.includes(item.permission))), ...(permissions.includes(studioNavItem.permission) ? [studioNavItem] : [])];
   const initials = userName.slice(0, 1).toUpperCase();
-  const productsRoute = location.pathname === '/products';
+  useEffect(() => {
+    if (!permissions.includes('matching.read')) { setMatchingCount(null); return; }
+    let active = true;
+    fetchPendingMatchings(requestAdmin).then(queue => { if (active) setMatchingCount(queue.length); }).catch(() => { if (active) setMatchingCount(null); });
+    return () => { active = false; };
+  }, [permissions, requestAdmin]);
+
+  const changeTheme = (value: boolean) => { setDark(value); try { window.localStorage.setItem('admin-studio-theme', value ? 'dark' : 'light'); } catch { /* Session theme remains active when storage is blocked. */ } };
+  useEffect(() => { if (paletteOpen) paletteInput.current?.focus(); else paletteReturnFocus.current?.focus(); }, [paletteOpen]);
+  const openPalette = () => { paletteReturnFocus.current = document.activeElement as HTMLElement; setPaletteOpen(true); };
 
   useEffect(() => {
     setMobileNavOpen(false);
@@ -77,19 +103,22 @@ function Shell() {
     return () => window.removeEventListener('keydown', closeOnEscape);
   }, [mobileNavOpen]);
 
-  return <div className={`admin-shell${dark ? ' dark' : ''}${productsRoute ? ' products-route' : ''}`} data-theme={dark ? 'dark' : 'light'}>
+  useEffect(() => { const shortcut = (event: KeyboardEvent) => { if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') { event.preventDefault(); if (!paletteOpen) openPalette(); else setPaletteOpen(false); } if (event.key === 'Escape') { setPaletteOpen(false); setNoticeOpen(false); } if (event.key === 'Tab' && paletteOpen) { const controls = [...(document.querySelectorAll<HTMLElement>('.studio-palette input,.studio-palette a[href]'))]; if (controls.length && event.shiftKey && document.activeElement === controls[0]) { event.preventDefault(); controls.at(-1)?.focus(); } else if (controls.length && !event.shiftKey && document.activeElement === controls.at(-1)) { event.preventDefault(); controls[0].focus(); } } }; window.addEventListener('keydown', shortcut); return () => window.removeEventListener('keydown', shortcut); }, [paletteOpen]);
+
+  const paletteRoutes = visibleNav.filter(item => `${item.label} ${item.to}`.toLowerCase().includes(paletteQuery.toLowerCase()));
+
+  return <div className={`admin-shell studio-shell${dark ? ' dark' : ''}${location.pathname === '/products' ? ' products-route' : ''}`} data-theme={dark ? 'dark' : 'light'}>
     <aside id="admin-navigation" className={`admin-sidebar${mobileNavOpen ? ' mobile-nav-open' : ''}`} role={mobileNavOpen ? 'dialog' : undefined} aria-modal={mobileNavOpen || undefined} aria-label={mobileNavOpen ? 'Application navigation' : undefined}>
       <div className="admin-brand">
         <span className="admin-brand-mark">G</span>
         <span>GiaTot<small>Admin console</small></span>
         <button ref={mobileNavCloseRef} className="mobile-nav-close" aria-label="Close navigation" onClick={() => { setMobileNavOpen(false); mobileNavToggleRef.current?.focus(); }}>×</button>
       </div>
-      <div className="nav-label">WORKSPACE</div>
-      <nav aria-label="Application navigation">
-        {visibleNav.map(item => <NavLink key={item.to} to={item.to} end={item.end} onClick={() => { setMobileNavOpen(false); mobileNavToggleRef.current?.focus(); }}><span>{item.icon}</span>{item.label}</NavLink>)}
+      <nav aria-label="Application navigation" className="studio-nav">
+        {navGroups.map(group => { const items = visibleNav.filter(item => group.routes.includes(item.to)); return items.length ? <section className="studio-nav-group" key={group.label}><h2>{group.label}</h2>{items.map(item => <NavLink key={item.to} to={item.to} end={item.end} onClick={() => { setMobileNavOpen(false); mobileNavToggleRef.current?.focus(); }}><span>{item.icon}</span>{item.label}{item.to === '/matching' && matchingCount !== null && matchingCount > 0 && <i className="studio-nav-count">{matchingCount}</i>}</NavLink>)}</section> : null; })}
       </nav>
       <div className="sidebar-bottom">
-        <button className="theme-button" onClick={() => setDark(value => !value)}>{dark ? '☼' : '◐'} {dark ? 'Light mode' : 'Dark mode'}</button>
+        <button className="theme-button" onClick={() => changeTheme(!dark)} aria-label="Đổi giao diện sáng tối">{dark ? '☼' : '◐'} {dark ? 'Giao diện sáng' : 'Giao diện tối'}</button>
         <div className="admin-user"><span className="user-avatar">{initials}</span><span><strong>{userName}</strong><small>Admin</small></span><button className="logout-button" aria-label="Đăng xuất" title="Đăng xuất" onClick={() => void logout()}>↪</button></div>
       </div>
     </aside>
@@ -102,15 +131,16 @@ function Shell() {
         </div>
         <div className="admin-breadcrumb">GiaTot Admin <span>/</span> {location.pathname === '/banned-items/new' ? 'Banned items / Add item' : nav.find(item => item.to === location.pathname)?.label || 'Dashboard'}</div>
         <div className="admin-header-actions">
-          <div className="mobile-theme-controls" role="group" aria-label="Color theme">
-            <button type="button" aria-pressed={!dark} onClick={() => setDark(false)}>Light</button>
-            <button type="button" aria-pressed={dark} onClick={() => setDark(true)}>Dark</button>
-          </div>
-          <button aria-label="Search">⌕</button><button aria-label="Notifications">♢<i>3</i></button><button className="admin-profile" onClick={() => void logout()}>{initials} <span>{userName}</span> · Đăng xuất</button>
+          <div className="mobile-theme-controls" role="group" aria-label="Color theme"><button type="button" aria-pressed={!dark} onClick={() => changeTheme(false)}>Light</button><button type="button" aria-pressed={dark} onClick={() => changeTheme(true)}>Dark</button></div>
+          <button className="studio-command-trigger" aria-label="Mở thanh lệnh" onClick={openPalette}><span>⌕ Tìm trang...</span><kbd>{navigator.platform.includes('Mac') ? '⌘K' : 'Ctrl K'}</kbd></button>
+          <button className="studio-theme-toggle" type="button" aria-label={dark ? 'Chuyển sang giao diện sáng' : 'Chuyển sang giao diện tối'} onClick={() => changeTheme(!dark)}>{dark ? '☼' : '◐'}</button>
+          {permissions.includes('matching.read') && <div className="studio-notice-wrap"><button className="studio-theme-toggle studio-bell" aria-label={`Thông báo${matchingCount !== null ? `, ${matchingCount} mục Product Matching đang chờ` : ''}`} aria-expanded={noticeOpen} onClick={() => setNoticeOpen(value => !value)}>♢{matchingCount !== null && matchingCount > 0 && <i>{matchingCount}</i>}</button>{noticeOpen && <div className="studio-notice-pop" role="status">{matchingCount === null ? 'Không tải được hàng chờ. Mở Product Matching để kiểm tra.' : matchingCount ? <><b>{matchingCount} mục đang chờ ghép</b><NavLink to="/matching" onClick={() => setNoticeOpen(false)}>Mở Product Matching →</NavLink></> : 'Không có mục đang chờ.'}</div>}</div>}
+          <button className="admin-profile" onClick={() => void logout()}>{initials} <span>{userName}</span> · Đăng xuất</button>
         </div>
       </header>
       <div className="admin-content"><Outlet /></div>
     </main>
+    {paletteOpen && <div className="studio-palette-backdrop" onMouseDown={event => { if (event.target === event.currentTarget) setPaletteOpen(false); }}><section className="studio-palette" role="dialog" aria-modal="true" aria-label="Thanh lệnh"><input ref={paletteInput} value={paletteQuery} onChange={event => setPaletteQuery(event.target.value)} placeholder="Tìm trang được phép truy cập..." onKeyDown={event => { if (event.key === 'Enter' && paletteRoutes[0]) { navigate(paletteRoutes[0].to); setPaletteOpen(false); } }} />{paletteRoutes.length ? <ul>{paletteRoutes.map(item => <li key={item.to}><NavLink to={item.to} onClick={() => { setPaletteOpen(false); setPaletteQuery(''); }}><span>{item.icon}</span>{item.label}<kbd>↵</kbd></NavLink></li>)}</ul> : <p>Không tìm thấy trang phù hợp.</p>}</section></div>}
   </div>;
 }
 function PageHeader({ eyebrow, title, description, action }: { eyebrow?: string; title: string; description?: string; action?: React.ReactNode }) { return <div className="page-header"><div>{eyebrow && <span className="eyebrow">{eyebrow}</span>}<h1>{title}</h1>{description && <p>{description}</p>}</div>{action}</div>; }
@@ -139,5 +169,5 @@ function BannedItemsAdminRoute() { const { permissions, requestAdmin } = useAuth
 function AuditLogsAdminRoute() { const { requestAdmin } = useAuth(); return <AuditLogsApiPage requestAdmin={requestAdmin} />; }
 function FilesRoute() { const { requestAdmin, permissions } = useAuth(); return permissions.includes('files.read') ? <FilesPage requestAdmin={requestAdmin} permissions={permissions} /> : <Navigate to="/forbidden" replace />; }
 function BlogRoute() { const { requestAdmin, permissions, userName } = useAuth(); return permissions.includes('articles.read') ? <AdminCompareShopBlog requestAdmin={requestAdmin} permissions={permissions} authorName={userName} /> : <Navigate to="/forbidden" replace />; }
-export function App() { return <AuthProvider><FeatureFlagsProvider><Routes><Route path="login" element={<LoginRoute />} /><Route path="auth/callback" element={<CallbackPage />} /><Route path="forbidden" element={<ForbiddenPage />} /><Route element={<ProtectedLayout />}><Route element={<Shell />}><Route index element={<DashboardRoute />} /><Route path="products" element={<ProductsRoute />} /><Route path="products/:id" element={<ProductDetailPage />} /><Route path="offers" element={<OffersRoute />} /><Route path="matching" element={<MatchingRoute />} /><Route path="shops" element={<ShopsPage />} /><Route path="data-sources" element={<DataSourcesPage />} /><Route path="sync-jobs" element={<SyncJobsRoute />} /><Route path="affiliate-links" element={<SimplePage title="Affiliate Links" description="Tracking, redirect status và affiliate performance." />} /><Route path="price-history" element={<PriceHistoryPage />} /><Route path="price-alerts" element={<PriceAlertsPage />} /><Route path="categories" element={<CategoriesRoute />} /><Route path="files" element={<FilesRoute />} /><Route path="banned-items" element={<BannedItemsAdminRoute />} /><Route path="banned-items/new" element={<BannedItemsAdminRoute />} /><Route path="blog" element={<BlogRoute />} /><Route path="analytics" element={<AnalyticsPage />} /><Route path="seo" element={<ContentPage kind="seo" />} /><Route path="users" element={<UsersRoute />} /><Route path="audit-logs" element={<AuditLogsAdminRoute />} /><Route path="feature-flags" element={<FeatureFlagsPage />} /><Route path="settings" element={<SettingsPage />} /><Route path="*" element={<Navigate to="/" replace />} /></Route></Route></Routes></FeatureFlagsProvider></AuthProvider>; }
+export function App() { return <AuthProvider><FeatureFlagsProvider><Routes><Route path="login" element={<LoginRoute />} /><Route path="auth/callback" element={<CallbackPage />} /><Route path="forbidden" element={<ForbiddenPage />} /><Route element={<ProtectedLayout />}><Route element={<Shell />}><Route index element={<DashboardRoute />} /><Route path="products" element={<ProductsRoute />} /><Route path="products/:id" element={<ProductDetailPage />} /><Route path="offers" element={<OffersRoute />} /><Route path="matching" element={<MatchingRoute />} /><Route path="shops" element={<ShopsPage />} /><Route path="data-sources" element={<DataSourcesPage />} /><Route path="sync-jobs" element={<SyncJobsRoute />} /><Route path="affiliate-links" element={<SimplePage title="Affiliate Links" description="Tracking, redirect status và affiliate performance." />} /><Route path="price-history" element={<PriceHistoryPage />} /><Route path="price-alerts" element={<PriceAlertsPage />} /><Route path="categories" element={<CategoriesRoute />} /><Route path="files" element={<FilesRoute />} /><Route path="banned-items" element={<BannedItemsAdminRoute />} /><Route path="banned-items/new" element={<BannedItemsAdminRoute />} /><Route path="blog" element={<BlogRoute />} /><Route path="analytics" element={<AnalyticsPage />} /><Route path="seo" element={<ContentPage kind="seo" />} /><Route path="users" element={<UsersRoute />} /><Route path="audit-logs" element={<AuditLogsAdminRoute />} /><Route path="feature-flags" element={<FeatureFlagsPage />} /><Route path="settings" element={<SettingsPage />} /><Route path="studio-components" element={<StudioReferencePage />} /><Route path="*" element={<Navigate to="/" replace />} /></Route></Route></Routes></FeatureFlagsProvider></AuthProvider>; }
 function FeatureFlagsPage() { const { flags, setFlag } = useContext(FeatureFlagsContext); return <><PageHeader eyebrow="SYSTEM" title="Feature Flags" description="Bật hoặc tắt module admin theo nhu cầu vận hành." action={<button className="outline-button" onClick={() => Object.keys(featureDefaults).forEach(key => setFlag(key as FeatureKey, true))}>Enable all</button>} /><section className="panel feature-flags-panel"><div className="feature-flags-intro"><strong>{Object.values(flags).filter(Boolean).length}/{Object.keys(flags).length} features enabled</strong><span>Thay đổi được lưu ở trình duyệt hiện tại.</span></div><div className="feature-flag-list">{(Object.keys(featureDefaults) as FeatureKey[]).map(key => <label className="feature-flag-row" key={key}><span className="feature-flag-icon">{flags[key] ? '✓' : '—'}</span><span><b>{flagLabels[key].label}</b><small>{flagLabels[key].description}</small></span><input type="checkbox" checked={flags[key]} onChange={event => setFlag(key, event.target.checked)} /></label>)}</div></section></>; }
