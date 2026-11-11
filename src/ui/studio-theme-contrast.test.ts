@@ -25,8 +25,17 @@ function contrast(foreground: string, background: string) {
 
 describe('Studio navigation group label contrast', () => {
   it('hides the closed Studio drawer through the 960px breakpoint and preserves its open state', () => {
-    expect(styles).toContain('@media(max-width:960px){.studio-shell .admin-sidebar{transform:translateX(-105%);visibility:hidden;transition:transform .22s ease,visibility .22s ease}.studio-shell .admin-sidebar.mobile-nav-open{transform:translateX(0);visibility:visible;transition:transform .22s ease,visibility 0s}}');
+    expect(styles).toContain('@media(max-width:959px){.studio-shell .admin-sidebar{transform:translateX(-105%);visibility:hidden;transition:transform .22s ease,visibility .22s ease}.studio-shell .admin-sidebar.mobile-nav-open{transform:translateX(0);visibility:visible;transition:transform .22s ease,visibility 0s}}');
+    expect(styles).toContain('@media(min-width:960px){.studio-shell .mobile-theme-controls{display:none}}');
+    expect(styles).toContain('@media(max-width:959px){.studio-shell .mobile-theme-controls');
     expect(styles).toContain('@media(max-width:760px)');
+  });
+
+  it('keeps light command hint and success-pill text above 4.5:1', () => {
+    expect(styles).toContain('--studio-kbd:#53626f;--studio-ok:#0e6538');
+    expect(componentStyles).toContain('.studio-shell .studio-command-trigger kbd{color:var(--studio-kbd,var(--studio-faint))}');
+    expect(contrast('#53626f', '#eaf0f6')).toBeGreaterThanOrEqual(4.5);
+    expect(contrast('#0e6538', '#e9f1eb')).toBeGreaterThanOrEqual(4.5);
   });
 
   it('keeps the fallback avatar glyph readable against its rendered background in both themes', () => {

@@ -42,6 +42,20 @@ describe('Studio shared components', () => {
     render(<><RowMenu><button>Archive</button></RowMenu><EmptyState title="Empty" /><ErrorState title="Error" /><Loading /><PageHeader title="Products" eyebrow="CATALOG" description="Manage products" /><Toast>Saved</Toast></>);
     fireEvent.click(screen.getByLabelText('Thao tác')); expect(screen.getByText('Archive')).toBeVisible(); expect(screen.getByRole('alert')).toHaveTextContent('Error'); expect(screen.getByRole('status', { name: 'Đang tải' })).toBeInTheDocument(); expect(screen.getByText('Products')).toBeInTheDocument(); expect(screen.getByText('Saved')).toBeInTheDocument();
   });
+  it('dismisses a row menu on Escape and returns focus to its opener', () => {
+    render(<RowMenu><button>Archive</button></RowMenu>);
+    const opener = screen.getByLabelText('Thao tác');
+    fireEvent.keyDown(opener, { key: 'Escape' });
+    expect(opener.closest('details')).not.toHaveAttribute('open');
+    fireEvent.click(opener);
+    const action = screen.getByRole('button', { name: 'Archive' });
+    action.focus();
+    fireEvent.keyDown(action, { key: 'Enter' });
+    expect(opener.closest('details')).toHaveAttribute('open');
+    fireEvent.keyDown(action, { key: 'Escape' });
+    expect(opener.closest('details')).not.toHaveAttribute('open');
+    expect(opener).toHaveFocus();
+  });
   it('traps modal focus, closes on Escape, restores scroll and returns focus', () => {
     const Demo = () => { const [open, setOpen] = useState(false); return <><button onClick={() => setOpen(true)}>Open</button><Modal open={open} onClose={() => setOpen(false)} title="Edit"><button>First</button><button>Last</button></Modal></>; };
     render(<Demo />); const trigger = screen.getByRole('button', { name: 'Open' }); trigger.focus(); fireEvent.click(trigger); const first = screen.getByRole('button', { name: 'Đóng' }); const last = screen.getByRole('button', { name: 'Last' }); last.focus(); fireEvent.keyDown(window, { key: 'Tab' }); expect(first).toHaveFocus(); fireEvent.keyDown(window, { key: 'Escape' }); expect(screen.queryByRole('dialog')).not.toBeInTheDocument(); expect(trigger).toHaveFocus();

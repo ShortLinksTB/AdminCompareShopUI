@@ -331,6 +331,7 @@ describe('ProductsPage', () => {
     const requestAdmin = requestFor([phone]);
     render(<ProductsPage requestAdmin={requestAdmin} permissions={['products.read']} />);
     await screen.findByText('Phone A');
+    expect(requestAdmin.mock.calls.filter(([path]) => path === '/admin/products?page=1&pageSize=10')).toHaveLength(2);
     expect(screen.queryByRole('button', { name: 'Actions for Phone A' })).not.toBeInTheDocument();
 
     cleanup();
@@ -339,6 +340,10 @@ describe('ProductsPage', () => {
       : path === '/admin/products?page=1&pageSize=10' ? Promise.resolve(pageResponse([phone])) : Promise.resolve(new Response(null, { status: 204 })));
     render(<ProductsPage requestAdmin={requestAdmin} permissions={['products.read', 'products.delete']} />);
     await screen.findByText('Phone A');
+    await waitFor(() => {
+      expect(requestAdmin.mock.calls.filter(([path]) => path === '/admin/products?page=1&pageSize=10')).toHaveLength(4);
+      expect(screen.queryByRole('status', { name: 'Loading products' })).not.toBeInTheDocument();
+    });
     fireEvent.click(screen.getByLabelText('Actions for Phone A'));
     fireEvent.click(screen.getByRole('button', { name: 'Xoá' }));
     expect(screen.getByRole('dialog', { name: 'Xoá sản phẩm?' })).toBeInTheDocument();
