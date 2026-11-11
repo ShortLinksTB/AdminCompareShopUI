@@ -95,7 +95,7 @@ describe('MatchingPage', () => {
     renderPage(admin);
     await screen.findByRole('heading', { name: 'Laptop source' });
     fireEvent.click(screen.getAllByRole('button', { name: /Laptop product/ })[0]);
-    expect(screen.getByRole('button', { name: /Duyệt 2 mặt hàng/ })).toBeEnabled();
+    expect(await screen.findByRole('button', { name: /Duyệt 2 mặt hàng/ })).toBeEnabled();
     fireEvent.click(screen.getByRole('button', { name: /Duyệt 2 mặt hàng/ }));
     await waitFor(() => expect(admin).toHaveBeenCalledWith('/admin/matching/approve-group', expect.objectContaining({ body: '{"ids":[12,13],"productId":71}' })));
   });

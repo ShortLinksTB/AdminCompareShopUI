@@ -110,3 +110,5 @@
 .studio-shell .user-avatar{color:#17202a}
 @media(max-width:959px){.studio-shell .admin-sidebar{transform:translateX(-105%);visibility:hidden;transition:transform .22s ease,visibility .22s ease}.studio-shell .admin-sidebar.mobile-nav-open{transform:translateX(0);visibility:visible;transition:transform .22s ease,visibility 0s}}
 .studio-shell .admin-main{isolation:isolate}.studio-shell .admin-main::before{position:absolute;z-index:-1;top:0;left:0;right:0;height:360px;pointer-events:none;background:radial-gradient(ellipse at 15% -5%,var(--studio-brand-soft),transparent 46%),radial-gradient(ellipse at 75% -10%,color-mix(in srgb,var(--studio-cool) 9%,transparent),transparent 42%);content:""}
+
+.studio-shell[data-theme="light"] .studio-command-trigger kbd{color:var(--studio-kbd,#53626f)}
