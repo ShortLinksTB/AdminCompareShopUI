@@ -116,6 +116,14 @@ describe('mobile application navigation', () => {
     expect(auth.requestAdmin).toHaveBeenCalledWith('/admin/files?page=1&pageSize=10', expect.objectContaining({ signal: expect.any(AbortSignal) }));
   });
 
+  it('shows a product details breadcrumb for a nested product ID route', () => {
+    auth.permissions = ['products.read'];
+    renderApp('/products/product-123');
+
+    expect(screen.getByRole('heading', { name: 'iPhone 15 128GB' })).toBeInTheDocument();
+    expect(document.querySelector('.admin-breadcrumb')).toHaveTextContent('GiaTot Admin / Products / Product details');
+  });
+
   it('denies the /files route without files.read and makes no Files API request', () => {
     render(<MemoryRouter initialEntries={['/files']}><App /><RouteProbe /></MemoryRouter>);
 
