@@ -33,7 +33,7 @@ describe('Studio navigation group label contrast', () => {
 
   it('keeps light command hint and success-pill text above 4.5:1', () => {
     expect(styles).toContain('--studio-kbd:#53626f;--studio-ok:#0e6538');
-    expect(componentStyles).toContain('.studio-shell .studio-command-trigger kbd{color:var(--studio-kbd,var(--studio-faint))}');
+    expect(styles).toContain('.studio-shell .studio-command-trigger kbd{color:var(--studio-kbd,var(--studio-faint));font-size:11px}');
     expect(contrast('#53626f', '#eaf0f6')).toBeGreaterThanOrEqual(4.5);
     expect(contrast('#0e6538', '#e9f1eb')).toBeGreaterThanOrEqual(4.5);
   });
