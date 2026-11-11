@@ -21,6 +21,7 @@ export function ProductsPage({ requestAdmin, permissions = [] }: { requestAdmin:
   const [items, setItems] = useState<AdminProduct[]>([]);
   const [catalogItems, setCatalogItems] = useState<AdminProduct[]>([]);
   const [catalogLoaded, setCatalogLoaded] = useState(false);
+  const [catalogError, setCatalogError] = useState('');
   const [categories, setCategories] = useState<AdminCategory[]>([]);
   const [categoryError, setCategoryError] = useState('');
   const [categoryPickerOpen, setCategoryPickerOpen] = useState(false);
@@ -106,6 +107,9 @@ export function ProductsPage({ requestAdmin, permissions = [] }: { requestAdmin:
 
   useEffect(() => {
     const controller = new AbortController();
+    setCatalogLoaded(false);
+    setCatalogError('');
+    if (status === 'missing-image') setLoading(true);
     void (async () => {
       try {
         const firstPage = await getAdminProducts(requestAdmin, 1, 10, controller.signal);
@@ -121,19 +125,22 @@ export function ProductsPage({ requestAdmin, permissions = [] }: { requestAdmin:
           setCatalogLoaded(true);
           if (status === 'missing-image') setLoading(false);
         }
-      } catch {
-        if (!controller.signal.aborted) { setCatalogLoaded(true); if (status === 'missing-image') setLoading(false); }
+      } catch (reason) {
+        if (!controller.signal.aborted) {
+          setCatalogError(reason instanceof Error ? reason.message : 'Could not load the product catalog. Please try again.');
+          if (status === 'missing-image') setLoading(false);
+        }
       }
     })();
     return () => controller.abort();
-  }, [requestAdmin]);
+  }, [requestAdmin, reloadKey]);
 
   useEffect(() => {
-    if (status === 'missing-image') { setLoading(!catalogLoaded); setError(''); return; }
+    if (status === 'missing-image') { setLoading(!catalogLoaded && !catalogError); setError(''); return; }
     const controller = new AbortController();
     void load(controller.signal);
     return () => controller.abort();
-  }, [load, status]);
+  }, [load, status, catalogLoaded, catalogError]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -153,6 +160,7 @@ export function ProductsPage({ requestAdmin, permissions = [] }: { requestAdmin:
     return status === 'missing-image' ? filtered.slice((page - 1) * pageSize, page * pageSize) : filtered;
   }, [items, catalogItems, search, status, page, pageSize]);
   const displayedTotal = status === 'missing-image' ? filterCounts.missingImage : totalItems;
+  const countProps = catalogLoaded ? filterCounts : { all: undefined, active: undefined, inactive: undefined, missingImage: undefined };
   const categoryNames = useMemo(() => new Map(categories.map(category => [category.id, category.name])), [categories]);
   const leafCategories = useMemo(() => categories.filter(category => category.parentCategoryId != null), [categories]);
   const categoryGroups = useMemo(() => {
@@ -290,11 +298,12 @@ export function ProductsPage({ requestAdmin, permissions = [] }: { requestAdmin:
 
   return <div className="products-page">
     <PageHeader eyebrow="CATALOG" title="Products" description="Danh mục sản phẩm chuẩn và trạng thái hoạt động." />
-    <FilterChips items={[{ value: 'all', label: 'All', count: filterCounts.all }, { value: 'active', label: 'Visible', count: filterCounts.active }, { value: 'inactive', label: 'Hidden', count: filterCounts.inactive }, { value: 'missing-image', label: 'Needs standard image', count: filterCounts.missingImage }]} value={status} onChange={value => changeStatus(value as StatusFilter)} />
+    <FilterChips items={[{ value: 'all', label: 'All', count: countProps.all }, { value: 'active', label: 'Visible', count: countProps.active }, { value: 'inactive', label: 'Hidden', count: countProps.inactive }, { value: 'missing-image', label: 'Needs standard image', count: countProps.missingImage }]} value={status} onChange={value => changeStatus(value as StatusFilter)} />
     {categoryError && <p className="products-category-note" role="status">Category names could not be loaded. Product records are still available.</p>}
     <Card className="products-card" aria-label="Products list">
       <Toolbar role="search"><SearchField label="Search products" type="search" value={search} onChange={event => setSearch(event.target.value)} placeholder="Search product, brand, or slug..." /></Toolbar>
       {loading ? <Loading label="Loading products" />
+        : status === 'missing-image' && catalogError ? <ErrorState title="Could not load the product catalog">{catalogError} <Button size="sm" onClick={() => setReloadKey(value => value + 1)}>Retry</Button></ErrorState>
         : error ? <ErrorState title="Could not load products">{error} <Button size="sm" onClick={() => setReloadKey(value => value + 1)}>Retry</Button></ErrorState>
           : visibleItems.length === 0 ? <EmptyState title="No products found">{items.length === 0 ? 'Products will appear here when available.' : 'Try changing your search.'}</EmptyState>
           : <DataTable className="products-table-scroll"><thead><tr><th className="products-check-col"><Checkbox aria-label="Select all products" checked={allVisibleSelected} indeterminate={selectedIds.size > 0 && !allVisibleSelected} onChange={checked => visibleItems.forEach(product => toggleSelection(product.id, checked))} /></th><th>Image</th><th>Product</th><th>Category</th><th>Status</th><th>Actions</th></tr></thead><tbody>
@@ -309,7 +318,7 @@ export function ProductsPage({ requestAdmin, permissions = [] }: { requestAdmin:
               </RowMenu>}</td>
             </tr>)}
           </tbody></DataTable>}
-      {!loading && !error && <TableFooter start={displayedTotal ? (page - 1) * pageSize + 1 : 0} end={Math.min(page * pageSize, displayedTotal)} total={displayedTotal} center={<label className="products-page-size">Rows <select aria-label="Rows per page" value={pageSize} onChange={event => changePageSize(Number(event.target.value))}>{PAGE_SIZES.map(size => <option key={size} value={size}>{size}</option>)}</select> / page</label>}><Pager page={page} pages={Math.max(1, Math.ceil(displayedTotal / pageSize))} onChange={setPage} /></TableFooter>}
+      {!loading && !error && !(status === 'missing-image' && catalogError) && <TableFooter start={displayedTotal ? (page - 1) * pageSize + 1 : 0} end={Math.min(page * pageSize, displayedTotal)} total={displayedTotal} center={<label className="products-page-size">Rows <select aria-label="Rows per page" value={pageSize} onChange={event => changePageSize(Number(event.target.value))}>{PAGE_SIZES.map(size => <option key={size} value={size}>{size}</option>)}</select> / page</label>}><Pager page={page} pages={Math.max(1, Math.ceil(displayedTotal / pageSize))} onChange={setPage} /></TableFooter>}
     </Card>
 
     {editor && <Modal open title="Sửa sản phẩm" onClose={() => { if (!saving) setEditor(null); }} actions={<><Button disabled={saving} onClick={() => setEditor(null)}>Huỷ</Button><Button tone="primary" type="submit" form="product-edit-form" disabled={saving}>{saving ? 'Đang lưu…' : 'Lưu thay đổi'}</Button></>}>
