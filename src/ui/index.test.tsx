@@ -7,10 +7,10 @@ import { Button, Card, Checkbox, DataTable, Drawer, EmptyState, ErrorState, Fiel
 describe('Studio shared components', () => {
   afterEach(cleanup);
   it('renders button variants, status pills, semantic card and keyboard hint', () => {
-    render(<><Button tone="primary">Save</Button><Button tone="danger" size="sm">Delete</Button><Pill tone="ok">Ready</Pill><Card aria-label="Card"><Kbd>⌘K</Kbd></Card></>);
+    render(<><Button tone="primary">Save</Button><Button tone="danger" size="sm">Delete</Button><Pill tone="ok" size="sm">Ready</Pill><Card aria-label="Card"><Kbd>⌘K</Kbd></Card></>);
     expect(screen.getByRole('button', { name: 'Save' })).toHaveClass('studio-button-primary');
     expect(screen.getByRole('button', { name: 'Delete' })).toHaveClass('studio-button-sm');
-    expect(screen.getByText('Ready')).toHaveClass('studio-pill-ok');
+    expect(screen.getByText('Ready')).toHaveClass('studio-pill-ok', 'studio-pill-sm');
     expect(screen.getByLabelText('Card')).toBeInTheDocument(); expect(screen.getByText('⌘K')).toBeInTheDocument();
   });
 
@@ -39,9 +39,10 @@ describe('Studio shared components', () => {
     const change = vi.fn(); render(<><Toolbar><Field label="Search" placeholder="Name" /></Toolbar><DataTable><thead><tr><th>Name</th></tr></thead><tbody><tr><td>One</td></tr></tbody></DataTable><TableFooter start={1} end={10} total={20}><Pager page={1} pages={2} onChange={change} /></TableFooter></>);
     expect(screen.getByLabelText('Search')).toBeInTheDocument(); expect(screen.getByText('One')).toBeInTheDocument(); fireEvent.click(screen.getByRole('button', { name: 'Trang sau' })); expect(change).toHaveBeenCalledWith(2);
   });
-  it('styles native selects through the shared Studio control', () => {
-    render(<Select aria-label="Sort"><option value="name">Name</option></Select>);
-    expect(screen.getByRole('combobox', { name: 'Sort' })).toHaveClass('studio-select');
+  it('styles native selects through shared Studio density variants', () => {
+    render(<><Select aria-label="Sort"><option value="name">Name</option></Select><Select size="sm" aria-label="Page size"><option value="10">10</option></Select></>);
+    expect(screen.getByRole('combobox', { name: 'Sort' })).toHaveClass('studio-select', 'studio-select-md');
+    expect(screen.getByRole('combobox', { name: 'Page size' })).toHaveClass('studio-select', 'studio-select-sm');
   });
   it('opens row menu and renders empty, error, loading, page header and toast states', () => {
     render(<><RowMenu><button>Archive</button></RowMenu><EmptyState title="Empty" /><ErrorState title="Error" /><Loading /><PageHeader title="Products" eyebrow="CATALOG" description="Manage products" /><Toast>Saved</Toast></>);
