@@ -32,7 +32,7 @@ export interface OfferCounts {
   all: number;
   outlier: number;
   stale: number;
-  out_of_stock: number;
+  outOfStock: number;
   inactive: number;
 }
 
@@ -81,13 +81,6 @@ export async function getAdminOffers(
   const response = await requestAdmin(`/admin/offers?${params}`, { signal });
   await ensureOk(response, 'Could not load offers');
   return response.json() as Promise<AdminOfferPage>;
-}
-
-export async function getAllAdminOffers(requestAdmin: AdminRequest, signal?: AbortSignal): Promise<AdminOffer[]> {
-  const first = await getAdminOffers(requestAdmin, { page: 1, pageSize: 100, q: '', shopId: null, filter: 'all', sort: 'attention' }, signal);
-  const pages = await Promise.all(Array.from({ length: Math.max(0, Math.ceil(first.totalItems / first.pageSize) - 1) }, (_, index) =>
-    getAdminOffers(requestAdmin, { page: index + 2, pageSize: first.pageSize, q: '', shopId: null, filter: 'all', sort: 'attention' }, signal)));
-  return [ ...first.items, ...pages.flatMap(result => result.items) ];
 }
 
 export async function getOfferPriceHistory(requestAdmin: AdminRequest, id: number, signal?: AbortSignal): Promise<PriceHistoryPoint[]> {

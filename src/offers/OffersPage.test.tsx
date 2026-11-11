@@ -12,7 +12,7 @@ const offer: AdminOffer = {
   deltaVnd: 500000, deltaPercent: 2.7, outlierReason: null, otherOffersAveragePriceVnd: null, outlierDeviationPercent: null,
 };
 const hidden: AdminOffer = { ...offer, id: 202, productId: 43, productName: 'Laptop Hidden', isActive: false, stockStatus: 'out_of_stock', lowestPriceVnd: null, deltaVnd: null, deltaPercent: null };
-const counts = { all: 37, outlier: 4, stale: 9, out_of_stock: 3, inactive: 2 };
+const counts = { all: 37, outlier: 4, stale: 9, outOfStock: 3, inactive: 2 };
 const response = (items: AdminOffer[] = [offer], totalItems = items.length) => Response.json({ items, pageNumber: 1, pageSize: 10, totalItems, counts });
 
 afterEach(() => { cleanup(); vi.restoreAllMocks(); });

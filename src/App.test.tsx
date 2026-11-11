@@ -306,7 +306,7 @@ describe('dashboard API integration', () => {
   });
   const offersPage = (items: ReturnType<typeof offer>[], totalItems = items.length) => Response.json({
     items, pageNumber: 1, pageSize: 100, totalItems,
-    counts: { all: totalItems, outlier: items.filter(item => item.isOutlier).length, stale: 0, out_of_stock: 0, inactive: items.filter(item => !item.isActive).length },
+    counts: { all: totalItems, outlier: items.filter(item => item.isOutlier).length, stale: 0, outOfStock: 0, inactive: items.filter(item => !item.isActive).length },
   });
 
   it('uses the dedicated API sources and renders only contract-backed product and offer values', async () => {

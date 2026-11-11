@@ -98,7 +98,7 @@ function ImageLightbox({ offer, close }: { offer: AdminOffer; close: () => void 
 
 export function OffersPage({ requestAdmin, permissions = ['offers.read', 'offers.update'] }: { requestAdmin: AdminRequest; permissions?: string[] }) {
   const canUpdate = permissions.includes('offers.update');
-  const [offers, setOffers] = useState<AdminOffer[]>([]); const [totalItems, setTotalItems] = useState(0); const [counts, setCounts] = useState({ all: 0, outlier: 0, stale: 0, out_of_stock: 0, inactive: 0 });
+  const [offers, setOffers] = useState<AdminOffer[]>([]); const [totalItems, setTotalItems] = useState(0); const [counts, setCounts] = useState({ all: 0, outlier: 0, stale: 0, outOfStock: 0, inactive: 0 });
   const [shopOptions, setShopOptions] = useState<PartnerShop[]>([]);
   const [loading, setLoading] = useState(true); const [error, setError] = useState(''); const [reload, setReload] = useState(0);
   const [search, setSearch] = useState(''); const [shopId, setShopId] = useState(''); const [filter, setFilter] = useState<OfferFilter>('all');
@@ -124,6 +124,7 @@ export function OffersPage({ requestAdmin, permissions = ['offers.read', 'offers
     return [...options.entries()].sort((a, b) => a[1].localeCompare(b[1], 'vi'));
   }, [offers, shopOptions]);
   const maxPage = Math.max(1, Math.ceil(totalItems / pageSize));
+  const countFor = (key: OfferFilter) => ({ all: counts.all, outlier: counts.outlier, stale: counts.stale, out_of_stock: counts.outOfStock, inactive: counts.inactive })[key];
   const refresh = useCallback(() => setReload(value => value + 1), []);
   const act = async (offer: AdminOffer, action: 'toggle' | 'outlier') => {
     setMenuId(null);
@@ -142,7 +143,7 @@ export function OffersPage({ requestAdmin, permissions = ['offers.read', 'offers
 
   return <div className="offers-page offers-redesign">
     <div className="page-header"><div><span className="eyebrow">Catalog &amp; Pricing</span><h1>Offers &amp; Prices</h1><p>Giá từng cửa hàng đang bán cho từng sản phẩm. Dùng bộ lọc nhanh để xem giá bất thường, dữ liệu cũ hoặc hàng hết kho.</p></div></div>
-    <div className="offers-chips" role="group" aria-label="Bộ lọc nhanh">{filters.map(item => <button key={item.key} className={`offers-chip${item.key !== 'all' && item.key !== 'inactive' && counts[item.key] > 0 ? ' attention' : ''}`} aria-pressed={filter === item.key} onClick={() => { setFilter(item.key); setPage(1); }}>{item.label}<span>{counts[item.key]}</span></button>)}</div>
+    <div className="offers-chips" role="group" aria-label="Bộ lọc nhanh">{filters.map(item => <button key={item.key} className={`offers-chip${item.key !== 'all' && item.key !== 'inactive' && countFor(item.key) > 0 ? ' attention' : ''}`} aria-pressed={filter === item.key} onClick={() => { setFilter(item.key); setPage(1); }}>{item.label}<span>{countFor(item.key)}</span></button>)}</div>
     <div className="toolbar offers-toolbar" role="search"><label className="toolbar-search"><span aria-hidden="true">⌕</span><input aria-label="Tìm offer" type="search" value={search} onChange={event => { setSearch(event.target.value); setPage(1); }} placeholder="Tìm theo tên sản phẩm, cửa hàng hoặc mã SKU..." /></label>
       <select aria-label="Lọc theo cửa hàng" value={shopId} onChange={event => { setShopId(event.target.value); setPage(1); }}><option value="">Tất cả cửa hàng</option>{shops.map(([id, name]) => <option key={id} value={id}>{name}</option>)}</select>
       <select aria-label="Sắp xếp" value={sort} onChange={event => { setSort(event.target.value as OfferSort); setPage(1); }}><option value="attention">Cần xem trước</option><option value="oldest">Cập nhật cũ nhất</option><option value="priceAsc">Giá thấp đến cao</option><option value="priceDesc">Giá cao đến thấp</option><option value="name">Tên sản phẩm A–Z</option></select>

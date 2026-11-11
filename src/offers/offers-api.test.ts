@@ -8,7 +8,7 @@ const offer: AdminOffer = {
   deltaVnd: 0, deltaPercent: 0, outlierReason: null,
   otherOffersAveragePriceVnd: null, outlierDeviationPercent: null,
 };
-const page = { items: [offer], pageNumber: 1, pageSize: 10, totalItems: 1, counts: { all: 1, outlier: 0, stale: 0, out_of_stock: 0, inactive: 0 } };
+const page = { items: [offer], pageNumber: 1, pageSize: 10, totalItems: 1, counts: { all: 1, outlier: 0, stale: 0, outOfStock: 0, inactive: 0 } };
 
 describe('offers API', () => {
   it('sends the typed page query and parses global counts', async () => {
