@@ -7,6 +7,7 @@ import type { AdminRequest } from './matching-api';
 const item = { id: 12, name: 'Laptop source', brand: 'Acme', externalSku: 'SKU-12', dataSourceId: 4, verdict: 'review', status: 'pending', groupKey: 'g1', source: { imageUrl: 'https://img.example/laptop.jpg', price: 24990000, shopName: 'Shop One' }, attributes: { brand: 'Acme', line: 'Notebook', ram: '16GB' }, candidates: [{ productId: 71, name: 'Laptop product', brand: 'Acme', score: 0.9, level: 'review', differences: [{ attribute: 'RAM', source: '16GB', candidate: '8GB', kind: 'diff' }] }] };
 const page = (items: unknown[] = [item]) => Response.json({ items, page: 1, pageSize: 20, total: items.length, counts: { all: 4, pending: 3, skipped: 1, confident: 1, review: 1, likely_new: 1, likely_skip: 1 } });
 const request = (responses: Response[]) => vi.fn<AdminRequest>().mockImplementation(async (path, init) => {
+  if (path.includes('pageSize=100')) return page();
   if (path.startsWith('/admin/matching?')) return responses.shift() ?? page([]);
   return responses.shift() ?? new Response(null, { status: 204 });
 });
@@ -94,6 +95,26 @@ describe('MatchingPage', () => {
     await screen.findByRole('heading', { name: 'Laptop source' });
     fireEvent.click(screen.getAllByRole('button', { name: /Laptop product/ })[0]);
     expect(screen.getByRole('button', { name: /Duyệt 2 mặt hàng/ })).toBeEnabled();
+    fireEvent.click(screen.getByRole('button', { name: /Duyệt 2 mặt hàng/ }));
+    await waitFor(() => expect(admin).toHaveBeenCalledWith('/admin/matching/approve-group', expect.objectContaining({ body: '{"ids":[12,13],"productId":71}' })));
+  });
+
+  it('loads all pending group members across pages, independent of the visible queue page', async () => {
+    const second = { ...item, id: 13, name: 'Same laptop on another page', externalSku: 'SKU-13' };
+    const admin = vi.fn<AdminRequest>().mockImplementation(async (path) => {
+      if (path.startsWith('/admin/matching?') && path.includes('pageSize=100')) {
+        const pageNumber = Number(new URLSearchParams(path.split('?')[1]).get('page'));
+        if (pageNumber === 1) return Response.json({ items: [item], page: 1, pageSize: 1, total: 2, counts: {} });
+        return Response.json({ items: [second], page: 2, pageSize: 1, total: 2, counts: {} });
+      }
+      if (path.startsWith('/admin/matching?')) return page([item]);
+      return new Response(null, { status: 204 });
+    });
+    renderPage(admin);
+    await screen.findByRole('heading', { name: 'Laptop source' });
+    expect(await screen.findByRole('switch', { name: 'Duyệt cả nhóm cùng lúc' })).toBeChecked();
+    fireEvent.click(screen.getByRole('button', { name: /Laptop product/ }));
+    await waitFor(() => expect(screen.getByRole('button', { name: /Duyệt 2 mặt hàng/ })).toBeEnabled());
     fireEvent.click(screen.getByRole('button', { name: /Duyệt 2 mặt hàng/ }));
     await waitFor(() => expect(admin).toHaveBeenCalledWith('/admin/matching/approve-group', expect.objectContaining({ body: '{"ids":[12,13],"productId":71}' })));
   });
