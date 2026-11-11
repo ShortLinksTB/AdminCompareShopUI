@@ -7,6 +7,7 @@ import { readFileSync } from 'node:fs';
 import type { AdminRequest } from './matching-api';
 
 const matchingStyles = readFileSync('src/matching/matching.css', 'utf8').replace(/\s+/g, ' ');
+const studioStyles = readFileSync('src/ui/studio-ui.css', 'utf8').replace(/\s+/g, ' ');
 const item = { id: 12, name: 'Laptop source', brand: 'Acme', externalSku: 'SKU-12', dataSourceId: 4, verdict: 'review', status: 'pending', groupKey: 'g1', source: { imageUrl: 'https://img.example/laptop.jpg', price: 24990000, shopName: 'Shop One' }, attributes: { brand: 'Acme', line: 'Notebook', ram: '16GB' }, candidates: [{ productId: 71, name: 'Laptop product', brand: 'Acme', score: 0.9, level: 'review', differences: [{ attribute: 'RAM', source: '16GB', candidate: '8GB', kind: 'diff' }] }] };
 const page = (items: unknown[] = [item]) => Response.json({ items, page: 1, pageSize: 20, total: items.length, counts: { all: 4, pending: 3, skipped: 1, confident: 1, review: 1, likely_new: 1, likely_skip: 1 } });
 const request = (responses: Response[]) => vi.fn<AdminRequest>().mockImplementation(async (path, init) => {
@@ -90,14 +91,14 @@ describe('MatchingPage', () => {
 
     const firstButton = screen.getByRole('button', { name: /Laptop source/ });
     const secondButton = screen.getByRole('button', { name: /Second source/ });
-    expect(firstButton).toHaveClass('studio-button', 'studio-button-cool');
+    expect(firstButton).toHaveClass('studio-button', 'studio-button-selected');
     expect(firstButton).toHaveAttribute('aria-current', 'true');
     expect(firstButton).toHaveAttribute('aria-pressed', 'true');
     expect(secondButton).toHaveClass('studio-button', 'studio-button-secondary');
     expect(secondButton).toHaveAttribute('aria-pressed', 'false');
 
     fireEvent.click(secondButton);
-    expect(secondButton).toHaveClass('studio-button-cool');
+    expect(secondButton).toHaveClass('studio-button-selected');
     expect(secondButton).toHaveAttribute('aria-current', 'true');
     expect(secondButton).toHaveAttribute('aria-pressed', 'true');
     expect(firstButton).toHaveAttribute('aria-pressed', 'false');
@@ -118,6 +119,11 @@ describe('MatchingPage', () => {
     expect(matchingStyles).not.toMatch(/\.matching-listing-image\s*\{[^}]*display:/);
     expect(matchingStyles).toContain('.matching-file-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr))');
     expect(matchingStyles).toContain('.matching-file-grid{grid-template-columns:repeat(3,minmax(0,1fr))}');
+  });
+
+  it('uses the shared brand selection treatment while retaining the shared focus indicator', () => {
+    expect(studioStyles).toContain('.studio-button-selected,.studio-button-selected:hover{border-color:var(--studio-brand);background:var(--studio-brand-soft);color:var(--studio-brand-text)}');
+    expect(studioStyles).toContain('.studio-button:focus-visible');
   });
 
   it('submits skip reason and note, then restores skipped records', async () => {
