@@ -2,6 +2,7 @@ import '@testing-library/jest-dom/vitest';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { MatchingPage } from './MatchingPage';
+import matchingStyles from './matching.css?raw';
 import type { AdminRequest } from './matching-api';
 
 const item = { id: 12, name: 'Laptop source', brand: 'Acme', externalSku: 'SKU-12', dataSourceId: 4, verdict: 'review', status: 'pending', groupKey: 'g1', source: { imageUrl: 'https://img.example/laptop.jpg', price: 24990000, shopName: 'Shop One' }, attributes: { brand: 'Acme', line: 'Notebook', ram: '16GB' }, candidates: [{ productId: 71, name: 'Laptop product', brand: 'Acme', score: 0.9, level: 'review', differences: [{ attribute: 'RAM', source: '16GB', candidate: '8GB', kind: 'diff' }] }] };
@@ -49,13 +50,22 @@ describe('MatchingPage', () => {
     fireEvent.click(screen.getByRole('button', { name: /Tạo sản phẩm mới/ }));
     fireEvent.click(screen.getByRole('button', { name: /Chọn ảnh từ Files/ }));
     expect(await screen.findByText('laptop.png')).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: /laptop.png/ }));
+    const fileChoice = screen.getByRole('button', { name: /laptop.png/ });
+    expect(fileChoice).toHaveClass('studio-button', 'studio-button-secondary');
+    fireEvent.click(fileChoice);
+    expect(screen.getByRole('button', { name: /laptop.png/ })).toHaveClass('studio-button-cool');
     fireEvent.click(screen.getByRole('button', { name: 'Dùng ảnh này' }));
     expect(screen.getByRole('button', { name: /Tạo và gắn/ })).toBeEnabled();
     cleanup();
     renderPage(request([page()]), ['matching.approve']);
     await screen.findByRole('heading', { name: 'Laptop source' });
     expect(screen.queryByRole('button', { name: /Tạo sản phẩm mới/ })).not.toBeInTheDocument();
+  });
+
+  it('keeps shared control styles out of Matching page CSS', () => {
+    expect(matchingStyles).not.toMatch(/\.matching-file-grid\s+button/);
+    expect(matchingStyles).not.toMatch(/\.matching-[^{}]*\.studio-button/);
+    expect(matchingStyles).not.toMatch(/\.matching-[^{}]*\.studio-pill/);
   });
 
   it('submits skip reason and note, then restores skipped records', async () => {
