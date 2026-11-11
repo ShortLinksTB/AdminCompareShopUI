@@ -31,7 +31,7 @@ describe('ProductsPage', () => {
     expect(screen.queryByText(/ID 42/)).not.toBeInTheDocument();
     expect(requestAdmin).toHaveBeenCalledWith('/admin/products?page=1&pageSize=10', expect.objectContaining({ signal: expect.any(AbortSignal) }));
     expect(requestAdmin).toHaveBeenCalledWith('/admin/categories?page=1&pageSize=100', expect.objectContaining({ signal: expect.any(AbortSignal) }));
-    expect(document.querySelector('.products-total')).toHaveTextContent('Tổng 2 sản phẩm');
+    expect(document.querySelector('.studio-table-footer')).toHaveTextContent('Hiển thị 1–2 trong 2');
   });
 
   it('keeps the loading state until the API resolves and shows an empty state', async () => {
@@ -40,7 +40,7 @@ describe('ProductsPage', () => {
       ? Promise.resolve(Response.json({ items: categoryList }))
       : new Promise(resolve => { resolveProducts = resolve; }));
     render(<ProductsPage requestAdmin={requestAdmin} />);
-    expect(screen.getByRole('status')).toHaveTextContent('Loading products');
+    expect(screen.getByRole('status', { name: 'Loading products' })).toBeInTheDocument();
     resolveProducts(pageResponse([], 1, 10, 0));
     expect(await screen.findByText('No products found')).toBeInTheDocument();
   });
@@ -49,26 +49,21 @@ describe('ProductsPage', () => {
     const requestAdmin = requestFor([phone, inactive]);
     render(<ProductsPage requestAdmin={requestAdmin} />);
     await screen.findByText('Phone A');
-    fireEvent.click(screen.getByRole('button', { name: 'All status' }));
-    fireEvent.click(screen.getByRole('option', { name: /Inactive/ }));
+    fireEvent.click(screen.getByRole('button', { name: 'Inactive' }));
     await waitFor(() => expect(requestAdmin).toHaveBeenCalledWith('/admin/products?page=1&pageSize=10&isActive=false', expect.any(Object)));
-    expect(document.querySelector('.products-total')).toHaveTextContent('Tổng 2 sản phẩm');
-    expect(screen.getByRole('button', { name: 'Inactive' })).toBeInTheDocument();
-    expect(screen.queryByRole('listbox', { name: 'Filter by status' })).not.toBeInTheDocument();
+    expect(document.querySelector('.studio-table-footer')).toHaveTextContent('Hiển thị 1–2 trong 2');
+    expect(screen.getByRole('button', { name: 'Inactive' })).toHaveAttribute('aria-pressed', 'true');
   });
 
   it.each([
     'All status',
     'Active',
     'Inactive',
-  ])('closes the status menu after selecting %s', async (label) => {
+  ])('selects the %s status chip', async (label) => {
     render(<ProductsPage requestAdmin={requestFor()} />);
     await screen.findByText('Phone A');
-    fireEvent.click(screen.getByRole('button', { name: 'All status' }));
-    fireEvent.click(screen.getByRole('option', { name: new RegExp(label) }));
-
-    expect(screen.queryByRole('listbox', { name: 'Filter by status' })).not.toBeInTheDocument();
-    expect(screen.getByRole('button', { name: label })).toHaveAttribute('aria-expanded', 'false');
+    fireEvent.click(screen.getByRole('button', { name: label }));
+    expect(screen.getByRole('button', { name: label })).toHaveAttribute('aria-pressed', 'true');
   });
 
   it('changes page size through the API and moves to the first page', async () => {
@@ -90,7 +85,6 @@ describe('ProductsPage', () => {
   });
 
   it('shows missing-image text and opens a zoomable lightbox that closes with Escape', async () => {
-    const addEventListener = vi.spyOn(HTMLElement.prototype, 'addEventListener');
     const requestAdmin = requestFor();
     render(<ProductsPage requestAdmin={requestAdmin} />);
     await screen.findByText('Phone A');
@@ -98,8 +92,7 @@ describe('ProductsPage', () => {
     fireEvent.click(screen.getByRole('button', { name: 'View image of Phone A' }));
     const image = screen.getByRole('img', { name: 'Phone A' });
     expect(image).toBeInTheDocument();
-    expect(addEventListener).toHaveBeenCalledWith('wheel', expect.any(Function), { passive: false });
-    fireEvent.wheel(image.parentElement!, { deltaY: -100, clientX: 100, clientY: 100 });
+    fireEvent.wheel(document.querySelector('.studio-lightbox-stage')!, { deltaY: -100, clientX: 100, clientY: 100 });
     expect(await screen.findByText('115%')).toBeInTheDocument();
     fireEvent.keyDown(document, { key: 'Escape' });
     expect(screen.queryByRole('img', { name: 'Phone A' })).not.toBeInTheDocument();
@@ -114,8 +107,8 @@ describe('ProductsPage', () => {
     });
     render(<ProductsPage requestAdmin={requestAdmin} permissions={['products.read', 'products.update']} />);
     await screen.findByText('Phone A');
-    fireEvent.click(screen.getByRole('button', { name: 'Actions for Phone A' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Sửa' }));
+    fireEvent.click(screen.getByLabelText('Actions for Phone A'));
+    fireEvent.click(screen.getAllByRole('button', { name: 'Sửa' })[0]);
     expect(screen.getByRole('dialog')).toBeInTheDocument();
     fireEvent.change(screen.getByLabelText('Tên sản phẩm'), { target: { value: 'Phone A updated' } });
     fireEvent.click(screen.getByRole('button', { name: 'Lưu thay đổi' }));
@@ -134,8 +127,8 @@ describe('ProductsPage', () => {
     });
     render(<ProductsPage requestAdmin={requestAdmin} permissions={['products.read', 'products.update']} />);
     await screen.findByText('Phone A');
-    fireEvent.click(screen.getByRole('button', { name: 'Actions for Phone A' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Sửa' }));
+    fireEvent.click(screen.getByLabelText('Actions for Phone A'));
+    fireEvent.click(screen.getAllByRole('button', { name: 'Sửa' })[0]);
     const trigger = screen.getByRole('button', { name: 'Category Phones' });
     expect(trigger).toHaveAccessibleName('Category Phones');
     await user.click(trigger);
@@ -194,8 +187,8 @@ describe('ProductsPage', () => {
     });
     render(<ProductsPage requestAdmin={requestAdmin} permissions={['products.read', 'products.update']} />);
     await screen.findByText('Phone A');
-    fireEvent.click(screen.getByRole('button', { name: 'Actions for Phone A' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Sửa' }));
+    fireEvent.click(screen.getByLabelText('Actions for Phone A'));
+    fireEvent.click(screen.getAllByRole('button', { name: 'Sửa' })[0]);
     expect(await screen.findByText('Phone A Global Edition')).toBeInTheDocument();
     expect(screen.getByText(/Shop One/)).toBeInTheDocument();
     expect(screen.getByText(/SKU-501/)).toBeInTheDocument();
@@ -216,8 +209,8 @@ describe('ProductsPage', () => {
           : Promise.resolve(new Response(null, { status: 204 })));
     render(<ProductsPage requestAdmin={requestAdmin} permissions={['products.read', 'products.update']} />);
     await screen.findByText('Phone A');
-    fireEvent.click(screen.getByRole('button', { name: 'Actions for Phone A' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Sửa' }));
+    fireEvent.click(screen.getByLabelText('Actions for Phone A'));
+    fireEvent.click(screen.getAllByRole('button', { name: 'Sửa' })[0]);
     expect(screen.getByRole('status')).toHaveTextContent('Đang tải product matching');
     expect(screen.queryByText('Chưa có product matching nào được gắn.')).not.toBeInTheDocument();
     resolveMatchings(Response.json([]));
@@ -236,8 +229,8 @@ describe('ProductsPage', () => {
     });
     render(<ProductsPage requestAdmin={requestAdmin} permissions={['products.read', 'products.update']} />);
     await screen.findByText('Phone A');
-    fireEvent.click(screen.getByRole('button', { name: 'Actions for Phone A' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Sửa' }));
+    fireEvent.click(screen.getByLabelText('Actions for Phone A'));
+    fireEvent.click(screen.getAllByRole('button', { name: 'Sửa' })[0]);
     expect(await screen.findByRole('alert')).toHaveTextContent('permission');
     expect(screen.queryByText('Chưa có product matching nào được gắn.')).not.toBeInTheDocument();
     failLoad = false;
@@ -252,12 +245,12 @@ describe('ProductsPage', () => {
   it('opens image preview in the existing lightbox and keeps No image non-clickable', async () => {
     render(<ProductsPage requestAdmin={requestFor([phone, inactive])} permissions={['products.read', 'products.update']} />);
     await screen.findByText('Phone A');
-    fireEvent.click(screen.getByRole('button', { name: 'Actions for Phone A' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Sửa' }));
+    fireEvent.click(screen.getByLabelText('Actions for Phone A'));
+    fireEvent.click(screen.getAllByRole('button', { name: 'Sửa' })[0]);
     fireEvent.click(screen.getByRole('button', { name: 'View product preview' }));
-    expect(document.querySelector('.product-lightbox-box')).toBeInTheDocument();
+    expect(document.querySelector('.studio-lightbox')).toBeInTheDocument();
     fireEvent.keyDown(document, { key: 'Escape' });
-    expect(document.querySelector('.product-lightbox')).not.toBeInTheDocument();
+    expect(document.querySelector('.studio-lightbox')).not.toBeInTheDocument();
     expect(screen.getByText('No image').closest('button')).toBeNull();
   });
 
@@ -273,9 +266,9 @@ describe('ProductsPage', () => {
       : path === '/admin/products?page=1&pageSize=10' ? Promise.resolve(pageResponse([phone])) : Promise.resolve(new Response(null, { status: 204 })));
     render(<ProductsPage requestAdmin={requestAdmin} permissions={['products.read', 'products.delete']} />);
     await screen.findByText('Phone A');
-    fireEvent.click(screen.getByRole('button', { name: 'Actions for Phone A' }));
+    fireEvent.click(screen.getByLabelText('Actions for Phone A'));
     fireEvent.click(screen.getByRole('button', { name: 'Xoá' }));
-    expect(screen.getByRole('alertdialog')).toBeInTheDocument();
+    expect(screen.getByRole('dialog', { name: 'Xoá sản phẩm?' })).toBeInTheDocument();
     expect(requestAdmin).not.toHaveBeenCalledWith('/admin/products/42', expect.objectContaining({ method: 'DELETE' }));
     fireEvent.click(screen.getByRole('button', { name: 'Xoá sản phẩm' }));
     await waitFor(() => expect(requestAdmin).toHaveBeenCalledWith('/admin/products/42', { method: 'DELETE' }));
@@ -284,9 +277,9 @@ describe('ProductsPage', () => {
   it('closes row menus on outside click and Escape', async () => {
     render(<ProductsPage requestAdmin={requestFor()} permissions={['products.read', 'products.update']} />);
     await screen.findByText('Phone A');
-    fireEvent.click(screen.getByRole('button', { name: 'Actions for Phone A' }));
-    expect(screen.getByRole('button', { name: 'Sửa' })).toBeInTheDocument();
+    fireEvent.click(screen.getByLabelText('Actions for Phone A'));
+    expect(screen.getAllByRole('button', { name: 'Sửa' })[0]).toBeInTheDocument();
     fireEvent.keyDown(document, { key: 'Escape' });
-    expect(screen.queryByRole('button', { name: 'Sửa' })).not.toBeInTheDocument();
+    await waitFor(() => expect(screen.queryAllByRole('button', { name: 'Sửa' })).toHaveLength(0));
   });
 });
