@@ -32,12 +32,12 @@ describe('Studio navigation group label contrast', () => {
   });
 
   it('keeps selected navigation icons at least 3:1 in both themes', () => {
-    expect(styles).toContain('.studio-shell .admin-sidebar nav a.active>span{color:var(--studio-brand-text)}');
+    expect(styles).toContain('.studio-shell .admin-sidebar nav a.active>span{color:var(--studio-brand)}');
+    expect(styles).toContain('.studio-shell[data-theme="light"] .admin-sidebar nav a.active>span{color:var(--studio-brand-text)}');
     expect(styles).toContain('--studio-brand-text:#c24100');
-    expect(styles).toContain('--studio-brand-text:#ff8a4d');
 
     expect(contrast('#c24100', '#ffefe6')).toBeGreaterThanOrEqual(3);
-    expect(contrast('#ff8a4d', '#3a302d')).toBeGreaterThanOrEqual(3);
+    expect(contrast('#ff5a00', '#3a302d')).toBeGreaterThanOrEqual(3);
   });
 
   it('binds shared reference table text to the active theme foreground', () => {
