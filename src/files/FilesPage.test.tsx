@@ -165,4 +165,16 @@ describe('FilesPage details and file actions', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Close preview' }));
     expect(screen.queryByRole('dialog', { name: 'Image preview' })).not.toBeInTheDocument();
   });
+
+  it('returns focus to the preview opener when the close button dismisses the lightbox', async () => {
+    const user = userEvent.setup();
+    render(<FilesPage requestAdmin={requestFor()} permissions={['files.read']} />);
+    const opener = await screen.findByRole('button', { name: 'Preview banner' });
+    await user.click(opener);
+
+    await user.click(screen.getByRole('button', { name: 'Close preview' }));
+
+    expect(screen.queryByRole('dialog', { name: 'Image preview' })).not.toBeInTheDocument();
+    expect(opener).toHaveFocus();
+  });
 });
