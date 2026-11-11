@@ -14,6 +14,12 @@ describe('Studio shared components', () => {
     expect(screen.getByLabelText('Card')).toBeInTheDocument(); expect(screen.getByText('⌘K')).toBeInTheDocument();
   });
 
+  it('keeps shared Button layouts in the shared component contract', () => {
+    render(<><Button layout="grid">Grid action</Button><Button layout="stacked">Stacked action</Button></>);
+    expect(screen.getByRole('button', { name: 'Grid action' })).toHaveClass('studio-button-grid');
+    expect(screen.getByRole('button', { name: 'Stacked action' })).toHaveClass('studio-button-stacked');
+  });
+
   it('renders checked, mixed, disabled, focusable shared checkbox states and reports changes', () => {
     const onChange = vi.fn();
     render(<><Checkbox aria-label="Checked" checked onChange={onChange} /><Checkbox aria-label="Mixed" checked={false} indeterminate onChange={onChange} /><Checkbox aria-label="Disabled" checked={false} disabled onChange={onChange} /></>);
