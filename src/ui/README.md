@@ -12,6 +12,7 @@ Components live in `index.tsx` and use tokens from the nearest `.studio-shell`:
 | `Card` | Section wrapper with native section attributes. |
 | `Toolbar` | Flexible wrapping toolbar container. |
 | `DataTable` | Horizontally scrollable native table wrapper. |
+| `Checkbox` | Controlled checkbox using Studio theme tokens; supports checked, indeterminate, focus-visible, hover, and disabled states. |
 | `TableFooter`, `Pager` | Three aligned footer regions and controlled page navigation. |
 | `RowMenu` | Native disclosure menu; caller supplies actions. |
 | `Modal`, `Drawer`, `Lightbox` | Controlled `open`, `onClose`; Escape, backdrop, scroll lock, focus trap, focus restore. |
