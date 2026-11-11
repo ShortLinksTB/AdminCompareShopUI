@@ -4,7 +4,7 @@ import './studio-ui.css';
 const focusLayerStack: symbol[] = [];
 
 type ButtonTone = 'primary' | 'secondary' | 'cool' | 'danger' | 'ghost';
-export function Button({ tone = 'secondary', size = 'md', className = '', ...props }: ButtonHTMLAttributes<HTMLButtonElement> & { tone?: ButtonTone; size?: 'sm' | 'md' }) { return <button {...props} className={`studio-button studio-button-${tone} studio-button-${size} ${className}`} />; }
+export function Button({ tone = 'secondary', size = 'md', layout, className = '', ...props }: ButtonHTMLAttributes<HTMLButtonElement> & { tone?: ButtonTone; size?: 'sm' | 'md'; layout?: 'grid' | 'stacked' }) { return <button {...props} className={`studio-button studio-button-${tone} studio-button-${size} ${layout ? `studio-button-${layout}` : ''} ${className}`} />; }
 export function Pill({ tone = 'neutral', size = 'md', children }: { tone?: 'ok' | 'warn' | 'bad' | 'info' | 'neutral'; size?: 'sm' | 'md'; children: ReactNode }) { return <span className={`studio-pill studio-pill-${tone} studio-pill-${size}`}>{children}</span>; }
 export function FilterChips({ items, value, onChange, label }: { items: { value: string; label: string; count?: number }[]; value: string; onChange: (value: string) => void; label?: string }) { return <div className="studio-filter-chips" role="group" aria-label={label}>{items.map(item => <button type="button" key={item.value} aria-pressed={item.value === value} onClick={() => onChange(item.value)}>{item.label}{item.count !== undefined && <span>{item.count}</span>}</button>)}</div>; }
 export function Card({ className = '', ...props }: HTMLAttributes<HTMLElement>) { return <section {...props} className={`studio-card ${className}`} />; }

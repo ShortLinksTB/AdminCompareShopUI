@@ -25,7 +25,7 @@ describe('MatchingPage', () => {
     expect(screen.getByText('Shop One · SKU SKU-12 · 24.990.000 ₫')).toBeInTheDocument();
     expect(screen.getByText('16GB')).toBeInTheDocument();
     const candidate = screen.getByRole('button', { name: /Laptop product/ });
-    expect(candidate).toHaveClass('studio-button');
+    expect(candidate).toHaveClass('studio-button', 'studio-button-grid');
     expect(candidate).toHaveAttribute('aria-pressed', 'false');
     fireEvent.click(candidate);
     expect(candidate).toHaveAttribute('aria-pressed', 'true');
@@ -58,7 +58,7 @@ describe('MatchingPage', () => {
     fireEvent.click(screen.getByRole('button', { name: /Chọn ảnh từ Files/ }));
     expect(await screen.findByText('laptop.png')).toBeInTheDocument();
     const fileChoice = screen.getByRole('button', { name: /laptop.png/ });
-    expect(fileChoice).toHaveClass('studio-button', 'studio-button-secondary');
+    expect(fileChoice).toHaveClass('studio-button', 'studio-button-secondary', 'studio-button-stacked');
     expect(fileChoice).toHaveAttribute('aria-pressed', 'false');
     fireEvent.click(fileChoice);
     expect(screen.getByRole('button', { name: /laptop.png/ })).toHaveClass('studio-button-cool');
@@ -76,6 +76,8 @@ describe('MatchingPage', () => {
     expect(matchingStyles).not.toMatch(/\.matching-file-grid\s+button/);
     expect(matchingStyles).not.toMatch(/\.matching-[^{}]*\.studio-button/);
     expect(matchingStyles).not.toMatch(/\.matching-[^{}]*\.studio-pill/);
+    expect(matchingStyles).not.toMatch(/\.matching-file-option/);
+    expect(matchingStyles).not.toMatch(/\.matching-candidate-head\s*\{[^}]*display:/);
     expect(matchingStyles).not.toMatch(/\.matching-candidate-card\.selected/);
     expect(matchingStyles).not.toMatch(/\.matching-candidate-card\s*\{[^}]*border:/);
     expect(matchingStyles).toContain('.matching-file-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr))');
