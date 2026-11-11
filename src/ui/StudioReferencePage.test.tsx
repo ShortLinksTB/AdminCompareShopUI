@@ -6,10 +6,16 @@ import { StudioReferencePage } from './StudioReferencePage';
 describe('Studio component reference', () => {
   afterEach(cleanup);
   it('exercises chip, switch, pager, toast, modal and drawer examples', () => {
-    render(<StudioReferencePage />);
+    const { container } = render(<StudioReferencePage />);
+    expect(container.querySelector('.studio-table td')).toHaveTextContent('MacBook Air M5');
+    expect(container.querySelectorAll('.studio-button').length).toBeGreaterThan(0);
+    const switchInput = screen.getByRole('switch', { name: 'Bật tùy chọn' });
+    expect(switchInput.closest('.studio-switch')).toBeInTheDocument();
+    expect(switchInput.nextElementSibling?.tagName).toBe('SPAN');
+    expect([...container.querySelectorAll('button:not(.studio-button)')].every(button => button.closest('.studio-filter-chips'))).toBe(true);
     fireEvent.click(screen.getByRole('button', { name: /Đang ẩn/ }));
-    fireEvent.click(screen.getByRole('switch', { name: 'Bật tùy chọn' }));
-    expect(screen.getByRole('switch', { name: 'Bật tùy chọn' })).not.toBeChecked();
+    fireEvent.click(switchInput);
+    expect(switchInput).not.toBeChecked();
     fireEvent.click(screen.getByRole('button', { name: 'Trang sau' })); expect(screen.getByText('2 / 3')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Thử Toast' })); expect(screen.getByText('Đã lưu thay đổi.')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Đóng thông báo' }));
