@@ -2,143 +2,213 @@ import '@testing-library/jest-dom/vitest';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { MatchingPage } from './MatchingPage';
-import type { AdminRequest, PendingMatching } from './matching-api';
+import type { AdminRequest } from './matching-api';
 
-const row: PendingMatching = {
-  id: 12,
-  name: 'Laptop source',
-  brand: 'Acme',
-  productId: null,
-  createdAtUtc: '2026-10-29T00:00:00Z',
-  isApproved: false,
-  externalSku: 'SKU-12',
-  dataSourceId: 4,
-  candidates: [
-    { productId: 71, name: 'Laptop product', brand: 'Acme', similarityScore: 0.9 },
-    { productId: 72, name: 'Another laptop', brand: null, similarityScore: 0.42 },
-  ],
-};
-
-const response = (body: unknown, status = 200) => Response.json(body, { status });
-const renderPage = (requestAdmin: AdminRequest) => render(<MatchingPage requestAdmin={requestAdmin} />);
-
+const item = { id: 12, name: 'Laptop source', brand: 'Acme', externalSku: 'SKU-12', dataSourceId: 4, verdict: 'review', status: 'pending', groupKey: 'g1', source: { imageUrl: 'https://img.example/laptop.jpg', price: 24990000, shopName: 'Shop One' }, attributes: { brand: 'Acme', line: 'Notebook', ram: '16GB' }, candidates: [{ productId: 71, name: 'Laptop product', brand: 'Acme', score: 0.9, level: 'review', differences: [{ attribute: 'RAM', source: '16GB', candidate: '8GB', kind: 'diff' }] }] };
+const page = (items: unknown[] = [item]) => Response.json({ items, page: 1, pageSize: 20, total: items.length, counts: { all: 4, pending: 3, skipped: 1, confident: 1, review: 1, likely_new: 1, likely_skip: 1 } });
+const request = (responses: Response[]) => vi.fn<AdminRequest>().mockImplementation(async (path, init) => {
+  if (path.includes('pageSize=100')) return page();
+  if (path.startsWith('/admin/matching?')) return responses.shift() ?? page([]);
+  return responses.shift() ?? new Response(null, { status: 204 });
+});
+const renderPage = (admin: AdminRequest, permissions = ['matching.approve', 'products.create']) => render(<MatchingPage requestAdmin={admin} permissions={permissions} />);
 afterEach(() => { cleanup(); vi.restoreAllMocks(); });
 
 describe('MatchingPage', () => {
-  it('loads candidates in API order, selects locally, and approves only the selected product', async () => {
-    const requestAdmin = vi.fn<AdminRequest>()
-      .mockResolvedValueOnce(response([row]))
-      .mockResolvedValueOnce(new Response(null, { status: 204 }))
-      .mockResolvedValueOnce(response([]));
-    renderPage(requestAdmin);
-
-    const firstCandidate = await screen.findByLabelText(/Laptop product/);
-    const secondCandidate = screen.getByLabelText(/Another laptop/);
-    expect(firstCandidate).not.toBeChecked();
-    expect(secondCandidate).not.toBeChecked();
-    expect(screen.getByText('90% tương đồng')).toBeInTheDocument();
-    expect(screen.getByText('42% tương đồng')).toBeInTheDocument();
-
-    fireEvent.click(secondCandidate);
-    expect(requestAdmin).toHaveBeenCalledTimes(1);
-    expect(screen.getByRole('button', { name: 'Duyệt' })).toBeEnabled();
-
-    fireEvent.click(screen.getByRole('button', { name: 'Duyệt' }));
-    await waitFor(() => expect(requestAdmin).toHaveBeenCalledTimes(3));
-    expect(requestAdmin.mock.calls[1]).toEqual(['/admin/matching/12/approve', expect.objectContaining({
-      method: 'POST', body: '{"productId":72}',
-    })]);
-    expect(await screen.findByText('Không có mục nào đang chờ duyệt')).toBeInTheDocument();
-    expect(screen.getByRole('status')).toHaveTextContent('Đã duyệt sản phẩm thành công');
+  it('loads the Studio queue, compares attributes and deliberately approves only the selected candidate', async () => {
+    const admin = request([page(), new Response(null, { status: 204 }), page([])]);
+    renderPage(admin);
+    expect(await screen.findByRole('heading', { name: 'Laptop source' })).toBeInTheDocument();
+    expect(screen.getByText('Shop One · SKU SKU-12 · 24.990.000 ₫')).toBeInTheDocument();
+    expect(screen.getByText('16GB')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /Laptop product/ }));
+    expect(screen.getByText('8GB')).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole('button', { name: /Duyệt/ })).toBeEnabled());
+    fireEvent.click(screen.getByRole('button', { name: /Duyệt/ }));
+    await waitFor(() => expect(admin).toHaveBeenCalledWith('/admin/matching/12/approve', expect.objectContaining({ method: 'POST', body: '{"productId":71}' })));
   });
 
-  it('keeps no-suitable-candidate local and leaves the pending row without a selection', async () => {
-    const requestAdmin = vi.fn<AdminRequest>().mockResolvedValue(response([row]));
-    renderPage(requestAdmin);
-    fireEvent.click(await screen.findByLabelText(/Laptop product/));
-    fireEvent.click(screen.getByRole('button', { name: 'Không có sản phẩm phù hợp' }));
-
-    expect(await screen.findByRole('status')).toHaveTextContent('mục vẫn ở trạng thái chờ');
-    expect(screen.getByRole('button', { name: 'Duyệt' })).toBeDisabled();
-    expect(screen.getByText('Laptop source')).toBeInTheDocument();
-    expect(requestAdmin).toHaveBeenCalledTimes(1);
-  });
-
-  it('clears a selection when refresh changes the candidate identity or score', async () => {
-    const updatedRow = {
-      ...row,
-      candidates: [{ ...row.candidates[0], similarityScore: 0.75 }],
-    };
-    const requestAdmin = vi.fn<AdminRequest>()
-      .mockResolvedValueOnce(response([row]))
-      .mockResolvedValueOnce(response([updatedRow]));
-    renderPage(requestAdmin);
-    fireEvent.click(await screen.findByLabelText(/Laptop product/));
+  it('filters the queue by verdict and search query and distinguishes loading errors from empty results', async () => {
+    const admin = vi.fn<AdminRequest>().mockImplementation(async path => path.includes('q=acme') ? new Response('', { status: 503 }) : path.includes('verdict=likely_new') ? page([]) : page());
+    renderPage(admin);
+    await screen.findByRole('heading', { name: 'Laptop source' });
+    fireEvent.click(screen.getByRole('button', { name: /Sản phẩm mới/ }));
+    await waitFor(() => expect(admin.mock.calls.some(([path]) => String(path).includes('verdict=likely_new'))).toBe(true));
+    fireEvent.change(screen.getByRole('searchbox'), { target: { value: 'acme' } });
+    await waitFor(() => expect(admin.mock.calls.some(([path]) => String(path).includes('q=acme'))).toBe(true));
     fireEvent.click(screen.getByRole('button', { name: /Làm mới/ }));
-
-    await waitFor(() => expect(screen.getByRole('button', { name: 'Duyệt' })).toBeDisabled());
-    expect(screen.getByLabelText(/Laptop product/)).not.toBeChecked();
-    expect(screen.getByText('75% tương đồng')).toBeInTheDocument();
+    expect(await screen.findByRole('alert')).toHaveTextContent('Không tải được hàng đợi');
+    expect(screen.queryByText('Hàng đợi đã được xử lý')).not.toBeInTheDocument();
   });
 
-  it('retains the selected candidate after approval fails and allows retry', async () => {
-    const requestAdmin = vi.fn<AdminRequest>()
-      .mockResolvedValueOnce(response([row]))
-      .mockResolvedValueOnce(new Response('', { status: 500 }));
-    renderPage(requestAdmin);
-    const candidate = await screen.findByLabelText(/Laptop product/);
-    fireEvent.click(candidate);
-    fireEvent.click(screen.getByRole('button', { name: 'Duyệt' }));
-
-    expect(await screen.findByRole('alert')).toHaveTextContent('Lựa chọn của bạn vẫn được giữ');
-    expect(candidate).toBeChecked();
-    expect(screen.getByRole('button', { name: 'Duyệt' })).toBeEnabled();
-    expect(requestAdmin).toHaveBeenCalledTimes(2);
+  it('shows explicit create controls only with products.create and supports Files image selection', async () => {
+    const files = { items: [{ id: 'file-guid', originalFileName: 'laptop.png', contentType: 'image/png', sizeBytes: 1000, width: 1000, height: 1000, uploadedBy: 'tester', uploadedAtUtc: '' }] };
+    const admin = vi.fn<AdminRequest>().mockImplementation(async path => path.startsWith('/admin/matching?') ? page() : path.startsWith('/admin/files?') ? Response.json(files) : new Response(null, { status: 204 }));
+    renderPage(admin);
+    await screen.findByRole('heading', { name: 'Laptop source' });
+    fireEvent.click(screen.getByRole('button', { name: /Tạo sản phẩm mới/ }));
+    fireEvent.click(screen.getByRole('button', { name: /Chọn ảnh từ Files/ }));
+    expect(await screen.findByText('laptop.png')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /laptop.png/ }));
+    fireEvent.click(screen.getByRole('button', { name: 'Dùng ảnh này' }));
+    expect(screen.getByRole('button', { name: /Tạo và gắn/ })).toBeEnabled();
+    cleanup();
+    renderPage(request([page()]), ['matching.approve']);
+    await screen.findByRole('heading', { name: 'Laptop source' });
+    expect(screen.queryByRole('button', { name: /Tạo sản phẩm mới/ })).not.toBeInTheDocument();
   });
 
-  it('removes an approved item even when the reconciliation GET must be retried', async () => {
-    const requestAdmin = vi.fn<AdminRequest>()
-      .mockResolvedValueOnce(response([row]))
-      .mockResolvedValueOnce(new Response(null, { status: 204 }))
-      .mockResolvedValueOnce(new Response('', { status: 503 }));
-    renderPage(requestAdmin);
-    fireEvent.click(await screen.findByLabelText(/Laptop product/));
-    fireEvent.click(screen.getByRole('button', { name: 'Duyệt' }));
-
-    expect(await screen.findByRole('alert')).toHaveTextContent('Không tải được danh sách chờ duyệt');
-    expect(screen.queryByText('Laptop source')).not.toBeInTheDocument();
-    expect(screen.getByRole('status')).toHaveTextContent('Đã duyệt sản phẩm thành công');
+  it('submits skip reason and note, then restores skipped records', async () => {
+    const skipped = { ...item, status: 'skipped' };
+    const admin = vi.fn<AdminRequest>().mockImplementation(async (path, init) => {
+      if (path.startsWith('/admin/matching?')) return path.includes('status=skipped') ? page([skipped]) : page();
+      return new Response(null, { status: 204 });
+    });
+    renderPage(admin);
+    await screen.findByRole('heading', { name: 'Laptop source' });
+    fireEvent.click(screen.getByRole('button', { name: /Bỏ qua/ }));
+    fireEvent.change(screen.getByLabelText('Ghi chú (tuỳ chọn)'), { target: { value: 'phụ kiện' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Bỏ qua và lưu lý do' }));
+    await waitFor(() => expect(admin).toHaveBeenCalledWith('/admin/matching/12/skip', expect.objectContaining({ body: '{"reason":"not_product","note":"phụ kiện"}' })));
+    fireEvent.click(screen.getByRole('button', { name: /Đã bỏ qua/ }));
+    expect(await screen.findByRole('button', { name: 'Khôi phục' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Khôi phục' }));
+    await waitFor(() => expect(admin).toHaveBeenCalledWith('/admin/matching/12/restore', { method: 'POST' }));
   });
 
-  it('renders at most five candidates without reordering the API response', async () => {
-    const manyCandidates = {
-      ...row,
-      candidates: Array.from({ length: 6 }, (_, index) => ({
-        productId: 80 + index,
-        name: `Candidate ${index + 1}`,
-        brand: 'Acme',
-        similarityScore: 0.9 - index / 10,
-      })),
-    };
-    const requestAdmin = vi.fn<AdminRequest>().mockResolvedValue(response([manyCandidates]));
-    renderPage(requestAdmin);
-
-    expect(await screen.findByLabelText(/Candidate 1/)).toBeInTheDocument();
-    expect(screen.getByLabelText(/Candidate 5/)).toBeInTheDocument();
-    expect(screen.queryByLabelText(/Candidate 6/)).not.toBeInTheDocument();
-    expect(screen.getByText('90% tương đồng').compareDocumentPosition(screen.getByText('50% tương đồng')) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  it('guards keyboard shortcuts while typing and allows list navigation and image lightbox', async () => {
+    const admin = request([page()]);
+    renderPage(admin);
+    await screen.findByRole('heading', { name: 'Laptop source' });
+    fireEvent.keyDown(screen.getByRole('searchbox'), { key: 's' });
+    expect(screen.queryByRole('dialog', { name: 'Bỏ qua mặt hàng' })).not.toBeInTheDocument();
+    fireEvent.keyDown(window, { key: 'ArrowDown' });
+    fireEvent.click(screen.getByRole('button', { name: 'Mở ảnh mặt hàng' }));
+    expect(screen.getByRole('dialog', { name: 'Xem ảnh' })).toBeInTheDocument();
+    fireEvent.keyDown(window, { key: 'Escape' });
+    expect(screen.queryByRole('dialog', { name: 'Xem ảnh' })).not.toBeInTheDocument();
   });
 
-  it('shows a retryable queue error, then renders a pending item with no candidates', async () => {
-    const emptyCandidates = { ...row, candidates: [] };
-    const requestAdmin = vi.fn<AdminRequest>()
-      .mockResolvedValueOnce(new Response('', { status: 503 }))
-      .mockResolvedValueOnce(response([emptyCandidates]));
-    renderPage(requestAdmin);
+  it('approves an explicit candidate for every pending row in a group', async () => {
+    const second = { ...item, id: 13, name: 'Same laptop at shop two', externalSku: 'SKU-13' };
+    const admin = vi.fn<AdminRequest>().mockImplementation(async (path) => path.startsWith('/admin/matching?') ? page([item, second]) : new Response(null, { status: 204 }));
+    renderPage(admin);
+    await screen.findByRole('heading', { name: 'Laptop source' });
+    fireEvent.click(screen.getAllByRole('button', { name: /Laptop product/ })[0]);
+    expect(screen.getByRole('button', { name: /Duyệt 2 mặt hàng/ })).toBeEnabled();
+    fireEvent.click(screen.getByRole('button', { name: /Duyệt 2 mặt hàng/ }));
+    await waitFor(() => expect(admin).toHaveBeenCalledWith('/admin/matching/approve-group', expect.objectContaining({ body: '{"ids":[12,13],"productId":71}' })));
+  });
 
-    fireEvent.click(await screen.findByRole('button', { name: 'Thử lại' }));
-    expect(await screen.findByText('Không tìm thấy gợi ý phù hợp cho mục này.')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Duyệt' })).toBeDisabled();
-    expect(screen.queryByRole('button', { name: 'Không có sản phẩm phù hợp' })).not.toBeInTheDocument();
+  it('loads all pending group members across pages, independent of the visible queue page', async () => {
+    const second = { ...item, id: 13, name: 'Same laptop on another page', externalSku: 'SKU-13' };
+    const admin = vi.fn<AdminRequest>().mockImplementation(async (path) => {
+      if (path.startsWith('/admin/matching?') && path.includes('pageSize=100')) {
+        const pageNumber = Number(new URLSearchParams(path.split('?')[1]).get('page'));
+        if (pageNumber === 1) return Response.json({ items: [item], page: 1, pageSize: 1, total: 2, counts: {} });
+        return Response.json({ items: [second], page: 2, pageSize: 1, total: 2, counts: {} });
+      }
+      if (path.startsWith('/admin/matching?')) return page([item]);
+      return new Response(null, { status: 204 });
+    });
+    renderPage(admin);
+    await screen.findByRole('heading', { name: 'Laptop source' });
+    expect(await screen.findByRole('switch', { name: 'Duyệt cả nhóm cùng lúc' })).toBeChecked();
+    fireEvent.click(screen.getByRole('button', { name: /Laptop product/ }));
+    await waitFor(() => expect(screen.getByRole('button', { name: /Duyệt 2 mặt hàng/ })).toBeEnabled());
+    fireEvent.click(screen.getByRole('button', { name: /Duyệt 2 mặt hàng/ }));
+    await waitFor(() => expect(admin).toHaveBeenCalledWith('/admin/matching/approve-group', expect.objectContaining({ body: '{"ids":[12,13],"productId":71}' })));
+  });
+
+  it.each(['missing', 'duplicate'] as const)('falls back to a single-item approval when a pending queue page is %s', async pageFault => {
+    const admin = vi.fn<AdminRequest>().mockImplementation(async path => {
+      if (!path.startsWith('/admin/matching?')) return new Response(null, { status: 204 });
+      const params = new URLSearchParams(path.split('?')[1]);
+      if (params.get('pageSize') !== '100') return page([item]);
+      if (params.get('page') === '1') return Response.json({ items: [item], page: 1, pageSize: 1, total: 2, counts: {} });
+      return Response.json({ items: pageFault === 'duplicate' ? [item] : [], page: 2, pageSize: 1, total: 2, counts: {} });
+    });
+    renderPage(admin);
+    await screen.findByRole('heading', { name: 'Laptop source' });
+    expect(await screen.findByRole('alert')).toHaveTextContent('Không tải được đầy đủ nhóm');
+    fireEvent.click(screen.getByRole('button', { name: /Laptop product/ }));
+    fireEvent.click(screen.getByRole('button', { name: /^Duyệt/ }));
+    await waitFor(() => expect(admin).toHaveBeenCalledWith('/admin/matching/12/approve', expect.objectContaining({ body: '{"productId":71}' })));
+    expect(admin).not.toHaveBeenCalledWith('/admin/matching/approve-group', expect.anything());
+  });
+
+  it('keeps create-product scoped to the selected item when pending queue completeness fails', async () => {
+    const admin = vi.fn<AdminRequest>().mockImplementation(async path => {
+      if (!path.startsWith('/admin/matching?')) return new Response(null, { status: 204 });
+      const params = new URLSearchParams(path.split('?')[1]);
+      if (params.get('pageSize') !== '100') return page([item]);
+      return params.get('page') === '1'
+        ? Response.json({ items: [item], page: 1, pageSize: 1, total: 2, counts: {} })
+        : Response.json({ items: [], page: 2, pageSize: 1, total: 3, counts: {} });
+    });
+    renderPage(admin);
+    await screen.findByRole('heading', { name: 'Laptop source' });
+    expect(await screen.findByRole('alert')).toHaveTextContent('Không tải được đầy đủ nhóm');
+    fireEvent.click(screen.getByRole('button', { name: /Tạo sản phẩm mới/ }));
+    expect(await screen.findByText(/tạo sản phẩm chỉ áp dụng cho item đang chọn/i)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('radio', { name: /Chưa có ảnh/ }));
+    fireEvent.click(screen.getByRole('button', { name: 'Tạo và gắn' }));
+    await waitFor(() => expect(admin).toHaveBeenCalledWith('/admin/matching/12/create-product', expect.objectContaining({ body: expect.stringContaining('"applyGroup":false') })));
+  });
+
+  it('creates from a shop image with edited fields and reports API rejection in the dialog', async () => {
+    const admin = vi.fn<AdminRequest>().mockImplementation(async path => path.startsWith('/admin/matching?') ? page() : path.includes('/create-product') ? Response.json({ detail: 'Slug already exists' }, { status: 409 }) : new Response(null, { status: 204 }));
+    renderPage(admin);
+    await screen.findByRole('heading', { name: 'Laptop source' });
+    fireEvent.click(screen.getByRole('button', { name: /Tạo sản phẩm mới/ }));
+    expect(screen.getByRole('button', { name: 'Tạo và gắn' })).toBeDisabled();
+    fireEvent.click(screen.getByRole('radio', { name: /Dùng tạm ảnh của shop/ }));
+    expect(screen.getByText('Cần ảnh chuẩn')).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText('Tên sản phẩm chuẩn'), { target: { value: 'Laptop custom' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Tạo và gắn' }));
+    expect((await screen.findAllByRole('alert'))[0]).toHaveTextContent('Slug already exists');
+    expect(admin).toHaveBeenCalledWith('/admin/matching/12/create-product', expect.objectContaining({ body: expect.stringContaining('"imageChoice":"shop"') }));
+  });
+
+  it('surfaces Files picker failures and supports the no-image product choice', async () => {
+    const admin = vi.fn<AdminRequest>().mockImplementation(async path => path.startsWith('/admin/matching?') ? page() : path.startsWith('/admin/files?') ? new Response('', { status: 403 }) : new Response(null, { status: 204 }));
+    renderPage(admin);
+    await screen.findByRole('heading', { name: 'Laptop source' });
+    fireEvent.click(screen.getByRole('button', { name: /Tạo sản phẩm mới/ }));
+    fireEvent.click(screen.getByRole('button', { name: /Chọn ảnh từ Files/ }));
+    expect(await screen.findByText(/permission to load files/i)).toBeInTheDocument();
+    fireEvent.keyDown(window, { key: 'Escape' });
+    fireEvent.click(screen.getByRole('radio', { name: /Chưa có ảnh/ }));
+    expect(screen.getByText('Cần ảnh chuẩn')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Tạo và gắn' })).toBeEnabled();
+  });
+
+  it('renders no-candidate, no-image and skipped-empty states without exposing write actions', async () => {
+    const noCandidate = { ...item, candidates: [], source: { ...item.source, imageUrl: null }, verdict: 'likely_skip' };
+    const admin = vi.fn<AdminRequest>().mockImplementation(async path => path.startsWith('/admin/matching?') ? path.includes('status=skipped') ? page([]) : page([noCandidate]) : new Response(null, { status: 204 }));
+    renderPage(admin, ['matching.read']);
+    await screen.findByText('Không tìm thấy ứng viên phù hợp. Chỉ người duyệt mới có thể quyết định tạo sản phẩm mới.');
+    expect(screen.getByText('Mặt hàng có thể là phụ kiện hoặc ngoài phạm vi laptop. Bạn có thể bỏ qua với lý do.')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Mở ảnh mặt hàng' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: /Duyệt/ })).toBeDisabled();
+    fireEvent.click(screen.getByRole('button', { name: /Đã bỏ qua/ }));
+    expect(await screen.findByText('Chưa có mặt hàng đã bỏ qua')).toBeInTheDocument();
+  });
+
+  it('handles keyboard candidate selection, approve, create, skip and modifier guards', async () => {
+    const admin = vi.fn<AdminRequest>().mockImplementation(async path => path.startsWith('/admin/matching?') ? page() : new Response(null, { status: 204 }));
+    renderPage(admin);
+    await screen.findByRole('heading', { name: 'Laptop source' });
+    fireEvent.keyDown(window, { key: 'n', ctrlKey: true });
+    expect(screen.queryByRole('dialog', { name: 'Tạo sản phẩm mới' })).not.toBeInTheDocument();
+    fireEvent.keyDown(window, { key: 's' });
+    expect(screen.getByRole('dialog', { name: /Bỏ qua mặt hàng/ })).toBeInTheDocument();
+    fireEvent.keyDown(window, { key: 'Escape' });
+    fireEvent.keyDown(window, { key: 'N' });
+    expect(screen.getByRole('dialog', { name: 'Tạo sản phẩm mới' })).toBeInTheDocument();
+    fireEvent.keyDown(window, { key: 'Escape' });
+    fireEvent.keyDown(window, { key: '1' });
+    fireEvent.keyDown(window, { key: 'Enter' });
+    await waitFor(() => expect(admin).toHaveBeenCalledWith('/admin/matching/12/approve', expect.objectContaining({ method: 'POST' })));
   });
 });

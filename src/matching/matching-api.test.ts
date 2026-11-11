@@ -1,60 +1,43 @@
 import { describe, expect, it, vi } from 'vitest';
-import { approveMatching, fetchPendingMatchings, reconcileSelections, type PendingMatching } from './matching-api';
+import { approveMatching, approveMatchingGroup, createMatchingProduct, fetchMatchings, restoreMatching, skipMatching } from './matching-api';
 
-const pending: PendingMatching = {
-  id: 12,
-  name: 'Laptop source',
-  brand: 'Acme',
-  productId: null,
-  createdAtUtc: '2026-10-29T00:00:00Z',
-  isApproved: false,
-  externalSku: 'SKU-12',
-  dataSourceId: 4,
-  candidates: [
-    { productId: 71, name: 'Laptop product', brand: 'Acme', similarityScore: 0.9 },
-    { productId: 72, name: 'Another laptop', brand: 'Acme', similarityScore: 0.6 },
-  ],
-};
+const row = { id: 4, name: 'Laptop', verdict: 'confident', source: { ImageUrl: 'https://img.test/a.jpg', Price: 1200 }, attributes: { ram: '16GB' }, candidates: [{ productId: 7, score: 0.91, level: 'confident', differences: [] }] };
 
 describe('matching API boundary', () => {
-  it('loads the pending queue from the existing admin endpoint', async () => {
-    const requestAdmin = vi.fn().mockResolvedValue(Response.json([pending]));
-
-    await expect(fetchPendingMatchings(requestAdmin)).resolves.toEqual([pending]);
-    expect(requestAdmin).toHaveBeenCalledWith('/admin/matching');
+  it('maps the new paged contract and sends all supported filters', async () => {
+    const request = vi.fn().mockResolvedValue(Response.json({ items: [row], page: 2, pageSize: 10, total: 21, counts: { all: 21, pending: 20, skipped: 1, confident: 9, review: 5, likely_new: 4, likely_skip: 2 } }));
+    const result = await fetchMatchings(request, { status: 'pending', verdict: 'confident', q: ' mac ', page: 2, pageSize: 10 });
+    expect(request).toHaveBeenCalledWith('/admin/matching?status=pending&page=2&pageSize=10&verdict=confident&q=mac');
+    expect(result.items[0]).toMatchObject({ id: 4, verdict: 'confident', source: { imageUrl: 'https://img.test/a.jpg', price: 1200 }, attributes: { RAM: '16GB' }, candidates: [{ score: 0.91 }] });
+    expect(result.counts.confident).toBe(9);
   });
 
-  it('surfaces an actionable message when queue loading fails', async () => {
-    const requestAdmin = vi.fn().mockResolvedValue(new Response('', { status: 503 }));
-
-    await expect(fetchPendingMatchings(requestAdmin)).rejects.toThrow('Không tải được danh sách chờ duyệt. Vui lòng thử lại.');
+  it('accepts the legacy array response while retaining a useful empty count', async () => {
+    const request = vi.fn().mockResolvedValue(Response.json([row]));
+    const result = await fetchMatchings(request, { status: 'skipped', verdict: 'all', q: '', page: 1, pageSize: 20 });
+    expect(request).toHaveBeenCalledWith('/admin/matching?status=skipped&page=1&pageSize=20');
+    expect(result.items).toHaveLength(1);
+    expect(result.counts.pending).toBe(1);
   });
 
-  it('sends only the explicitly selected product id for approval', async () => {
-    const requestAdmin = vi.fn().mockResolvedValue(new Response(null, { status: 204 }));
-
-    await approveMatching(requestAdmin, 12, 72);
-    expect(requestAdmin).toHaveBeenCalledWith('/admin/matching/12/approve', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: '{"productId":72}',
-    });
+  it('reports queue errors and sends explicit single and group decisions', async () => {
+    const failing = vi.fn().mockResolvedValue(new Response('', { status: 503 }));
+    await expect(fetchMatchings(failing, { status: 'pending', verdict: 'all', q: '', page: 1, pageSize: 20 })).rejects.toThrow('Không tải được hàng đợi');
+    const request = vi.fn().mockResolvedValue(new Response(null, { status: 204 }));
+    await approveMatching(request, 4, 7);
+    await approveMatchingGroup(request, [4, 5], 7);
+    expect(request.mock.calls[0]).toEqual(['/admin/matching/4/approve', expect.objectContaining({ body: '{"productId":7}' })]);
+    expect(request.mock.calls[1]).toEqual(['/admin/matching/approve-group', expect.objectContaining({ body: '{"ids":[4,5],"productId":7}' })]);
   });
 
-  it('rejects failed approvals so the page can retain the selection for retry', async () => {
-    const requestAdmin = vi.fn().mockResolvedValue(new Response('', { status: 500 }));
-
-    await expect(approveMatching(requestAdmin, 12, 71)).rejects.toThrow('Duyệt thất bại');
-  });
-
-  it('clears selections for removed or changed candidates and keeps unchanged candidates', () => {
-    const changed = { ...pending, candidates: [{ ...pending.candidates[0], similarityScore: 0.4 }] };
-    const selections = {
-      12: pending.candidates[0],
-      13: { ...pending.candidates[1] },
-    };
-
-    expect(reconcileSelections(selections, [changed])).toEqual({});
-    expect(reconcileSelections({ 12: pending.candidates[0] }, [pending])).toEqual({ 12: pending.candidates[0] });
+  it('sends create, skip and restore payloads and surfaces server error text', async () => {
+    const request = vi.fn().mockResolvedValue(new Response(null, { status: 204 }));
+    await createMatchingProduct(request, 4, { name: 'Laptop', brand: 'Acme', slug: 'laptop', imageChoice: 'files', imageId: 'file-1', applyGroup: true });
+    await skipMatching(request, 4, 'other', 'note');
+    await restoreMatching(request, 4);
+    expect(request.mock.calls.map(call => call[0])).toEqual(['/admin/matching/4/create-product', '/admin/matching/4/skip', '/admin/matching/4/restore']);
+    expect(request.mock.calls[0]?.[1]).toMatchObject({ body: '{"name":"Laptop","brand":"Acme","slug":"laptop","imageChoice":"files","imageId":"file-1","applyGroup":true}' });
+    const failed = vi.fn().mockResolvedValue(Response.json({ message: 'category unavailable' }, { status: 409 }));
+    await expect(restoreMatching(failed, 4)).rejects.toThrow('category unavailable');
   });
 });
