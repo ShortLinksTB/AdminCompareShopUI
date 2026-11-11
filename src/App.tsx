@@ -1,7 +1,6 @@
 import { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { NavLink, Navigate, Outlet, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 import { offers, products, shops, type Status } from './mockData';
-import { fetchPendingMatchings } from './matching/matching-api';
 import { AuthLoadingScreen, AuthProvider, CallbackPage, ForbiddenPage, LoginPage, PermissionFailure, useAuth } from './auth';
 import { safeReturnPath } from './auth-utils';
 import { MatchingPage } from './matching/MatchingPage';
@@ -17,6 +16,7 @@ import { AuditLogsPage as AuditLogsApiPage } from './auditLogs/AuditLogsPage';
 import { FilesPage } from './files/FilesPage';
 import { AdminCompareShopBlog } from './blog/AdminCompareShopBlog';
 import { StudioReferencePage } from './ui/StudioReferencePage';
+import { fetchPendingMatchings } from './matching/matching-api';
 
 const money = (value: number) => new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND', maximumFractionDigits: 0 }).format(value);
 // `permission` must match a key the backend actually grants (see
@@ -53,17 +53,22 @@ function Shell() {
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [paletteQuery, setPaletteQuery] = useState('');
   const [noticeOpen, setNoticeOpen] = useState(false);
-  const [matchingCount, setMatchingCount] = useState<number | null>(null);
   const paletteInput = useRef<HTMLInputElement>(null);
   const paletteReturnFocus = useRef<HTMLElement | null>(null);
   const mobileNavToggleRef = useRef<HTMLButtonElement>(null);
   const mobileNavCloseRef = useRef<HTMLButtonElement>(null);
   const visibleNav = [...nav.filter(item => (!item.flag || flags[item.flag as FeatureKey]) && (!item.permission || permissions.includes(item.permission))), ...(permissions.includes(studioNavItem.permission) ? [studioNavItem] : [])];
   const initials = userName.slice(0, 1).toUpperCase();
+  const [matchingCount, setMatchingCount] = useState<number | null>(null);
+
   useEffect(() => {
     if (!permissions.includes('matching.read')) { setMatchingCount(null); return; }
     let active = true;
-    fetchPendingMatchings(requestAdmin).then(queue => { if (active) setMatchingCount(queue.length); }).catch(() => { if (active) setMatchingCount(null); });
+    void fetchPendingMatchings(requestAdmin).then(items => {
+      if (active) setMatchingCount(items.length);
+    }).catch(() => {
+      if (active) setMatchingCount(null);
+    });
     return () => { active = false; };
   }, [permissions, requestAdmin]);
 
@@ -134,7 +139,7 @@ function Shell() {
           <div className="mobile-theme-controls" role="group" aria-label="Color theme"><button type="button" aria-pressed={!dark} onClick={() => changeTheme(false)}>Light</button><button type="button" aria-pressed={dark} onClick={() => changeTheme(true)}>Dark</button></div>
           <button className="studio-command-trigger" aria-label="Mở thanh lệnh" onClick={openPalette}><span>⌕ Tìm trang...</span><kbd>{navigator.platform.includes('Mac') ? '⌘K' : 'Ctrl K'}</kbd></button>
           <button className="studio-theme-toggle" type="button" aria-label={dark ? 'Chuyển sang giao diện sáng' : 'Chuyển sang giao diện tối'} onClick={() => changeTheme(!dark)}>{dark ? '☼' : '◐'}</button>
-          {permissions.includes('matching.read') && <div className="studio-notice-wrap"><button className="studio-theme-toggle studio-bell" aria-label={`Thông báo${matchingCount !== null ? `, ${matchingCount} mục Product Matching đang chờ` : ''}`} aria-expanded={noticeOpen} onClick={() => setNoticeOpen(value => !value)}>♢{matchingCount !== null && matchingCount > 0 && <i>{matchingCount}</i>}</button>{noticeOpen && <div className="studio-notice-pop" role="status">{matchingCount === null ? 'Không tải được hàng chờ. Mở Product Matching để kiểm tra.' : matchingCount ? <><b>{matchingCount} mục đang chờ ghép</b><NavLink to="/matching" onClick={() => setNoticeOpen(false)}>Mở Product Matching →</NavLink></> : 'Không có mục đang chờ.'}</div>}</div>}
+          {permissions.includes('matching.read') && <div className="studio-notice-wrap"><button className="studio-theme-toggle studio-bell" aria-label={`Thông báo${matchingCount !== null ? `, ${matchingCount} mục Product Matching đang chờ` : ''}`} aria-expanded={noticeOpen} onClick={() => setNoticeOpen(value => !value)}>♢{matchingCount !== null && matchingCount > 0 && <i>{matchingCount}</i>}</button>{noticeOpen && <div className="studio-notice-pop" role="status">{matchingCount === null ? 'Không thể tải số mục đang chờ.' : matchingCount > 0 ? <><b>{matchingCount} mục đang chờ ghép</b><NavLink to="/matching" onClick={() => setNoticeOpen(false)}>Mở Product Matching →</NavLink></> : 'Không có mục đang chờ.'}</div>}</div>}
           <button className="admin-profile" onClick={() => void logout()}>{initials} <span>{userName}</span> · Đăng xuất</button>
         </div>
       </header>

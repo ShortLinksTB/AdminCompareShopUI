@@ -86,15 +86,24 @@ describe('mobile application navigation', () => {
     getItem.mockRestore(); setItem.mockRestore();
   });
 
-  it('shows the pending matching count and notice only to users with matching permission', () => {
+  it('shows the live pending matching count and notice only to users with matching permission', async () => {
     auth.permissions = ['dashboard.read', 'matching.read'];
-    auth.requestAdmin.mockResolvedValue(Response.json([{ id: 1 }, { id: 2 }, { id: 3 }]));
+    auth.requestAdmin.mockResolvedValue(Response.json([{}, {}, {}]));
     renderApp('/');
-    return screen.findByRole('link', { name: /Product Matching/ }).then(link => {
-      expect(link).toHaveTextContent('3');
-      fireEvent.click(screen.getByRole('button', { name: /Thông báo/ }));
-      expect(screen.getByText(/3 mục đang chờ ghép/)).toBeInTheDocument();
-    });
+    expect(auth.requestAdmin).toHaveBeenCalledWith('/admin/matching');
+    expect(await screen.findByRole('link', { name: /Product Matching/ })).toHaveTextContent('3');
+    fireEvent.click(screen.getByRole('button', { name: /Thông báo/ }));
+    expect(screen.getByText(/3 mục đang chờ ghép/)).toBeInTheDocument();
+  });
+
+  it('omits the matching count when live queue data cannot be loaded', async () => {
+    auth.permissions = ['dashboard.read', 'matching.read'];
+    auth.requestAdmin.mockRejectedValue(new Error('offline'));
+    renderApp('/');
+
+    expect(screen.getByRole('link', { name: /Product Matching/ })).not.toHaveTextContent('3');
+    fireEvent.click(screen.getByRole('button', { name: 'Thông báo' }));
+    expect(await screen.findByText('Không thể tải số mục đang chờ.')).toBeInTheDocument();
   });
 
   it('renders the shared component reference on its actual route for settings managers', () => {
