@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import '@testing-library/jest-dom/vitest';
 import { Button, Card, Checkbox, DataTable, Drawer, EmptyState, ErrorState, Field, FilterChips, Kbd, Lightbox, Loading, Modal, PageHeader, Pager, Pill, RowMenu, Switch, TableFooter, Toast, Toolbar } from './index';
@@ -56,9 +56,20 @@ describe('Studio shared components', () => {
     expect(opener.closest('details')).not.toHaveAttribute('open');
     expect(opener).toHaveFocus();
   });
-  it('traps modal focus, closes on Escape, restores scroll and returns focus', () => {
+  it('traps modal focus, closes on Escape, restores scroll and returns focus', async () => {
     const Demo = () => { const [open, setOpen] = useState(false); return <><button onClick={() => setOpen(true)}>Open</button><Modal open={open} onClose={() => setOpen(false)} title="Edit"><button>First</button><button>Last</button></Modal></>; };
-    render(<Demo />); const trigger = screen.getByRole('button', { name: 'Open' }); trigger.focus(); fireEvent.click(trigger); const first = screen.getByRole('button', { name: 'Đóng' }); const last = screen.getByRole('button', { name: 'Last' }); last.focus(); fireEvent.keyDown(window, { key: 'Tab' }); expect(first).toHaveFocus(); fireEvent.keyDown(window, { key: 'Escape' }); expect(screen.queryByRole('dialog')).not.toBeInTheDocument(); expect(trigger).toHaveFocus();
+    render(<Demo />); const trigger = screen.getByRole('button', { name: 'Open' }); trigger.focus(); fireEvent.click(trigger); const first = screen.getByRole('button', { name: 'Đóng' }); const last = screen.getByRole('button', { name: 'Last' }); last.focus(); fireEvent.keyDown(window, { key: 'Tab' }); expect(first).toHaveFocus(); fireEvent.keyDown(window, { key: 'Escape' }); expect(screen.queryByRole('dialog')).not.toBeInTheDocument(); await waitFor(() => expect(trigger).toHaveFocus());
+  });
+  it('returns focus to the opener after closing the shared lightbox with its close button', async () => {
+    const Demo = () => { const [open, setOpen] = useState(false); return <><button onClick={() => setOpen(true)}>Open preview</button><Lightbox open={open} onClose={() => setOpen(false)}><img alt="Preview" src="/image.png" /></Lightbox></>; };
+    render(<Demo />);
+    const trigger = screen.getByRole('button', { name: 'Open preview' });
+    trigger.focus();
+    fireEvent.click(trigger);
+    expect(screen.getByRole('dialog', { name: 'Xem ảnh' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Đóng ảnh' }));
+    expect(screen.queryByRole('dialog', { name: 'Xem ảnh' })).not.toBeInTheDocument();
+    await waitFor(() => expect(trigger).toHaveFocus());
   });
   it('wraps Shift+Tab from the dialog root and keeps focus during lightbox zoom rerenders', () => {
     const close = vi.fn();
