@@ -12,7 +12,7 @@ export type PendingMatching = {
   status: 'pending' | 'skipped'; skipReason?: string | null; skipNote?: string | null;
 };
 export type MatchingCounts = Record<Verdict | 'all' | 'pending' | 'skipped', number>;
-export type MatchingPageResult = { items: PendingMatching[]; page: number; pageSize: number; total: number; counts: MatchingCounts };
+export type MatchingPageResult = { items: PendingMatching[]; page: number; pageSize: number; total: number; counts: MatchingCounts; hasPaginationMetadata: boolean };
 export type AdminRequest = (path: string, init?: RequestInit) => Promise<Response>;
 
 const labels: Record<string, string> = { brand: 'Hãng', line: 'Dòng', chip: 'Chip', gpu: 'GPU', ram: 'RAM', ssd: 'Ổ cứng', screen: 'Màn hình', acc: 'Phụ kiện' };
@@ -44,10 +44,51 @@ export async function fetchMatchings(request: AdminRequest, query: { status: 'pe
   if (!response.ok) throw new Error(response.status === 403 ? 'Bạn không có quyền xem hàng đợi Product Matching.' : 'Không tải được hàng đợi. Vui lòng thử lại.');
   const body: unknown = await response.json();
   const root = record(body), items = Array.isArray(body) ? body : Array.isArray(root.items) ? root.items : [];
+  const pagination = record(root.pagination);
   const rawCounts = record(root.counts);
   const mapped = items.map(mapItem);
   const counts: MatchingCounts = { all: num(rawCounts.all) ?? mapped.length, pending: num(rawCounts.pending) ?? mapped.filter(i => i.status === 'pending').length, skipped: num(rawCounts.skipped) ?? mapped.filter(i => i.status === 'skipped').length, confident: num(rawCounts.confident) ?? 0, review: num(rawCounts.review) ?? 0, likely_new: num(rawCounts.likely_new) ?? 0, likely_skip: num(rawCounts.likely_skip) ?? 0 };
-  return { items: mapped, page: num(root.page) ?? query.page, pageSize: num(root.pageSize) ?? query.pageSize, total: num(root.total) ?? num(record(root.pagination).total) ?? mapped.length, counts };
+  return { items: mapped, page: num(root.page) ?? query.page, pageSize: num(root.pageSize) ?? query.pageSize, total: num(root.total) ?? num(pagination.total) ?? mapped.length, counts, hasPaginationMetadata: !Array.isArray(body) && num(root.page) !== null && num(root.pageSize) !== null && (num(root.total) !== null || num(pagination.total) !== null) };
+}
+
+export async function fetchAllPendingMatchings(request: AdminRequest): Promise<PendingMatching[]> {
+  const pageSizeRequested = 100;
+  const first = await fetchMatchings(request, { status: 'pending', verdict: 'all', q: '', page: 1, pageSize: pageSizeRequested });
+  if (!first.hasPaginationMetadata || first.page !== 1 || !Number.isSafeInteger(first.total) || first.total < 0 || !Number.isSafeInteger(first.pageSize) || first.pageSize < 1) {
+    throw new Error('Không thể xác nhận phân trang của toàn bộ hàng đợi pending.');
+  }
+
+  const pageCount = Math.max(1, Math.ceil(first.total / first.pageSize));
+  const all: PendingMatching[] = [];
+  const ids = new Set<number>();
+  const addPage = (result: MatchingPageResult, expectedPage: number) => {
+    if (!result.hasPaginationMetadata || result.page !== expectedPage || result.pageSize !== first.pageSize || result.total !== first.total) {
+      throw new Error('Phân trang hàng đợi pending không nhất quán; không thể xác nhận đủ thành viên nhóm.');
+    }
+    const expectedItems = Math.max(0, Math.min(first.pageSize, first.total - (expectedPage - 1) * first.pageSize));
+    if (result.items.length !== expectedItems) {
+      throw new Error('Thiếu item trong trang hàng đợi pending; không thể xác nhận đủ thành viên nhóm.');
+    }
+    for (const item of result.items) {
+      if (!Number.isSafeInteger(item.id) || item.id < 1 || ids.has(item.id)) {
+        throw new Error('ID hàng đợi pending không hợp lệ hoặc bị lặp; không thể xác nhận đủ thành viên nhóm.');
+      }
+      ids.add(item.id);
+    }
+  };
+
+  // Validate the first page after the same invariants used for subsequent pages.
+  addPage(first, 1);
+  all.push(...first.items);
+  for (let page = 2; page <= pageCount; page += 1) {
+    const result = await fetchMatchings(request, { status: 'pending', verdict: 'all', q: '', page, pageSize: pageSizeRequested });
+    addPage(result, page);
+    all.push(...result.items);
+  }
+  if (all.length !== first.total || ids.size !== first.total) {
+    throw new Error('Số lượng item pending không khớp tổng hàng đợi; không thể xác nhận đủ thành viên nhóm.');
+  }
+  return all;
 }
 async function post(request: AdminRequest, path: string, body?: unknown): Promise<unknown> {
   const response = await request(path, { method: 'POST', ...(body === undefined ? {} : { headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }) });

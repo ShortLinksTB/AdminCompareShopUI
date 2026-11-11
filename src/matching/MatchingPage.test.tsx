@@ -23,6 +23,7 @@ describe('MatchingPage', () => {
     expect(screen.getByText('16GB')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: /Laptop product/ }));
     expect(screen.getByText('8GB')).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole('button', { name: /Duyệt/ })).toBeEnabled());
     fireEvent.click(screen.getByRole('button', { name: /Duyệt/ }));
     await waitFor(() => expect(admin).toHaveBeenCalledWith('/admin/matching/12/approve', expect.objectContaining({ method: 'POST', body: '{"productId":71}' })));
   });
@@ -117,6 +118,42 @@ describe('MatchingPage', () => {
     await waitFor(() => expect(screen.getByRole('button', { name: /Duyệt 2 mặt hàng/ })).toBeEnabled());
     fireEvent.click(screen.getByRole('button', { name: /Duyệt 2 mặt hàng/ }));
     await waitFor(() => expect(admin).toHaveBeenCalledWith('/admin/matching/approve-group', expect.objectContaining({ body: '{"ids":[12,13],"productId":71}' })));
+  });
+
+  it.each(['missing', 'duplicate'] as const)('falls back to a single-item approval when a pending queue page is %s', async pageFault => {
+    const admin = vi.fn<AdminRequest>().mockImplementation(async path => {
+      if (!path.startsWith('/admin/matching?')) return new Response(null, { status: 204 });
+      const params = new URLSearchParams(path.split('?')[1]);
+      if (params.get('pageSize') !== '100') return page([item]);
+      if (params.get('page') === '1') return Response.json({ items: [item], page: 1, pageSize: 1, total: 2, counts: {} });
+      return Response.json({ items: pageFault === 'duplicate' ? [item] : [], page: 2, pageSize: 1, total: 2, counts: {} });
+    });
+    renderPage(admin);
+    await screen.findByRole('heading', { name: 'Laptop source' });
+    expect(await screen.findByRole('alert')).toHaveTextContent('Không tải được đầy đủ nhóm');
+    fireEvent.click(screen.getByRole('button', { name: /Laptop product/ }));
+    fireEvent.click(screen.getByRole('button', { name: /^Duyệt/ }));
+    await waitFor(() => expect(admin).toHaveBeenCalledWith('/admin/matching/12/approve', expect.objectContaining({ body: '{"productId":71}' })));
+    expect(admin).not.toHaveBeenCalledWith('/admin/matching/approve-group', expect.anything());
+  });
+
+  it('keeps create-product scoped to the selected item when pending queue completeness fails', async () => {
+    const admin = vi.fn<AdminRequest>().mockImplementation(async path => {
+      if (!path.startsWith('/admin/matching?')) return new Response(null, { status: 204 });
+      const params = new URLSearchParams(path.split('?')[1]);
+      if (params.get('pageSize') !== '100') return page([item]);
+      return params.get('page') === '1'
+        ? Response.json({ items: [item], page: 1, pageSize: 1, total: 2, counts: {} })
+        : Response.json({ items: [], page: 2, pageSize: 1, total: 3, counts: {} });
+    });
+    renderPage(admin);
+    await screen.findByRole('heading', { name: 'Laptop source' });
+    expect(await screen.findByRole('alert')).toHaveTextContent('Không tải được đầy đủ nhóm');
+    fireEvent.click(screen.getByRole('button', { name: /Tạo sản phẩm mới/ }));
+    expect(await screen.findByText(/tạo sản phẩm chỉ áp dụng cho item đang chọn/i)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('radio', { name: /Chưa có ảnh/ }));
+    fireEvent.click(screen.getByRole('button', { name: 'Tạo và gắn' }));
+    await waitFor(() => expect(admin).toHaveBeenCalledWith('/admin/matching/12/create-product', expect.objectContaining({ body: expect.stringContaining('"applyGroup":false') })));
   });
 
   it('creates from a shop image with edited fields and reports API rejection in the dialog', async () => {
