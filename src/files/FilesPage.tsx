@@ -56,6 +56,7 @@ export function FilesPage({ requestAdmin, permissions = [] }: { requestAdmin: Ad
   const [toast, setToast] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
   const lightboxRef = useRef<HTMLDivElement>(null);
+  const lightboxOpenerRef = useRef<HTMLElement | null>(null);
 
   useEffect(() => { const timer = window.setTimeout(() => setDebouncedQuery(query), 250); return () => window.clearTimeout(timer); }, [query]);
   useEffect(() => {
@@ -93,6 +94,16 @@ export function FilesPage({ requestAdmin, permissions = [] }: { requestAdmin: Ad
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
   }, [detail, uploadOpen, deleteTarget, lightbox, menuId]);
+
+  useEffect(() => {
+    if (lightbox) {
+      lightboxOpenerRef.current ??= document.activeElement instanceof HTMLElement ? document.activeElement : null;
+      return;
+    }
+    const opener = lightboxOpenerRef.current;
+    lightboxOpenerRef.current = null;
+    if (opener?.isConnected) opener.focus();
+  }, [lightbox]);
 
   useEffect(() => {
     if (!toast) return;
