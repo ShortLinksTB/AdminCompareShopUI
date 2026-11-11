@@ -301,13 +301,19 @@ describe('dashboard API integration', () => {
   });
   const offer = (id: number, isActive: boolean, isOutlier: boolean) => ({
     id, productId: 7, partnerShopId: 12, priceVnd: 320000, url: null, isActive, isOutlier, updatedAtUtc: '2026-11-03T08:00:00Z',
+    productName: 'Catalog Phone', productImageUrl: null, partnerShopName: 'Shop 12', externalSku: null, imageUrl: null,
+    originalPriceVnd: null, stockStatus: 'in_stock' as const, lowestPriceVnd: 320000, deltaVnd: 0, deltaPercent: 0, outlierReason: null,
+  });
+  const offersPage = (items: ReturnType<typeof offer>[], totalItems = items.length) => Response.json({
+    items, pageNumber: 1, pageSize: 100, totalItems,
+    counts: { all: totalItems, outlier: items.filter(item => item.isOutlier).length, stale: 0, outOfStock: 0, inactive: items.filter(item => !item.isActive).length },
   });
 
   it('uses the dedicated API sources and renders only contract-backed product and offer values', async () => {
     auth.permissions = ['products.read', 'offers.read'];
     auth.requestAdmin.mockImplementation(async path => path.startsWith('/admin/products')
       ? productPage(5)
-      : Response.json([offer(101, true, true), offer(102, false, false), offer(103, true, true)]));
+      : offersPage([offer(101, true, true), offer(102, false, false), offer(103, true, true)]));
 
     renderApp('/');
 
@@ -322,7 +328,7 @@ describe('dashboard API integration', () => {
     expect(screen.getByText('103')).toBeInTheDocument();
     expect(screen.queryByText('Laptop Zenbook Pro')).not.toBeInTheDocument();
     expect(auth.requestAdmin).toHaveBeenCalledWith('/admin/products?page=1&pageSize=20', expect.objectContaining({ signal: expect.any(AbortSignal) }));
-    expect(auth.requestAdmin).toHaveBeenCalledWith('/admin/offers', expect.objectContaining({ signal: expect.any(AbortSignal) }));
+    expect(auth.requestAdmin).toHaveBeenCalledWith('/admin/offers?page=1&pageSize=100&sort=attention&staleHours=72', expect.objectContaining({ signal: expect.any(AbortSignal) }));
   });
 
   it('keeps each dataset loading until its own request resolves', async () => {
@@ -342,7 +348,7 @@ describe('dashboard API integration', () => {
     expect(await screen.findByText('All catalog products')).toBeInTheDocument();
     expect(within(screen.getByText('Products total').closest('article')!).getByText('4')).toBeInTheDocument();
     expect(screen.getByText('Loading offers…')).toBeInTheDocument();
-    resolveOffers(Response.json([offer(201, true, false)]));
+    resolveOffers(offersPage([offer(201, true, false)]));
     expect(await screen.findByText('of 1 offers')).toBeInTheDocument();
   });
 
@@ -350,7 +356,7 @@ describe('dashboard API integration', () => {
     auth.permissions = ['products.read', 'offers.read'];
     auth.requestAdmin.mockImplementation(path => path.startsWith('/admin/products')
       ? Promise.resolve(Response.json({ items: [], pageNumber: 1, pageSize: 20, totalItems: 0 }))
-      : Promise.resolve(Response.json([])));
+      : Promise.resolve(offersPage([])));
 
     renderApp('/');
 
@@ -366,7 +372,7 @@ describe('dashboard API integration', () => {
       const productRequest = path.startsWith('/admin/products');
       const calls = auth.requestAdmin.mock.calls.filter(([calledPath]) => calledPath.startsWith('/admin/products') === productRequest).length;
       if (calls === 1) return new Response('', { status: productRequest ? 403 : 500 });
-      return productRequest ? productPage(2) : Response.json([offer(301, true, false)]);
+      return productRequest ? productPage(2) : offersPage([offer(301, true, false)]);
     });
 
     renderApp('/');
