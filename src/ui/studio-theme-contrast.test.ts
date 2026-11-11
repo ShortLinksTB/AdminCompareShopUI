@@ -5,6 +5,7 @@ import { readFileSync } from 'node:fs';
 
 const styles = readFileSync('src/styles.css', 'utf8').replace(/\s+/g, ' ');
 const sharedUiStyles = readFileSync('src/ui/studio-shell-fixes.css', 'utf8').replace(/\s+/g, ' ');
+const appStyles = readFileSync('src/App.tsx', 'utf8');
 
 function luminance(hex: string) {
   const [red, green, blue] = hex.match(/[0-9a-f]{2}/gi)!.map(channel => {
@@ -43,6 +44,14 @@ describe('Studio navigation group label contrast', () => {
   it('binds shared reference table text to the active theme foreground', () => {
     expect(sharedUiStyles).toContain('.studio-shell .studio-table td{color:var(--studio-text)}');
     expect(sharedUiStyles).toContain('.studio-shell .admin-content{color:var(--studio-text)}');
+    expect(sharedUiStyles).toContain('.studio-shell[data-theme="dark"] .studio-reference .studio-table tbody td{color:var(--studio-text)}');
+    expect(appStyles).toContain("import './ui/studio-ui.css';");
+    expect(appStyles).toContain("import './ui/studio-reference.css';");
     expect(contrast('#eef3f7', '#080e15')).toBeGreaterThanOrEqual(4.5);
+  });
+
+  it('keeps product specification labels readable in the dark Studio theme', () => {
+    expect(sharedUiStyles).toContain('.studio-shell[data-theme="dark"] .spec-editor td:first-child{color:var(--studio-text)}');
+    expect(contrast('#eef3f7', '#101b26')).toBeGreaterThanOrEqual(4.5);
   });
 });

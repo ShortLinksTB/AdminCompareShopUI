@@ -1,2 +1,4 @@
 .studio-shell .admin-content{color:var(--studio-text)}
 .studio-shell .studio-table td{color:var(--studio-text)}
+.studio-shell[data-theme="dark"] .studio-reference .studio-table tbody td{color:var(--studio-text)}
+.studio-shell[data-theme="dark"] .spec-editor td:first-child{color:var(--studio-text)}

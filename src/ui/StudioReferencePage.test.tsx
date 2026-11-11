@@ -7,6 +7,9 @@ describe('Studio component reference', () => {
   afterEach(cleanup);
   it('exercises chip, switch, pager, toast, modal and drawer examples', () => {
     render(<StudioReferencePage />);
+    expect(screen.getByRole('button', { name: 'Primary' })).toHaveClass('studio-button', 'studio-button-primary');
+    expect(screen.getByRole('button', { name: 'Thử Toast' })).toHaveClass('studio-button');
+    expect(screen.getByRole('switch', { name: 'Bật tùy chọn' }).parentElement).toHaveClass('studio-switch');
     fireEvent.click(screen.getByRole('button', { name: /Đang ẩn/ }));
     fireEvent.click(screen.getByRole('switch', { name: 'Bật tùy chọn' }));
     expect(screen.getByRole('switch', { name: 'Bật tùy chọn' })).not.toBeChecked();

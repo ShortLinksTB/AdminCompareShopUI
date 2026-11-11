@@ -17,6 +17,8 @@ import { AuditLogsPage as AuditLogsApiPage } from './auditLogs/AuditLogsPage';
 import { FilesPage } from './files/FilesPage';
 import { AdminCompareShopBlog } from './blog/AdminCompareShopBlog';
 import { StudioReferencePage } from './ui/StudioReferencePage';
+import './ui/studio-ui.css';
+import './ui/studio-reference.css';
 import './ui/studio-shell-fixes.css';
 
 const money = (value: number) => new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND', maximumFractionDigits: 0 }).format(value);

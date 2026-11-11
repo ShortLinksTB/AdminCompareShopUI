@@ -1,6 +1,4 @@
 import { useEffect, useRef, useState, type ButtonHTMLAttributes, type HTMLAttributes, type InputHTMLAttributes, type ReactNode } from 'react';
-import './studio-ui.css';
-
 const focusLayerStack: symbol[] = [];
 
 type ButtonTone = 'primary' | 'secondary' | 'cool' | 'danger' | 'ghost';
