@@ -79,10 +79,14 @@ describe('mobile application navigation', () => {
     auth.permissions = ['dashboard.read'];
     const getItem = vi.spyOn(Storage.prototype, 'getItem').mockImplementation(() => { throw new Error('storage blocked'); });
     const setItem = vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => { throw new Error('storage blocked'); });
-    renderApp('/');
+    const mounted = renderApp('/');
     fireEvent.click(screen.getByRole('button', { name: 'Chuyển sang giao diện tối' }));
     expect(document.querySelector('.studio-shell')).toHaveAttribute('data-theme', 'dark');
     expect(setItem).toHaveBeenCalled();
+    mounted.unmount();
+    renderApp('/');
+    // Without persistence, the selected theme lasts for this session; reload uses the system default.
+    expect(document.querySelector('.studio-shell')).toHaveAttribute('data-theme', 'light');
     getItem.mockRestore(); setItem.mockRestore();
   });
 
