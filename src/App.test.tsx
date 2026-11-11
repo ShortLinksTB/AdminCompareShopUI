@@ -3,6 +3,8 @@ import { cleanup, fireEvent, render, screen, within } from '@testing-library/rea
 import '@testing-library/jest-dom/vitest';
 import { BrowserRouter, MemoryRouter, useLocation } from 'react-router-dom';
 import { App } from './App';
+// @ts-expect-error Node's built-in fs module is available to Vitest at runtime.
+import { readFileSync } from 'node:fs';
 
 const auth = vi.hoisted(() => ({
   status: 'authenticated' as 'authenticated' | 'anonymous' | 'logging-out',
@@ -44,6 +46,7 @@ function RouteProbe() {
 
 afterEach(() => {
   cleanup();
+  document.querySelector('#studio-test-styles')?.remove();
   auth.permissions = [];
   auth.status = 'authenticated';
   auth.permissionState = 'ready';
@@ -52,6 +55,18 @@ afterEach(() => {
   window.history.replaceState({}, '', '/');
   window.localStorage.removeItem('admin-studio-theme');
 });
+
+function installStudioStyles() {
+  const style = document.createElement('style');
+  style.id = 'studio-test-styles';
+  style.textContent = [
+    'src/styles.css',
+    'src/ui/studio-ui.css',
+    'src/ui/studio-shell-fixes.css',
+    'src/products/products.css',
+  ].map(path => readFileSync(path, 'utf8')).join('\n');
+  document.head.append(style);
+}
 
 describe('mobile application navigation', () => {
   it('opens a permission-filtered command palette with Ctrl+K and navigates to selected page', () => {
@@ -103,6 +118,34 @@ describe('mobile application navigation', () => {
     expect(screen.getByRole('heading', { name: 'Studio components' })).toBeInTheDocument();
     expect(screen.getByText(/Component reference/)).toBeInTheDocument();
     expect(document.querySelector('.admin-breadcrumb')).toHaveTextContent('GiaTot Admin / Studio components');
+  });
+
+  it('applies the dark theme styles on the live Studio and Product detail routes', () => {
+    installStudioStyles();
+    auth.permissions = ['settings.manage', 'products.read'];
+    window.localStorage.setItem('admin-studio-theme', 'dark');
+
+    const { unmount } = renderApp('/studio-components');
+    const shell = document.querySelector('.studio-shell')!;
+    expect(shell).toHaveAttribute('data-theme', 'dark');
+    const tableCell = document.querySelector('.studio-reference .studio-table tbody td')!;
+    expect(getComputedStyle(tableCell).color).toBe('var(--studio-text)');
+
+    const referenceButtons = [...document.querySelectorAll('.studio-reference button')];
+    expect(referenceButtons.length).toBeGreaterThan(0);
+    expect(referenceButtons.filter(button => !button.closest('.studio-filter-chips'))
+      .every(button => button.classList.contains('studio-button'))).toBe(true);
+    const switchInput = document.querySelector('.studio-reference input[role="switch"]')!;
+    expect(switchInput).toBeChecked();
+    expect(getComputedStyle(switchInput).opacity).toBe('0');
+    expect(getComputedStyle(switchInput.nextElementSibling!).position).toBe('absolute');
+
+    unmount();
+    renderApp('/products/42');
+    const specLabel = document.querySelector('.spec-editor td.spec-label')!;
+    expect(specLabel).toHaveTextContent('Màn hình');
+    expect(document.querySelector('.studio-shell')).toHaveAttribute('data-theme', 'dark');
+    expect(getComputedStyle(specLabel).color).toBe('var(--studio-text)');
   });
 
   it('loads Files on the existing /files route for users with files.read', async () => {
