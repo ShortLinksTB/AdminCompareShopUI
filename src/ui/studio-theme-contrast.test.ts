@@ -31,6 +31,15 @@ describe('Studio navigation group label contrast', () => {
     expect(contrast('#7f909d', '#0b131c')).toBeGreaterThanOrEqual(4.5);
   });
 
+  it('keeps selected navigation icons above the non-text contrast threshold in both themes', () => {
+    expect(styles).toContain('.studio-shell .admin-sidebar nav a.active>span{color:var(--studio-brand)}');
+    expect(styles).toContain('.studio-shell[data-theme="light"] .admin-sidebar nav a.active>span{color:var(--studio-brand-text)}');
+
+    // The light active surface is the orange brand-soft token composited over the white sidebar.
+    expect(contrast('#c24100', '#fff0e7')).toBeGreaterThanOrEqual(3);
+    expect(contrast('#ff5a00', '#0b131c')).toBeGreaterThanOrEqual(3);
+  });
+
   it('binds shared reference table text to the active theme foreground', () => {
     expect(sharedUiStyles).toContain('.studio-shell .studio-table td{color:var(--studio-text)}');
     expect(sharedUiStyles).toContain('.studio-shell .admin-content{color:var(--studio-text)}');
