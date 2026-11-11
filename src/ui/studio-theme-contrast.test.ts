@@ -24,6 +24,16 @@ function contrast(foreground: string, background: string) {
 }
 
 describe('Studio navigation group label contrast', () => {
+  it('hides the closed Studio drawer through the 960px breakpoint and preserves its open state', () => {
+    expect(styles).toContain('@media(max-width:960px){.studio-shell .admin-sidebar{transform:translateX(-105%);visibility:hidden;transition:transform .22s ease,visibility .22s ease}.studio-shell .admin-sidebar.mobile-nav-open{transform:translateX(0);visibility:visible;transition:transform .22s ease,visibility 0s}}');
+    expect(styles).toContain('@media(max-width:760px)');
+  });
+
+  it('keeps the fallback avatar glyph readable against its rendered background in both themes', () => {
+    expect(styles).toContain('.studio-shell .user-avatar{color:#17202a}');
+    expect(contrast('#17202a', '#f5a27d')).toBeGreaterThanOrEqual(4.5);
+  });
+
   it('keeps unchecked shared checkbox boundaries at least 3:1 in both themes', () => {
     expect(componentStyles).toContain('.studio-shell{--studio-control-border:#718096}.studio-shell[data-theme="light"]{--studio-control-border:#7a8794}.studio-checkbox{border-color:var(--studio-control-border)}');
 
