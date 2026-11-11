@@ -17,6 +17,7 @@ import { AuditLogsPage as AuditLogsApiPage } from './auditLogs/AuditLogsPage';
 import { FilesPage } from './files/FilesPage';
 import { AdminCompareShopBlog } from './blog/AdminCompareShopBlog';
 import { StudioReferencePage } from './ui/StudioReferencePage';
+import { getRouteBreadcrumb } from './route-breadcrumb';
 
 const money = (value: number) => new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND', maximumFractionDigits: 0 }).format(value);
 // `permission` must match a key the backend actually grants (see
@@ -129,7 +130,7 @@ function Shell() {
           <button ref={mobileNavToggleRef} className="mobile-nav-toggle" aria-label={mobileNavOpen ? 'Close navigation' : 'Open navigation'} aria-controls="admin-navigation" aria-expanded={mobileNavOpen} onClick={() => setMobileNavOpen(value => !value)}>☰</button>
           <span className="admin-brand-mark">G</span> GiaTot Admin
         </div>
-        <div className="admin-breadcrumb">GiaTot Admin <span>/</span> {location.pathname === '/banned-items/new' ? 'Banned items / Add item' : nav.find(item => item.to === location.pathname)?.label || 'Dashboard'}</div>
+        <div className="admin-breadcrumb">GiaTot Admin <span>/</span> {getRouteBreadcrumb(location.pathname)}</div>
         <div className="admin-header-actions">
           <div className="mobile-theme-controls" role="group" aria-label="Color theme"><button type="button" aria-pressed={!dark} onClick={() => changeTheme(false)}>Light</button><button type="button" aria-pressed={dark} onClick={() => changeTheme(true)}>Dark</button></div>
           <button className="studio-command-trigger" aria-label="Mở thanh lệnh" onClick={openPalette}><span>⌕ Tìm trang...</span><kbd>{navigator.platform.includes('Mac') ? '⌘K' : 'Ctrl K'}</kbd></button>
