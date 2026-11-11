@@ -18,6 +18,17 @@ const renderPage = (admin: AdminRequest, permissions = ['matching.approve', 'pro
 afterEach(() => { cleanup(); vi.restoreAllMocks(); });
 
 describe('MatchingPage', () => {
+  it('keeps the queue loading state visible until its request resolves', async () => {
+    let resolveRequest!: (response: Response) => void;
+    const admin = vi.fn<AdminRequest>(() => new Promise(resolve => { resolveRequest = resolve; }));
+    renderPage(admin);
+
+    expect(screen.getByRole('status', { name: 'Đang tải hàng đợi' })).toBeInTheDocument();
+    await waitFor(() => expect(admin).toHaveBeenCalled());
+    resolveRequest(page());
+    expect(await screen.findByRole('heading', { name: 'Laptop source' })).toBeInTheDocument();
+  });
+
   it('loads the Studio queue, compares attributes and deliberately approves only the selected candidate', async () => {
     const admin = request([page(), new Response(null, { status: 204 }), page([])]);
     renderPage(admin);
@@ -72,6 +83,26 @@ describe('MatchingPage', () => {
     expect(screen.queryByRole('button', { name: /Tạo sản phẩm mới/ })).not.toBeInTheDocument();
   });
 
+  it('uses shared Studio buttons for queue selection and exposes the pressed state', async () => {
+    const second = { ...item, id: 13, name: 'Second source', externalSku: 'SKU-13' };
+    renderPage(request([page([item, second])]));
+    await screen.findByRole('heading', { name: 'Laptop source' });
+
+    const firstButton = screen.getByRole('button', { name: /Laptop source/ });
+    const secondButton = screen.getByRole('button', { name: /Second source/ });
+    expect(firstButton).toHaveClass('studio-button', 'studio-button-cool');
+    expect(firstButton).toHaveAttribute('aria-current', 'true');
+    expect(firstButton).toHaveAttribute('aria-pressed', 'true');
+    expect(secondButton).toHaveClass('studio-button', 'studio-button-secondary');
+    expect(secondButton).toHaveAttribute('aria-pressed', 'false');
+
+    fireEvent.click(secondButton);
+    expect(secondButton).toHaveClass('studio-button-cool');
+    expect(secondButton).toHaveAttribute('aria-current', 'true');
+    expect(secondButton).toHaveAttribute('aria-pressed', 'true');
+    expect(firstButton).toHaveAttribute('aria-pressed', 'false');
+  });
+
   it('keeps shared control styles out of Matching page CSS', () => {
     expect(matchingStyles).not.toMatch(/\.matching-file-grid\s+button/);
     expect(matchingStyles).not.toMatch(/\.matching-[^{}]*\.studio-button/);
@@ -80,6 +111,8 @@ describe('MatchingPage', () => {
     expect(matchingStyles).not.toMatch(/\.matching-candidate-head\s*\{[^}]*display:/);
     expect(matchingStyles).not.toMatch(/\.matching-candidate-card\.selected/);
     expect(matchingStyles).not.toMatch(/\.matching-candidate-card\s*\{[^}]*border:/);
+    expect(matchingStyles).not.toMatch(/\.matching-queue-item(?:\[aria-current=true\]|:hover)?\{[^}]*\b(?:padding|border|border-radius|background|color|box-shadow|cursor):/);
+    expect(matchingStyles).not.toMatch(/\.matching-queue-item:hover|\.matching-queue-item\[aria-current=true\]/);
     expect(matchingStyles).toContain('.matching-file-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr))');
     expect(matchingStyles).toContain('.matching-file-grid{grid-template-columns:repeat(3,minmax(0,1fr))}');
   });
