@@ -137,6 +137,23 @@ describe('ProductsPage', () => {
     expect(JSON.parse(String(put?.[1]?.body))).toMatchObject({ name: 'Phone A updated', imageUrl: phone.imageUrl, categoryId: 7 });
   });
 
+  it('opens the selected product edit modal when using the row menu with pointer events', async () => {
+    const user = userEvent.setup();
+    const fallbackRequest = requestFor([phone, inactive]);
+    const requestAdmin = vi.fn<AdminRequest>().mockImplementation(path => path === '/admin/products/42/matchings'
+      ? Promise.resolve(Response.json([]))
+      : fallbackRequest(path));
+    render(<ProductsPage requestAdmin={requestAdmin} permissions={['products.read', 'products.update']} />);
+    await screen.findByText('Phone A');
+
+    await user.click(screen.getByLabelText('Actions for Phone A'));
+    await user.click(screen.getAllByRole('button', { name: 'Sửa' })[0]);
+
+    const dialog = screen.getByRole('dialog', { name: 'Sửa sản phẩm' });
+    expect(within(dialog).getByRole('textbox', { name: 'Tên sản phẩm' })).toHaveValue('Phone A');
+    expect(within(dialog).getByRole('textbox', { name: 'Slug' })).toHaveValue('phone-a');
+  });
+
   it('supports arrow navigation, Enter and Space selection, and Escape focus restoration in the grouped category picker', async () => {
     const user = userEvent.setup();
     const requestAdmin = requestFor([phone]);

@@ -191,7 +191,10 @@ export function ProductsPage({ requestAdmin, permissions = [] }: { requestAdmin:
     };
     const onPointerDown = (event: globalThis.PointerEvent) => {
       const target = event.target as HTMLElement;
-      if (!target.closest('.product-row-menu')) setOpenMenu(null);
+      // RowMenu uses the shared `.studio-row-menu` class. Closing on pointerdown
+      // before the action's click fires unmounts that action and prevents its
+      // handler (including opening the edit modal) from running.
+      if (!target.closest('.studio-row-menu')) setOpenMenu(null);
       if (!target.closest('.matching-menu-wrap')) setMatchingMenu(null);
       if (!target.closest('.product-category-picker')) setCategoryPickerOpen(false);
     };
