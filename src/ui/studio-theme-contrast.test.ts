@@ -5,6 +5,7 @@ import { readFileSync } from 'node:fs';
 
 const styles = readFileSync('src/styles.css', 'utf8').replace(/\s+/g, ' ');
 const sharedUiStyles = readFileSync('src/ui/studio-shell-fixes.css', 'utf8').replace(/\s+/g, ' ');
+const componentStyles = readFileSync('src/ui/studio-ui.css', 'utf8').replace(/\s+/g, ' ');
 const productsStyles = readFileSync('src/products/products.css', 'utf8').replace(/\s+/g, ' ');
 const appSource = readFileSync('src/App.tsx', 'utf8');
 
@@ -23,6 +24,13 @@ function contrast(foreground: string, background: string) {
 }
 
 describe('Studio navigation group label contrast', () => {
+  it('keeps unchecked shared checkbox boundaries at least 3:1 in both themes', () => {
+    expect(componentStyles).toContain('.studio-shell{--studio-control-border:#718096}.studio-shell[data-theme="light"]{--studio-control-border:#7a8794}.studio-checkbox{border-color:var(--studio-control-border)}');
+
+    expect(contrast('#718096', '#101b26')).toBeGreaterThanOrEqual(3);
+    expect(contrast('#7a8794', '#ffffff')).toBeGreaterThanOrEqual(3);
+  });
+
   it('keeps group headings on the shared faint token in both themes', () => {
     expect(styles).toContain('.studio-nav-group h2{margin:14px 10px 5px;color:var(--studio-faint)');
     expect(styles).toContain('.studio-shell[data-theme="light"]');
