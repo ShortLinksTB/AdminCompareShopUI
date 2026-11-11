@@ -3,7 +3,7 @@ import { deleteAdminProduct, getAdminCategories, getAdminProductMatchings, getAd
 import { Button, Card, DataTable, EmptyState, ErrorState, Field, FilterChips, Lightbox, Loading, Modal, PageHeader, Pager, Pill, RowMenu, SearchField, Switch, TableFooter, Toolbar } from '../ui';
 import './products.css';
 
-type StatusFilter = 'all' | 'active' | 'inactive';
+type StatusFilter = 'all' | 'active' | 'inactive' | 'missing-image';
 type Editor = { product: AdminProduct; input: ProductInput } | null;
 const PAGE_SIZES = [10, 20, 50];
 const initialInput = (product: AdminProduct): ProductInput => ({
@@ -19,6 +19,8 @@ const formatAttachedDate = (value: string) => {
 
 export function ProductsPage({ requestAdmin, permissions = [] }: { requestAdmin: AdminRequest; permissions?: string[] }) {
   const [items, setItems] = useState<AdminProduct[]>([]);
+  const [catalogItems, setCatalogItems] = useState<AdminProduct[]>([]);
+  const [catalogLoaded, setCatalogLoaded] = useState(false);
   const [categories, setCategories] = useState<AdminCategory[]>([]);
   const [categoryError, setCategoryError] = useState('');
   const [categoryPickerOpen, setCategoryPickerOpen] = useState(false);
@@ -28,6 +30,7 @@ export function ProductsPage({ requestAdmin, permissions = [] }: { requestAdmin:
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
   const [totalItems, setTotalItems] = useState(0);
+  const [filterCounts, setFilterCounts] = useState({ all: 0, active: 0, inactive: 0, missingImage: 0 });
   const [status, setStatus] = useState<StatusFilter>('all');
   const [search, setSearch] = useState('');
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
@@ -103,9 +106,34 @@ export function ProductsPage({ requestAdmin, permissions = [] }: { requestAdmin:
 
   useEffect(() => {
     const controller = new AbortController();
+    void (async () => {
+      try {
+        const firstPage = await getAdminProducts(requestAdmin, 1, 10, controller.signal);
+        const allProducts = [...firstPage.items];
+        const pages = Math.ceil(firstPage.totalItems / firstPage.pageSize);
+        for (let nextPage = 2; nextPage <= pages; nextPage += 1) {
+          const result = await getAdminProducts(requestAdmin, nextPage, firstPage.pageSize, controller.signal);
+          allProducts.push(...result.items);
+        }
+        if (!controller.signal.aborted) {
+          setCatalogItems(allProducts);
+          setFilterCounts({ all: firstPage.totalItems, active: allProducts.filter(product => product.isActive).length, inactive: allProducts.filter(product => !product.isActive).length, missingImage: allProducts.filter(product => !product.imageUrl).length });
+          setCatalogLoaded(true);
+          if (status === 'missing-image') setLoading(false);
+        }
+      } catch {
+        if (!controller.signal.aborted) { setCatalogLoaded(true); if (status === 'missing-image') setLoading(false); }
+      }
+    })();
+    return () => controller.abort();
+  }, [requestAdmin]);
+
+  useEffect(() => {
+    if (status === 'missing-image') { setLoading(!catalogLoaded); setError(''); return; }
+    const controller = new AbortController();
     void load(controller.signal);
     return () => controller.abort();
-  }, [load]);
+  }, [load, status]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -120,10 +148,11 @@ export function ProductsPage({ requestAdmin, permissions = [] }: { requestAdmin:
 
   const visibleItems = useMemo(() => {
     const query = search.trim().toLocaleLowerCase();
-    if (!query) return items;
-    return items.filter(product => `${product.name} ${product.brand ?? ''} ${product.slug}`.toLocaleLowerCase().includes(query));
-  }, [items, search]);
-  const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
+    const source = status === 'missing-image' ? catalogItems.filter(product => !product.imageUrl) : items;
+    const filtered = query ? source.filter(product => `${product.name} ${product.brand ?? ''} ${product.slug}`.toLocaleLowerCase().includes(query)) : source;
+    return status === 'missing-image' ? filtered.slice((page - 1) * pageSize, page * pageSize) : filtered;
+  }, [items, catalogItems, search, status, page, pageSize]);
+  const displayedTotal = status === 'missing-image' ? filterCounts.missingImage : totalItems;
   const categoryNames = useMemo(() => new Map(categories.map(category => [category.id, category.name])), [categories]);
   const leafCategories = useMemo(() => categories.filter(category => category.parentCategoryId != null), [categories]);
   const categoryGroups = useMemo(() => {
@@ -173,6 +202,10 @@ export function ProductsPage({ requestAdmin, permissions = [] }: { requestAdmin:
 
   function changeStatus(next: StatusFilter) { setStatus(next); setPage(1); setOpenMenu(null); }
   function changePageSize(size: number) { setPageSize(size); setPage(1); }
+  function updateCatalog(products: AdminProduct[]) {
+    setCatalogItems(products);
+    setFilterCounts({ all: products.length, active: products.filter(product => product.isActive).length, inactive: products.filter(product => !product.isActive).length, missingImage: products.filter(product => !product.imageUrl).length });
+  }
   function openEditor(product: AdminProduct) { editorReturnFocus.current = document.activeElement?.closest('details')?.querySelector<HTMLElement>('summary') ?? null; setOpenMenu(null); setCategoryPickerOpen(false); setEditor({ product, input: initialInput(product) }); }
   function updateInput<K extends keyof ProductInput>(key: K, value: ProductInput[K]) {
     setEditor(current => current ? { ...current, input: { ...current.input, [key]: value } } : current);
@@ -228,6 +261,8 @@ export function ProductsPage({ requestAdmin, permissions = [] }: { requestAdmin:
     setSaving(true); setError('');
     try {
       await updateAdminProduct(requestAdmin, editor.product.id, { ...editor.input, imageUrl: editor.input.imageUrl ?? editor.product.imageUrl ?? null });
+      const savedProduct = { ...editor.product, ...editor.input, imageUrl: editor.input.imageUrl ?? editor.product.imageUrl ?? null };
+      updateCatalog(catalogItems.map(product => product.id === savedProduct.id ? savedProduct : product));
       setEditor(null); setReloadKey(value => value + 1);
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : 'Could not save this product. Please try again.');
@@ -240,6 +275,7 @@ export function ProductsPage({ requestAdmin, permissions = [] }: { requestAdmin:
     setDeletingId(target.id); setError('');
     try {
       await deleteAdminProduct(requestAdmin, target.id);
+      updateCatalog(catalogItems.filter(product => product.id !== target.id));
       setDeleteTarget(null);
       if (items.length === 1 && page > 1) setPage(value => value - 1);
       else setReloadKey(value => value + 1);
@@ -251,7 +287,7 @@ export function ProductsPage({ requestAdmin, permissions = [] }: { requestAdmin:
 
   return <div className="products-page">
     <PageHeader eyebrow="CATALOG" title="Products" description="Danh mục sản phẩm chuẩn và trạng thái hoạt động." />
-    <FilterChips items={[{ value: 'all', label: 'All status' }, { value: 'active', label: 'Active' }, { value: 'inactive', label: 'Inactive' }]} value={status} onChange={value => changeStatus(value as StatusFilter)} />
+    <FilterChips items={[{ value: 'all', label: 'All', count: filterCounts.all }, { value: 'active', label: 'Visible', count: filterCounts.active }, { value: 'inactive', label: 'Hidden', count: filterCounts.inactive }, { value: 'missing-image', label: 'Needs standard image', count: filterCounts.missingImage }]} value={status} onChange={value => changeStatus(value as StatusFilter)} />
     {categoryError && <p className="products-category-note" role="status">Category names could not be loaded. Product records are still available.</p>}
     <Card className="products-card" aria-label="Products list">
       <Toolbar role="search"><SearchField label="Search products" type="search" value={search} onChange={event => setSearch(event.target.value)} placeholder="Search product, brand, or slug..." /></Toolbar>
@@ -270,7 +306,7 @@ export function ProductsPage({ requestAdmin, permissions = [] }: { requestAdmin:
               </RowMenu>}</td>
             </tr>)}
           </tbody></DataTable>}
-      {!loading && !error && <TableFooter start={totalItems ? (page - 1) * pageSize + 1 : 0} end={Math.min(page * pageSize, totalItems)} total={totalItems} center={<label className="products-page-size">Rows <select aria-label="Rows per page" value={pageSize} onChange={event => changePageSize(Number(event.target.value))}>{PAGE_SIZES.map(size => <option key={size} value={size}>{size}</option>)}</select> / page</label>}><Pager page={page} pages={totalPages} onChange={setPage} /></TableFooter>}
+      {!loading && !error && <TableFooter start={displayedTotal ? (page - 1) * pageSize + 1 : 0} end={Math.min(page * pageSize, displayedTotal)} total={displayedTotal} center={<label className="products-page-size">Rows <select aria-label="Rows per page" value={pageSize} onChange={event => changePageSize(Number(event.target.value))}>{PAGE_SIZES.map(size => <option key={size} value={size}>{size}</option>)}</select> / page</label>}><Pager page={page} pages={Math.max(1, Math.ceil(displayedTotal / pageSize))} onChange={setPage} /></TableFooter>}
     </Card>
 
     {editor && <Modal open title="Sửa sản phẩm" onClose={() => { if (!saving) setEditor(null); }} actions={<><Button disabled={saving} onClick={() => setEditor(null)}>Huỷ</Button><Button tone="primary" type="submit" form="product-edit-form" disabled={saving}>{saving ? 'Đang lưu…' : 'Lưu thay đổi'}</Button></>}>

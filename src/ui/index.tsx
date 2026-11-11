@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState, type ButtonHTMLAttributes, type HTMLAttributes, type InputHTMLAttributes, type ReactNode } from 'react';
 import './studio-ui.css';
 
+const focusLayerStack: symbol[] = [];
+
 type ButtonTone = 'primary' | 'secondary' | 'cool' | 'danger' | 'ghost';
 export function Button({ tone = 'secondary', size = 'md', className = '', ...props }: ButtonHTMLAttributes<HTMLButtonElement> & { tone?: ButtonTone; size?: 'sm' | 'md' }) { return <button {...props} className={`studio-button studio-button-${tone} studio-button-${size} ${className}`} />; }
 export function Pill({ tone = 'neutral', children }: { tone?: 'ok' | 'warn' | 'bad' | 'info' | 'neutral'; children: ReactNode }) { return <span className={`studio-pill studio-pill-${tone}`}>{children}</span>; }
@@ -14,11 +16,13 @@ export function RowMenu({ children, open, onOpenChange, label = 'Thao tác' }: {
 export function SearchField({ label, ...props }: InputHTMLAttributes<HTMLInputElement> & { label: string }) { return <label className="studio-search-field"><span aria-hidden="true">⌕</span><input {...props} aria-label={props['aria-label'] ?? label} /></label>; }
 function FocusLayer({ children, onClose, label, className }: { children: ReactNode; onClose: () => void; label: string; className: string }) {
   const root = useRef<HTMLDivElement>(null); const previous = useRef<HTMLElement | null>(null);
+  const layerId = useRef(Symbol(label));
   const onCloseRef = useRef(onClose);
   useEffect(() => { onCloseRef.current = onClose; }, [onClose]);
   useEffect(() => { previous.current = document.activeElement as HTMLElement; const bodyOverflow = document.body.style.overflow; document.body.style.overflow = 'hidden'; root.current?.focus();
-    const handle = (event: KeyboardEvent) => { if (event.key === 'Escape') onCloseRef.current(); if (event.key === 'Tab') { const dialog = root.current; const items = [...(dialog?.querySelectorAll<HTMLElement>('button:not([disabled]),a[href],input:not([disabled]),select:not([disabled]),textarea:not([disabled]),[tabindex="0"]') || [])]; if (!items.length) { event.preventDefault(); dialog?.focus(); return; } const first = items[0]; const last = items.at(-1)!; if (event.shiftKey && (document.activeElement === first || document.activeElement === dialog || !dialog?.contains(document.activeElement))) { event.preventDefault(); last.focus(); } else if (!event.shiftKey && (document.activeElement === last || document.activeElement === dialog || !dialog?.contains(document.activeElement))) { event.preventDefault(); first.focus(); } } };
-    window.addEventListener('keydown', handle); return () => { window.removeEventListener('keydown', handle); document.body.style.overflow = bodyOverflow; previous.current?.focus(); };
+    focusLayerStack.push(layerId.current);
+    const handle = (event: KeyboardEvent) => { if (event.key === 'Escape' && focusLayerStack.at(-1) === layerId.current) { event.preventDefault(); event.stopImmediatePropagation(); onCloseRef.current(); } if (event.key === 'Tab') { const dialog = root.current; const items = [...(dialog?.querySelectorAll<HTMLElement>('button:not([disabled]),a[href],input:not([disabled]),select:not([disabled]),textarea:not([disabled]),[tabindex="0"]') || [])]; if (!items.length) { event.preventDefault(); dialog?.focus(); return; } const first = items[0]; const last = items.at(-1)!; if (event.shiftKey && (document.activeElement === first || document.activeElement === dialog || !dialog?.contains(document.activeElement))) { event.preventDefault(); last.focus(); } else if (!event.shiftKey && (document.activeElement === last || document.activeElement === dialog || !dialog?.contains(document.activeElement))) { event.preventDefault(); first.focus(); } } };
+    window.addEventListener('keydown', handle); return () => { window.removeEventListener('keydown', handle); const index = focusLayerStack.lastIndexOf(layerId.current); if (index >= 0) focusLayerStack.splice(index, 1); document.body.style.overflow = bodyOverflow; previous.current?.focus(); };
   }, []);
   return <div className="studio-overlay" onMouseDown={event => { if (event.target === event.currentTarget) onClose(); }}><section ref={root} tabIndex={-1} role="dialog" aria-modal="true" aria-label={label} className={className}>{children}</section></div>;
 }

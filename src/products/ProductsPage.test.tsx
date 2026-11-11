@@ -12,9 +12,15 @@ const pageResponse = (items: AdminProduct[] = [phone], pageNumber = 1, pageSize 
 const matching = { id: 501, name: 'Phone A Global Edition', externalSku: 'SKU-501', dataSourceId: 11, dataSourceDisplayName: 'Shop One', createdAtUtc: '2026-10-12T10:00:00Z' };
 
 function requestFor(rows = [phone, inactive]): ReturnType<typeof vi.fn<AdminRequest>> {
-  return vi.fn<AdminRequest>().mockImplementation(path => path.startsWith('/admin/categories')
-    ? Promise.resolve(Response.json({ items: categoryList, pageNumber: 1, pageSize: 100, totalItems: categoryList.length }))
-    : Promise.resolve(pageResponse(rows, 1, 10, rows.length)));
+  return vi.fn<AdminRequest>().mockImplementation(path => {
+    if (path.startsWith('/admin/categories')) return Promise.resolve(Response.json({ items: categoryList, pageNumber: 1, pageSize: 100, totalItems: categoryList.length }));
+    const params = new URLSearchParams(path.split('?')[1]);
+    const active = params.get('isActive');
+    const filtered = active === null ? rows : rows.filter(product => product.isActive === (active === 'true'));
+    const pageSize = Number(params.get('pageSize') ?? 10);
+    const pageNumber = Number(params.get('page') ?? 1);
+    return Promise.resolve(pageResponse(filtered.slice((pageNumber - 1) * pageSize, pageNumber * pageSize), pageNumber, pageSize, filtered.length));
+  });
 }
 
 afterEach(() => { cleanup(); vi.restoreAllMocks(); });
@@ -32,6 +38,10 @@ describe('ProductsPage', () => {
     expect(requestAdmin).toHaveBeenCalledWith('/admin/products?page=1&pageSize=10', expect.objectContaining({ signal: expect.any(AbortSignal) }));
     expect(requestAdmin).toHaveBeenCalledWith('/admin/categories?page=1&pageSize=100', expect.objectContaining({ signal: expect.any(AbortSignal) }));
     expect(document.querySelector('.studio-table-footer')).toHaveTextContent('Hiển thị 1–2 trong 2');
+    expect(screen.getByRole('button', { name: 'All 2' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Visible 1' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Hidden 1' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Needs standard image 1' })).toBeInTheDocument();
   });
 
   it('keeps the loading state until the API resolves and shows an empty state', async () => {
@@ -49,21 +59,31 @@ describe('ProductsPage', () => {
     const requestAdmin = requestFor([phone, inactive]);
     render(<ProductsPage requestAdmin={requestAdmin} />);
     await screen.findByText('Phone A');
-    fireEvent.click(screen.getByRole('button', { name: 'Inactive' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Hidden 1' }));
     await waitFor(() => expect(requestAdmin).toHaveBeenCalledWith('/admin/products?page=1&pageSize=10&isActive=false', expect.any(Object)));
-    expect(document.querySelector('.studio-table-footer')).toHaveTextContent('Hiển thị 1–2 trong 2');
-    expect(screen.getByRole('button', { name: 'Inactive' })).toHaveAttribute('aria-pressed', 'true');
+    expect(document.querySelector('.studio-table-footer')).toHaveTextContent('Hiển thị 1–1 trong 1');
+    expect(screen.getByRole('button', { name: 'Hidden 1' })).toHaveAttribute('aria-pressed', 'true');
   });
 
   it.each([
-    'All status',
-    'Active',
-    'Inactive',
+    'All 2',
+    'Visible 1',
+    'Hidden 1',
+    'Needs standard image 1',
   ])('selects the %s status chip', async (label) => {
     render(<ProductsPage requestAdmin={requestFor()} />);
     await screen.findByText('Phone A');
     fireEvent.click(screen.getByRole('button', { name: label }));
     expect(screen.getByRole('button', { name: label })).toHaveAttribute('aria-pressed', 'true');
+  });
+
+  it('filters the complete catalog to products missing an image and shows the accurate count', async () => {
+    render(<ProductsPage requestAdmin={requestFor()} />);
+    await screen.findByText('Phone A');
+    fireEvent.click(screen.getByRole('button', { name: 'Needs standard image 1' }));
+    expect(await screen.findByText('Phone B')).toBeInTheDocument();
+    expect(screen.queryByText('Phone A')).not.toBeInTheDocument();
+    expect(document.querySelector('.studio-table-footer')).toHaveTextContent('Hiển thị 1–1 trong 1');
   });
 
   it('changes page size through the API and moves to the first page', async () => {
@@ -251,6 +271,7 @@ describe('ProductsPage', () => {
     expect(document.querySelector('.studio-lightbox')).toBeInTheDocument();
     fireEvent.keyDown(document, { key: 'Escape' });
     expect(document.querySelector('.studio-lightbox')).not.toBeInTheDocument();
+    expect(screen.getByRole('dialog', { name: 'Sửa sản phẩm' })).toBeInTheDocument();
     expect(screen.getByText('No image').closest('button')).toBeNull();
   });
 
