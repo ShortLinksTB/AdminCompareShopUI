@@ -1,7 +1,7 @@
 import { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { NavLink, Navigate, Outlet, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 import { offers, products, shops, type Status } from './mockData';
-import { fetchPendingMatchings } from './matching/matching-api';
+import { fetchMatchings } from './matching/matching-api';
 import { AuthLoadingScreen, AuthProvider, CallbackPage, ForbiddenPage, LoginPage, PermissionFailure, useAuth } from './auth';
 import { safeReturnPath } from './auth-utils';
 import { MatchingPage } from './matching/MatchingPage';
@@ -79,7 +79,7 @@ function Shell() {
   useEffect(() => {
     if (!permissions.includes('matching.read')) { setMatchingCount(null); return; }
     let active = true;
-    fetchPendingMatchings(requestAdmin).then(queue => { if (active) setMatchingCount(queue.length); }).catch(() => { if (active) setMatchingCount(null); });
+    fetchMatchings(requestAdmin, { status: 'pending', verdict: 'all', q: '', page: 1, pageSize: 1 }).then(result => { if (active) setMatchingCount(result.counts.pending); }).catch(() => { if (active) setMatchingCount(null); });
     return () => { active = false; };
   }, [permissions, requestAdmin]);
 
@@ -164,7 +164,7 @@ function Kpi({ label, value, change, tone }: { label: string; value: string; cha
 function DashboardRoute() { const { requestAdmin, permissions } = useAuth(); return <Dashboard requestAdmin={requestAdmin} permissions={permissions} />; }
 function Toolbar({ placeholder = 'Tìm kiếm...' }: { placeholder?: string }) { return <div className="toolbar"><label className="toolbar-search">⌕<input placeholder={placeholder} /></label><select><option>All status</option><option>Active</option><option>Stale</option><option>Outlier</option></select><button className="outline-button">☷ Filters</button><button className="outline-button">⇩ Export</button></div>; }
 function OfferTable({ rows = offers, compact = false }: { rows?: typeof offers; compact?: boolean }) { return <div className="offer-table-wrap"><table><thead><tr><th>Product / shop</th><th>Price</th><th>Availability</th><th>Status</th><th>Updated</th>{!compact && <th>Source</th>}</tr></thead><tbody>{rows.map(offer => <tr key={offer.id}><td><strong>{offer.product}</strong><small>{offer.shop}</small></td><td><strong className="money">{money(offer.finalPrice)}</strong><small><del>{money(offer.price)}</del></small></td><td><span className="availability">● {offer.availability}</span></td><td><StatusBadge status={offer.status} /></td><td>{offer.updated}</td>{!compact && <td><code>{offer.source}</code></td>}</tr>)}</tbody></table></div>; }
-function MatchingRoute() { const { requestAdmin } = useAuth(); return <MatchingPage requestAdmin={requestAdmin} />; }
+function MatchingRoute() { const { requestAdmin, permissions } = useAuth(); return <MatchingPage requestAdmin={requestAdmin} permissions={permissions} />; }
 function ProductsRoute() { const { requestAdmin, permissions } = useAuth(); return permissions.includes('products.read') ? <ProductsPage requestAdmin={requestAdmin} permissions={permissions} /> : <Navigate to="/forbidden" replace />; }
 function OffersRoute() { const { requestAdmin, permissions } = useAuth(); return permissions.includes('offers.read') ? <OffersPage requestAdmin={requestAdmin} permissions={permissions} /> : <Navigate to="/forbidden" replace />; }
 function ShopsPage() { const { requestAdmin, permissions } = useAuth(); return permissions.includes('shops.read') ? <PartnerShops requestAdmin={requestAdmin} permissions={permissions} /> : <Navigate to="/" replace />; }
