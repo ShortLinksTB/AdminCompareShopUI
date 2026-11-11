@@ -262,16 +262,20 @@ describe('ProductsPage', () => {
     expect(screen.getByText('Phone A Global Edition')).toBeInTheDocument();
   });
 
-  it('opens image preview in the existing lightbox and keeps No image non-clickable', async () => {
+  it('closes only the nested image lightbox on Escape and preserves the unsaved edit form', async () => {
     render(<ProductsPage requestAdmin={requestFor([phone, inactive])} permissions={['products.read', 'products.update']} />);
     await screen.findByText('Phone A');
     fireEvent.click(screen.getByLabelText('Actions for Phone A'));
     fireEvent.click(screen.getAllByRole('button', { name: 'Sửa' })[0]);
+    const editDialog = screen.getByRole('dialog', { name: 'Sửa sản phẩm' });
+    const productName = within(editDialog).getByRole('textbox', { name: 'Tên sản phẩm' });
+    fireEvent.change(productName, { target: { value: 'Unsaved product name' } });
     fireEvent.click(screen.getByRole('button', { name: 'View product preview' }));
     expect(document.querySelector('.studio-lightbox')).toBeInTheDocument();
     fireEvent.keyDown(document, { key: 'Escape' });
     expect(document.querySelector('.studio-lightbox')).not.toBeInTheDocument();
-    expect(screen.getByRole('dialog', { name: 'Sửa sản phẩm' })).toBeInTheDocument();
+    expect(editDialog).toBeInTheDocument();
+    expect(within(editDialog).getByRole('textbox', { name: 'Tên sản phẩm' })).toHaveValue('Unsaved product name');
     expect(screen.getByText('No image').closest('button')).toBeNull();
   });
 
