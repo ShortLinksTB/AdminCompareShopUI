@@ -113,6 +113,9 @@ describe('MatchingPage', () => {
     expect(matchingStyles).not.toMatch(/\.matching-candidate-card\s*\{[^}]*border:/);
     expect(matchingStyles).not.toMatch(/\.matching-queue-item(?:\[aria-current=true\]|:hover)?\{[^}]*\b(?:padding|border|border-radius|background|color|box-shadow|cursor):/);
     expect(matchingStyles).not.toMatch(/\.matching-queue-item:hover|\.matching-queue-item\[aria-current=true\]/);
+    expect(matchingStyles).not.toMatch(/\.matching-listing-image\{[^}]*\b(?:border|border-radius|background|color|box-shadow):/);
+    expect(matchingStyles).not.toMatch(/\.matching-listing-image:hover/);
+    expect(matchingStyles).not.toMatch(/\.matching-listing-image\s*\{[^}]*display:/);
     expect(matchingStyles).toContain('.matching-file-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr))');
     expect(matchingStyles).toContain('.matching-file-grid{grid-template-columns:repeat(3,minmax(0,1fr))}');
   });
@@ -142,7 +145,10 @@ describe('MatchingPage', () => {
     fireEvent.keyDown(screen.getByRole('searchbox'), { key: 's' });
     expect(screen.queryByRole('dialog', { name: 'Bỏ qua mặt hàng' })).not.toBeInTheDocument();
     fireEvent.keyDown(window, { key: 'ArrowDown' });
-    fireEvent.click(screen.getByRole('button', { name: 'Mở ảnh mặt hàng' }));
+    const imageControl = screen.getByRole('button', { name: 'Mở ảnh mặt hàng' });
+    expect(imageControl).toHaveClass('studio-button', 'studio-button-grid', 'matching-listing-image');
+    expect(imageControl).toBeEnabled();
+    fireEvent.click(imageControl);
     expect(screen.getByRole('dialog', { name: 'Xem ảnh' })).toBeInTheDocument();
     fireEvent.keyDown(window, { key: 'Escape' });
     expect(screen.queryByRole('dialog', { name: 'Xem ảnh' })).not.toBeInTheDocument();

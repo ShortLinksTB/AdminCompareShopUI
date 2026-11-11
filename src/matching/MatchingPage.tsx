@@ -120,7 +120,7 @@ export function MatchingPage({ requestAdmin, permissions = [] }: { requestAdmin:
       </Card>
       {!loading && !error && current && <Card className="matching-workspace" aria-live="polite">
         <div className="matching-listing">
-          <button className="matching-listing-image" type="button" aria-label="Mở ảnh mặt hàng" disabled={!current.source.imageUrl} onClick={() => setLightbox(true)}>{current.source.imageUrl ? <img src={current.source.imageUrl} alt="Ảnh mặt hàng từ shop" /> : <span>No img</span>}</button>
+          <Button layout="grid" className="matching-listing-image" type="button" aria-label="Mở ảnh mặt hàng" disabled={!current.source.imageUrl} onClick={() => setLightbox(true)}>{current.source.imageUrl ? <img src={current.source.imageUrl} alt="Ảnh mặt hàng từ shop" /> : <span>No img</span>}</Button>
           <div className="matching-listing-detail"><Pill tone={verdictTone(current.verdict)}>{displayVerdict(current.verdict)}</Pill><h2>{current.name}</h2><p>{current.source.shopName ?? current.source.sourceName ?? 'Nguồn chưa xác định'} · SKU {current.externalSku || '—'} · {formatPrice(current.source.price)}</p><div className="matching-attributes">{attrsOrder.filter(key => sourceAttrs[key]).map(key => <span className="matching-attribute" key={key}><small>{key}</small><b>{sourceAttrs[key]}</b></span>)}</div></div>
         </div>
         {current.groupKey && isGroupLoading && <p className="matching-note" role="status">Đang tải đầy đủ mặt hàng pending trong nhóm…</p>}
