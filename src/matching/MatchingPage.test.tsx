@@ -286,6 +286,7 @@ describe('MatchingPage', () => {
 
   it('keeps create-product scoped to the selected item when pending queue completeness fails', async () => {
     const admin = vi.fn<AdminRequest>().mockImplementation(async path => {
+      if (path.startsWith('/admin/categories?')) return Response.json({ items: [{ id: 9, name: 'Laptop', slug: 'laptop', isActive: true }] });
       if (!path.startsWith('/admin/matching?')) return new Response(null, { status: 204 });
       const params = new URLSearchParams(path.split('?')[1]);
       if (params.get('pageSize') !== '100') return page([item]);
@@ -300,7 +301,13 @@ describe('MatchingPage', () => {
     expect(await screen.findByText(/tạo sản phẩm chỉ áp dụng cho item đang chọn/i)).toBeInTheDocument();
     fireEvent.click(screen.getByRole('radio', { name: /Chưa có ảnh/ }));
     fireEvent.click(screen.getByRole('button', { name: 'Tạo và gắn' }));
-    await waitFor(() => expect(admin).toHaveBeenCalledWith('/admin/matching/12/create-product', expect.objectContaining({ body: expect.stringContaining('"applyGroup":false') })));
+    await waitFor(() => expect(admin).toHaveBeenCalledWith('/admin/matching/12/create-product', expect.objectContaining({ body: expect.any(String) })));
+    const body = JSON.parse(String(admin.mock.calls.find(([path]) => String(path).includes('/create-product'))?.[1]?.body));
+    expect(body).toMatchObject({ name: 'Acme Notebook 16GB', brand: 'Acme', description: null, categoryId: 9, imageUrl: null, imageChoice: 'none' });
+    expect(body).not.toHaveProperty('applyToIds');
+    expect(body).not.toHaveProperty('slug');
+    expect(body).not.toHaveProperty('imageId');
+    expect(body).not.toHaveProperty('applyGroup');
   });
 
   it('creates from a shop image with edited fields and reports API rejection in the dialog', async () => {
