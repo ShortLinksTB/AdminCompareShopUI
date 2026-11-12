@@ -102,11 +102,12 @@ export function MatchingPage({ requestAdmin, permissions = [] }: { requestAdmin:
   const pages = Math.max(1, Math.ceil(total / 20));
   const sourceAttrs = current?.attributes ?? {};
   const hasSearchMatchesInQueue = status === 'skipped' ? counts.skipped > 0 : counts.pending > 0;
+  const hasSearchNoResults = !loading && !error && items.length === 0 && Boolean(query.trim()) && hasSearchMatchesInQueue;
 
   return <main className="matching-studio">
     <PageHeader eyebrow="Catalog" title="Product Matching" description="So sánh thông số và duyệt gợi ý. Mọi quyết định đều do bạn xác nhận." actions={<div className="matching-progress"><span className="matching-progress-ring" aria-hidden="true">{counts.all ? Math.min(100, Math.round(handledItems / counts.all * 100)) : 0}%</span><span><b>{handledItems} / {counts.all}</b><small>đã xử lý trong hàng đợi</small></span></div>} />
     <FilterChips items={filterItems} value={status === 'skipped' ? 'skipped' : verdict} onChange={value => { if (value === 'skipped') { setStatus('skipped'); setVerdict('all'); } else { setStatus('pending'); setVerdict(value); } setPage(1); }} />
-    <div className="matching-layout">
+    <div className={`matching-layout${hasSearchNoResults ? ' matching-layout-no-results' : ''}`}>
       <Card className="matching-queue-panel">
         <div className="matching-queue-toolbar"><SearchField type="search" label="Tìm tên, SKU hoặc cửa hàng" placeholder="Tìm tên, SKU hoặc cửa hàng…" value={query} onChange={event => setQuery(event.target.value)} /><Button size="sm" onClick={() => void load(1)} disabled={loading}>Làm mới</Button></div>
         <div className="matching-queue-list" aria-label="Hàng đợi" aria-busy={loading}>
