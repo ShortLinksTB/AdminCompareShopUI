@@ -316,13 +316,17 @@ describe('MatchingPage', () => {
     await screen.findByRole('heading', { name: 'Laptop source' });
     fireEvent.click(screen.getByRole('button', { name: /Tạo sản phẩm mới/ }));
     expect(screen.getByRole('button', { name: 'Tạo và gắn' })).toBeDisabled();
+    expect(screen.getByLabelText('Slug')).toHaveValue('acme-notebook-16gb');
+    fireEvent.change(screen.getByLabelText('Slug'), { target: { value: 'custom-laptop-slug' } });
     fireEvent.click(screen.getByRole('radio', { name: /Dùng tạm ảnh của shop/ }));
     expect(screen.getByText('Cần ảnh chuẩn')).toBeInTheDocument();
     fireEvent.change(screen.getByLabelText('Tên sản phẩm chuẩn'), { target: { value: 'Laptop custom' } });
     fireEvent.click(screen.getByRole('button', { name: 'Tạo và gắn' }));
     expect((await screen.findAllByRole('alert'))[0]).toHaveTextContent('Laptop category is not configured');
     expect(admin).toHaveBeenCalledWith('/admin/matching/12/create-product', expect.objectContaining({ body: expect.stringContaining('"imageChoice":"shop"') }));
-    expect(JSON.parse(String(admin.mock.calls.find(([path]) => String(path).includes('/create-product'))?.[1]?.body))).toMatchObject({ name: 'Laptop custom', brand: 'Acme', description: null, categoryId: 9, imageUrl: 'https://img.example/laptop.jpg', imageChoice: 'shop' });
+    const body = JSON.parse(String(admin.mock.calls.find(([path]) => String(path).includes('/create-product'))?.[1]?.body));
+    expect(body).toMatchObject({ name: 'Laptop custom', brand: 'Acme', description: null, categoryId: 9, imageUrl: 'https://img.example/laptop.jpg', imageChoice: 'shop' });
+    expect(body).not.toHaveProperty('slug');
   });
 
   it('surfaces Files picker failures and sends the API contract for the no-image choice', async () => {
