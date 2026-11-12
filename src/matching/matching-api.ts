@@ -98,7 +98,8 @@ async function post(request: AdminRequest, path: string, body?: unknown): Promis
 }
 export const approveMatching = (request: AdminRequest, id: number, productId: number) => post(request, `/admin/matching/${id}/approve`, { productId });
 export const approveMatchingGroup = (request: AdminRequest, ids: number[], productId: number) => post(request, '/admin/matching/approve-group', { ids, productId });
-export const createMatchingProduct = (request: AdminRequest, id: number, input: { name: string; brand: string; slug: string; imageChoice: 'files' | 'shop' | 'none'; imageId: string | null; applyGroup: boolean }) => post(request, `/admin/matching/${id}/create-product`, input);
+export type MatchingProductCreate = { name: string; brand: string; description: string | null; categoryId: number; imageUrl: string | null; imageChoice: 'files' | 'shop' | 'none'; applyToIds?: number[] };
+export const createMatchingProduct = (request: AdminRequest, id: number, input: MatchingProductCreate) => post(request, `/admin/matching/${id}/create-product`, input);
 export const skipMatching = (request: AdminRequest, id: number, reason: string, note: string) => post(request, `/admin/matching/${id}/skip`, { reason, note });
 export const restoreMatching = (request: AdminRequest, id: number) => post(request, `/admin/matching/${id}/restore`);
 export function displayVerdict(verdict: Verdict): string { return ({ confident: 'Chắc chắn', review: 'Cần xem', likely_new: 'Sản phẩm mới', likely_skip: 'Có thể bỏ qua' })[verdict]; }

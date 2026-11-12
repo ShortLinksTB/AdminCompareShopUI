@@ -32,11 +32,11 @@ describe('matching API boundary', () => {
 
   it('sends create, skip and restore payloads and surfaces server error text', async () => {
     const request = vi.fn().mockResolvedValue(new Response(null, { status: 204 }));
-    await createMatchingProduct(request, 4, { name: 'Laptop', brand: 'Acme', slug: 'laptop', imageChoice: 'files', imageId: 'file-1', applyGroup: true });
+    await createMatchingProduct(request, 4, { name: 'Laptop', brand: 'Acme', description: null, categoryId: 9, imageUrl: 'https://api.example/files/file-1', imageChoice: 'files', applyToIds: [4, 5] });
     await skipMatching(request, 4, 'other', 'note');
     await restoreMatching(request, 4);
     expect(request.mock.calls.map(call => call[0])).toEqual(['/admin/matching/4/create-product', '/admin/matching/4/skip', '/admin/matching/4/restore']);
-    expect(request.mock.calls[0]?.[1]).toMatchObject({ body: '{"name":"Laptop","brand":"Acme","slug":"laptop","imageChoice":"files","imageId":"file-1","applyGroup":true}' });
+    expect(request.mock.calls[0]?.[1]).toMatchObject({ body: '{"name":"Laptop","brand":"Acme","description":null,"categoryId":9,"imageUrl":"https://api.example/files/file-1","imageChoice":"files","applyToIds":[4,5]}' });
     const failed = vi.fn().mockResolvedValue(Response.json({ message: 'category unavailable' }, { status: 409 }));
     await expect(restoreMatching(failed, 4)).rejects.toThrow('category unavailable');
   });

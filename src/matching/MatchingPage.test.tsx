@@ -11,6 +11,7 @@ const studioStyles = readFileSync('src/ui/studio-ui.css', 'utf8').replace(/\s+/g
 const item = { id: 12, name: 'Laptop source', brand: 'Acme', externalSku: 'SKU-12', dataSourceId: 4, verdict: 'review', status: 'pending', groupKey: 'g1', source: { imageUrl: 'https://img.example/laptop.jpg', price: 24990000, shopName: 'Shop One' }, attributes: { brand: 'Acme', line: 'Notebook', ram: '16GB' }, candidates: [{ productId: 71, name: 'Laptop product', brand: 'Acme', score: 0.9, level: 'review', differences: [{ attribute: 'RAM', source: '16GB', candidate: '8GB', kind: 'diff' }] }] };
 const page = (items: unknown[] = [item], counts = { all: 4, pending: 3, skipped: 1, confident: 1, review: 1, likely_new: 1, likely_skip: 1 }) => Response.json({ items, page: 1, pageSize: 20, total: items.length, counts });
 const request = (responses: Response[]) => vi.fn<AdminRequest>().mockImplementation(async (path, init) => {
+  if (path.startsWith('/admin/categories?')) return Response.json({ items: [{ id: 9, name: 'Laptop', slug: 'laptop', isActive: true }] });
   if (path.includes('pageSize=100')) return page();
   if (path.startsWith('/admin/matching?')) return responses.shift() ?? page([]);
   return responses.shift() ?? new Response(null, { status: 204 });
@@ -63,6 +64,7 @@ describe('MatchingPage', () => {
 
   it('explains that an empty search does not mean the queue is processed and lets the user clear it', async () => {
     const admin = vi.fn<AdminRequest>().mockImplementation(async path => {
+      if (path.startsWith('/admin/categories?')) return Response.json({ items: [{ id: 9, name: 'Laptop', slug: 'laptop', isActive: true }] });
       if (String(path).includes('q=missing')) return page([]);
       return page();
     });
@@ -302,7 +304,7 @@ describe('MatchingPage', () => {
   });
 
   it('creates from a shop image with edited fields and reports API rejection in the dialog', async () => {
-    const admin = vi.fn<AdminRequest>().mockImplementation(async path => path.startsWith('/admin/matching?') ? page() : path.includes('/create-product') ? Response.json({ detail: 'Slug already exists' }, { status: 409 }) : new Response(null, { status: 204 }));
+    const admin = vi.fn<AdminRequest>().mockImplementation(async path => path.startsWith('/admin/matching?') ? page() : path.startsWith('/admin/categories?') ? Response.json({ items: [{ id: 9, name: 'Laptop', slug: 'laptop', isActive: true }] }) : path.includes('/create-product') ? Response.json({ detail: 'Laptop category is not configured' }, { status: 409 }) : new Response(null, { status: 204 }));
     renderPage(admin);
     await screen.findByRole('heading', { name: 'Laptop source' });
     fireEvent.click(screen.getByRole('button', { name: /Tạo sản phẩm mới/ }));
@@ -311,12 +313,13 @@ describe('MatchingPage', () => {
     expect(screen.getByText('Cần ảnh chuẩn')).toBeInTheDocument();
     fireEvent.change(screen.getByLabelText('Tên sản phẩm chuẩn'), { target: { value: 'Laptop custom' } });
     fireEvent.click(screen.getByRole('button', { name: 'Tạo và gắn' }));
-    expect((await screen.findAllByRole('alert'))[0]).toHaveTextContent('Slug already exists');
+    expect((await screen.findAllByRole('alert'))[0]).toHaveTextContent('Laptop category is not configured');
     expect(admin).toHaveBeenCalledWith('/admin/matching/12/create-product', expect.objectContaining({ body: expect.stringContaining('"imageChoice":"shop"') }));
+    expect(JSON.parse(String(admin.mock.calls.find(([path]) => String(path).includes('/create-product'))?.[1]?.body))).toMatchObject({ name: 'Laptop custom', brand: 'Acme', description: null, categoryId: 9, imageUrl: 'https://img.example/laptop.jpg', imageChoice: 'shop' });
   });
 
-  it('surfaces Files picker failures and supports the no-image product choice', async () => {
-    const admin = vi.fn<AdminRequest>().mockImplementation(async path => path.startsWith('/admin/matching?') ? page() : path.startsWith('/admin/files?') ? new Response('', { status: 403 }) : new Response(null, { status: 204 }));
+  it('surfaces Files picker failures and sends the API contract for the no-image choice', async () => {
+    const admin = vi.fn<AdminRequest>().mockImplementation(async path => path.startsWith('/admin/matching?') ? page() : path.startsWith('/admin/categories?') ? Response.json({ items: [{ id: 9, name: 'Laptop', slug: 'laptop', isActive: true }] }) : path.startsWith('/admin/files?') ? new Response('', { status: 403 }) : new Response(null, { status: 204 }));
     renderPage(admin);
     await screen.findByRole('heading', { name: 'Laptop source' });
     fireEvent.click(screen.getByRole('button', { name: /Tạo sản phẩm mới/ }));
@@ -326,6 +329,13 @@ describe('MatchingPage', () => {
     fireEvent.click(screen.getByRole('radio', { name: /Chưa có ảnh/ }));
     expect(screen.getByText('Cần ảnh chuẩn')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Tạo và gắn' })).toBeEnabled();
+    fireEvent.click(screen.getByRole('button', { name: 'Tạo và gắn' }));
+    await waitFor(() => expect(admin).toHaveBeenCalledWith('/admin/matching/12/create-product', expect.objectContaining({ body: expect.stringContaining('"imageChoice":"none"') })));
+    const body = JSON.parse(String(admin.mock.calls.find(([path]) => String(path).includes('/create-product'))?.[1]?.body));
+    expect(body).toMatchObject({ name: 'Acme Notebook 16GB', brand: 'Acme', description: null, categoryId: 9, imageUrl: null, imageChoice: 'none' });
+    expect(body).not.toHaveProperty('slug');
+    expect(body).not.toHaveProperty('imageId');
+    expect(body).not.toHaveProperty('applyGroup');
   });
 
   it('renders no-candidate, no-image and skipped-empty states without exposing write actions', async () => {
