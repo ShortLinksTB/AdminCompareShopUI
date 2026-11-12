@@ -9,7 +9,7 @@ import type { AdminRequest } from './matching-api';
 const matchingStyles = readFileSync('src/matching/matching.css', 'utf8').replace(/\s+/g, ' ');
 const studioStyles = readFileSync('src/ui/studio-ui.css', 'utf8').replace(/\s+/g, ' ');
 const item = { id: 12, name: 'Laptop source', brand: 'Acme', externalSku: 'SKU-12', dataSourceId: 4, verdict: 'review', status: 'pending', groupKey: 'g1', source: { imageUrl: 'https://img.example/laptop.jpg', price: 24990000, shopName: 'Shop One' }, attributes: { brand: 'Acme', line: 'Notebook', ram: '16GB' }, candidates: [{ productId: 71, name: 'Laptop product', brand: 'Acme', score: 0.9, level: 'review', differences: [{ attribute: 'RAM', source: '16GB', candidate: '8GB', kind: 'diff' }] }] };
-const page = (items: unknown[] = [item]) => Response.json({ items, page: 1, pageSize: 20, total: items.length, counts: { all: 4, pending: 3, skipped: 1, confident: 1, review: 1, likely_new: 1, likely_skip: 1 } });
+const page = (items: unknown[] = [item], counts = { all: 4, pending: 3, skipped: 1, confident: 1, review: 1, likely_new: 1, likely_skip: 1 }) => Response.json({ items, page: 1, pageSize: 20, total: items.length, counts });
 const request = (responses: Response[]) => vi.fn<AdminRequest>().mockImplementation(async (path, init) => {
   if (path.includes('pageSize=100')) return page();
   if (path.startsWith('/admin/matching?')) return responses.shift() ?? page([]);
@@ -70,14 +70,66 @@ describe('MatchingPage', () => {
     await screen.findByRole('heading', { name: 'Laptop source' });
     fireEvent.change(screen.getByRole('searchbox'), { target: { value: 'missing' } });
 
-    expect(await screen.findByText(/Hàng đợi vẫn còn 4 mặt hàng/)).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Xoá tìm kiếm' })).toBeInTheDocument();
+    expect(await screen.findByText('Hàng đợi vẫn còn mặt hàng. Hãy đổi từ khóa hoặc xóa tìm kiếm để xem lại.')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Xóa tìm kiếm' })).toBeInTheDocument();
     expect(screen.queryByText('Hàng đợi đã được xử lý')).not.toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole('button', { name: 'Xoá tìm kiếm' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Xóa tìm kiếm' }));
     expect(screen.getByRole('status', { name: 'Đang tải hàng đợi' })).toBeInTheDocument();
     expect(screen.queryByText('Hàng đợi đã được xử lý')).not.toBeInTheDocument();
     expect(await screen.findByRole('heading', { name: 'Laptop source' })).toBeInTheDocument();
+  });
+
+  it('preserves genuine pending and skipped empty states when no queue items remain', async () => {
+    const noQueueItems = { items: [], page: 1, pageSize: 20, total: 0, counts: { all: 0, pending: 0, skipped: 0, confident: 0, review: 0, likely_new: 0, likely_skip: 0 } };
+    const admin = vi.fn<AdminRequest>().mockImplementation(async path => {
+      if (!path.startsWith('/admin/matching?')) return new Response(null, { status: 204 });
+      if (path.includes('q=missing') || path.includes('status=skipped')) return Response.json(noQueueItems);
+      return page();
+    });
+    renderPage(admin);
+    await screen.findByRole('heading', { name: 'Laptop source' });
+
+    fireEvent.change(screen.getByRole('searchbox'), { target: { value: 'missing' } });
+    expect(await screen.findByText('Hàng đợi đã được xử lý')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Xóa tìm kiếm' })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: /Đã bỏ qua/ }));
+    expect(await screen.findByText('Chưa có mặt hàng đã bỏ qua')).toBeInTheDocument();
+    expect(screen.queryByText('Hàng đợi đã được xử lý')).not.toBeInTheDocument();
+  });
+
+  it('keeps the processed state when searching an empty pending queue and still lets the user clear search', async () => {
+    const emptyQueue = { all: 4, pending: 0, skipped: 4, confident: 1, review: 1, likely_new: 1, likely_skip: 1 };
+    const admin = vi.fn<AdminRequest>().mockImplementation(async () => page([], emptyQueue));
+    renderPage(admin);
+    expect(await screen.findByText('Mặt hàng mới từ nguồn dữ liệu sẽ xuất hiện tại đây.')).toBeInTheDocument();
+
+    fireEvent.change(screen.getByRole('searchbox'), { target: { value: 'missing' } });
+    await waitFor(() => expect(admin.mock.calls.some(([path]) => String(path).includes('q=missing'))).toBe(true));
+    expect(await screen.findByText('Mặt hàng mới từ nguồn dữ liệu sẽ xuất hiện tại đây.')).toBeInTheDocument();
+    expect(screen.getByText('Hàng đợi đã được xử lý')).toBeInTheDocument();
+    expect(screen.queryByText(/Hàng đợi vẫn còn/)).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Xóa tìm kiếm' }));
+    expect(screen.getByRole('status', { name: 'Đang tải hàng đợi' })).toBeInTheDocument();
+  });
+
+  it('keeps the skipped-empty state when searching an empty skipped queue and still lets the user clear search', async () => {
+    const populatedPending = { all: 4, pending: 3, skipped: 1, confident: 1, review: 1, likely_new: 1, likely_skip: 1 };
+    const emptySkipped = { all: 4, pending: 4, skipped: 0, confident: 1, review: 1, likely_new: 1, likely_skip: 1 };
+    const admin = vi.fn<AdminRequest>().mockImplementation(async path => String(path).includes('status=skipped') ? page([], emptySkipped) : page([item], populatedPending));
+    renderPage(admin);
+    await screen.findByRole('heading', { name: 'Laptop source' });
+    fireEvent.click(screen.getByRole('button', { name: /Đã bỏ qua/ }));
+    expect(await screen.findByText('Chưa có mặt hàng đã bỏ qua')).toBeInTheDocument();
+
+    fireEvent.change(screen.getByRole('searchbox'), { target: { value: 'missing' } });
+    await waitFor(() => expect(admin.mock.calls.some(([path]) => String(path).includes('q=missing'))).toBe(true));
+    expect(await screen.findByText('Chưa có mặt hàng đã bỏ qua')).toBeInTheDocument();
+    expect(screen.queryByText('Không tìm thấy mặt hàng')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Xóa tìm kiếm' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Xóa tìm kiếm' }));
+    expect(screen.getByRole('status', { name: 'Đang tải hàng đợi' })).toBeInTheDocument();
   });
 
   it('shows explicit create controls only with products.create and supports Files image selection', async () => {
