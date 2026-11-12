@@ -61,6 +61,25 @@ describe('MatchingPage', () => {
     expect(screen.queryByText('Hàng đợi đã được xử lý')).not.toBeInTheDocument();
   });
 
+  it('explains that an empty search does not mean the queue is processed and lets the user clear it', async () => {
+    const admin = vi.fn<AdminRequest>().mockImplementation(async path => {
+      if (String(path).includes('q=missing')) return page([]);
+      return page();
+    });
+    renderPage(admin);
+    await screen.findByRole('heading', { name: 'Laptop source' });
+    fireEvent.change(screen.getByRole('searchbox'), { target: { value: 'missing' } });
+
+    expect(await screen.findByText(/Hàng đợi vẫn còn 4 mặt hàng/)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Xoá tìm kiếm' })).toBeInTheDocument();
+    expect(screen.queryByText('Hàng đợi đã được xử lý')).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Xoá tìm kiếm' }));
+    expect(screen.getByRole('status', { name: 'Đang tải hàng đợi' })).toBeInTheDocument();
+    expect(screen.queryByText('Hàng đợi đã được xử lý')).not.toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Laptop source' })).toBeInTheDocument();
+  });
+
   it('shows explicit create controls only with products.create and supports Files image selection', async () => {
     const files = { items: [{ id: 'file-guid', originalFileName: 'laptop.png', contentType: 'image/png', sizeBytes: 1000, width: 1000, height: 1000, uploadedBy: 'tester', uploadedAtUtc: '' }] };
     const admin = vi.fn<AdminRequest>().mockImplementation(async path => path.startsWith('/admin/matching?') ? page() : path.startsWith('/admin/files?') ? Response.json(files) : new Response(null, { status: 204 }));
