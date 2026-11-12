@@ -12,6 +12,7 @@ const item = { id: 12, name: 'Laptop source', brand: 'Acme', externalSku: 'SKU-1
 const page = (items: unknown[] = [item], counts = { all: 4, pending: 3, skipped: 1, confident: 1, review: 1, likely_new: 1, likely_skip: 1 }) => Response.json({ items, page: 1, pageSize: 20, total: items.length, counts });
 const request = (responses: Response[]) => vi.fn<AdminRequest>().mockImplementation(async (path, init) => {
   if (path.startsWith('/admin/categories?')) return Response.json({ items: [{ id: 9, name: 'Laptop', slug: 'laptop', isActive: true }] });
+  if (path.startsWith('/admin/products/slug-availability?')) return new Response('', { status: 503 });
   if (path.includes('pageSize=100')) return page();
   if (path.startsWith('/admin/matching?')) return responses.shift() ?? page([]);
   return responses.shift() ?? new Response(null, { status: 204 });
@@ -139,7 +140,7 @@ describe('MatchingPage', () => {
 
   it('shows explicit create controls only with products.create and supports Files image selection', async () => {
     const files = { items: [{ id: 'file-guid', originalFileName: 'laptop.png', contentType: 'image/png', sizeBytes: 1000, width: 1000, height: 1000, uploadedBy: 'tester', uploadedAtUtc: '' }] };
-    const admin = vi.fn<AdminRequest>().mockImplementation(async path => path.startsWith('/admin/matching?') ? page() : path.startsWith('/admin/files?') ? Response.json(files) : new Response(null, { status: 204 }));
+    const admin = vi.fn<AdminRequest>().mockImplementation(async path => path.startsWith('/admin/matching?') ? page() : path.startsWith('/admin/products/slug-availability?') ? new Response('', { status: 503 }) : path.startsWith('/admin/files?') ? Response.json(files) : new Response(null, { status: 204 }));
     renderPage(admin);
     await screen.findByRole('heading', { name: 'Laptop source' });
     fireEvent.click(screen.getByRole('button', { name: /Tạo sản phẩm mới/ }));
@@ -153,6 +154,7 @@ describe('MatchingPage', () => {
     expect(screen.getByRole('button', { name: /laptop.png/ })).toHaveAttribute('aria-pressed', 'true');
     expect(within(screen.getByRole('button', { name: /laptop.png/ })).getByText('Đang chọn')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Dùng ảnh này' }));
+    await screen.findByText(/Chưa kiểm tra được slug/);
     expect(screen.getByRole('button', { name: /Tạo và gắn/ })).toBeEnabled();
     cleanup();
     renderPage(request([page()]), ['matching.approve']);
@@ -287,6 +289,7 @@ describe('MatchingPage', () => {
   it('keeps create-product scoped to the selected item when pending queue completeness fails', async () => {
     const admin = vi.fn<AdminRequest>().mockImplementation(async path => {
       if (path.startsWith('/admin/categories?')) return Response.json({ items: [{ id: 9, name: 'Laptop', slug: 'laptop', isActive: true }] });
+      if (path.startsWith('/admin/products/slug-availability?')) return new Response('', { status: 503 });
       if (!path.startsWith('/admin/matching?')) return new Response(null, { status: 204 });
       const params = new URLSearchParams(path.split('?')[1]);
       if (params.get('pageSize') !== '100') return page([item]);
@@ -299,52 +302,103 @@ describe('MatchingPage', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent('Không tải được đầy đủ nhóm');
     fireEvent.click(screen.getByRole('button', { name: /Tạo sản phẩm mới/ }));
     expect(await screen.findByText(/tạo sản phẩm chỉ áp dụng cho item đang chọn/i)).toBeInTheDocument();
+    await screen.findByText(/Chưa kiểm tra được slug/);
     fireEvent.click(screen.getByRole('radio', { name: /Chưa có ảnh/ }));
     fireEvent.click(screen.getByRole('button', { name: 'Tạo và gắn' }));
     await waitFor(() => expect(admin).toHaveBeenCalledWith('/admin/matching/12/create-product', expect.objectContaining({ body: expect.any(String) })));
     const body = JSON.parse(String(admin.mock.calls.find(([path]) => String(path).includes('/create-product'))?.[1]?.body));
     expect(body).toMatchObject({ name: 'Acme Notebook 16GB', brand: 'Acme', description: null, categoryId: 9, imageUrl: null, imageChoice: 'none' });
     expect(body).not.toHaveProperty('applyToIds');
-    expect(body).not.toHaveProperty('slug');
+    expect(body.slug).toBe('acme-notebook-16gb');
     expect(body).not.toHaveProperty('imageId');
     expect(body).not.toHaveProperty('applyGroup');
   });
 
-  it('creates from a shop image with edited fields and reports API rejection in the dialog', async () => {
-    const admin = vi.fn<AdminRequest>().mockImplementation(async path => path.startsWith('/admin/matching?') ? page() : path.startsWith('/admin/categories?') ? Response.json({ items: [{ id: 9, name: 'Laptop', slug: 'laptop', isActive: true }] }) : path.includes('/create-product') ? Response.json({ detail: 'Laptop category is not configured' }, { status: 409 }) : new Response(null, { status: 204 }));
+  it('debounces slug availability and blocks creation with an inline duplicate suggestion', async () => {
+    const admin = vi.fn<AdminRequest>().mockImplementation(async path => {
+      if (path.startsWith('/admin/matching?')) return page();
+      if (path.startsWith('/admin/products/slug-availability?')) return Response.json({ slug: 'acme-notebook-16gb', exists: true });
+      return new Response(null, { status: 204 });
+    });
     renderPage(admin);
     await screen.findByRole('heading', { name: 'Laptop source' });
     fireEvent.click(screen.getByRole('button', { name: /Tạo sản phẩm mới/ }));
+    const submit = screen.getByRole('button', { name: 'Tạo và gắn' });
+    expect(submit).toBeDisabled();
+    await new Promise(resolve => setTimeout(resolve, 200));
+    expect(admin.mock.calls.some(([path]) => String(path).startsWith('/admin/products/slug-availability?'))).toBe(false);
+    await waitFor(() => expect(document.getElementById('matching-slug-feedback')).toHaveTextContent('Slug “acme-notebook-16gb” đã có sản phẩm khác dùng'));
+    expect(admin).toHaveBeenCalledWith('/admin/products/slug-availability?slug=acme-notebook-16gb');
+    expect(screen.getByRole('button', { name: 'Dùng “acme-notebook-16gb-2”' })).toBeInTheDocument();
+    expect(submit).toBeDisabled();
+    expect(document.getElementById('matching-slug-feedback')).toHaveAttribute('aria-live', 'polite');
+    expect(document.getElementById('matching-slug-feedback')).toHaveAttribute('aria-atomic', 'true');
+    expect(admin.mock.calls.some(([path]) => String(path).includes('/create-product'))).toBe(false);
+  });
+
+  it('allows submit after an availability failure and keeps create values after a slug conflict', async () => {
+    const admin = vi.fn<AdminRequest>().mockImplementation(async path => {
+      if (path.startsWith('/admin/matching?')) return page();
+      if (path.startsWith('/admin/products/slug-availability?')) return new Response('', { status: 503 });
+      if (path.startsWith('/admin/categories?')) return Response.json({ items: [{ id: 9, name: 'Laptop', slug: 'laptop', isActive: true }] });
+      if (path.includes('/create-product')) return Response.json({ code: 'slug_conflict', detail: 'Product slug is already in use.' }, { status: 409 });
+      return new Response(null, { status: 204 });
+    });
+    renderPage(admin);
+    await screen.findByRole('heading', { name: 'Laptop source' });
+    fireEvent.click(screen.getByRole('button', { name: /Tạo sản phẩm mới/ }));
+    await screen.findByText(/Chưa kiểm tra được slug/);
+    fireEvent.change(screen.getByLabelText('Tên sản phẩm chuẩn'), { target: { value: 'My Laptop' } });
+    fireEvent.change(screen.getByLabelText('Slug'), { target: { value: 'my-laptop' } });
+    fireEvent.click(screen.getByRole('radio', { name: /Chưa có ảnh/ }));
+    await screen.findByText(/Chưa kiểm tra được slug/);
+    fireEvent.click(screen.getByRole('button', { name: 'Tạo và gắn' }));
+    await waitFor(() => expect(document.getElementById('matching-slug-feedback')).toHaveTextContent('Product slug is already in use'));
+    expect(screen.getByRole('dialog', { name: 'Tạo sản phẩm mới' })).toBeInTheDocument();
+    expect(screen.getByLabelText('Tên sản phẩm chuẩn')).toHaveValue('My Laptop');
+    expect(screen.getByLabelText('Slug')).toHaveValue('my-laptop');
+    expect(screen.getByRole('button', { name: 'Tạo và gắn' })).toBeDisabled();
+  });
+
+  it('creates from a shop image with edited fields and reports API rejection in the dialog', async () => {
+    const admin = vi.fn<AdminRequest>().mockImplementation(async path => path.startsWith('/admin/matching?') ? page() : path.startsWith('/admin/categories?') ? Response.json({ items: [{ id: 9, name: 'Laptop', slug: 'laptop', isActive: true }] }) : path.startsWith('/admin/products/slug-availability?') ? new Response('', { status: 503 }) : path.includes('/create-product') ? Response.json({ detail: 'Laptop category is not configured' }, { status: 409 }) : new Response(null, { status: 204 }));
+    renderPage(admin);
+    await screen.findByRole('heading', { name: 'Laptop source' });
+    fireEvent.click(screen.getByRole('button', { name: /Tạo sản phẩm mới/ }));
+    await screen.findByText(/Chưa kiểm tra được slug/);
     expect(screen.getByRole('button', { name: 'Tạo và gắn' })).toBeDisabled();
     expect(screen.getByLabelText('Slug')).toHaveValue('acme-notebook-16gb');
     fireEvent.change(screen.getByLabelText('Slug'), { target: { value: 'custom-laptop-slug' } });
     fireEvent.click(screen.getByRole('radio', { name: /Dùng tạm ảnh của shop/ }));
     expect(screen.getByText('Cần ảnh chuẩn')).toBeInTheDocument();
     fireEvent.change(screen.getByLabelText('Tên sản phẩm chuẩn'), { target: { value: 'Laptop custom' } });
+    await screen.findByText(/Chưa kiểm tra được slug/);
     fireEvent.click(screen.getByRole('button', { name: 'Tạo và gắn' }));
     expect((await screen.findAllByRole('alert'))[0]).toHaveTextContent('Laptop category is not configured');
     expect(admin).toHaveBeenCalledWith('/admin/matching/12/create-product', expect.objectContaining({ body: expect.stringContaining('"imageChoice":"shop"') }));
     const body = JSON.parse(String(admin.mock.calls.find(([path]) => String(path).includes('/create-product'))?.[1]?.body));
     expect(body).toMatchObject({ name: 'Laptop custom', brand: 'Acme', description: null, categoryId: 9, imageUrl: 'https://img.example/laptop.jpg', imageChoice: 'shop' });
-    expect(body).not.toHaveProperty('slug');
+    expect(body.slug).toBe('custom-laptop-slug');
   });
 
   it('surfaces Files picker failures and sends the API contract for the no-image choice', async () => {
-    const admin = vi.fn<AdminRequest>().mockImplementation(async path => path.startsWith('/admin/matching?') ? page() : path.startsWith('/admin/categories?') ? Response.json({ items: [{ id: 9, name: 'Laptop', slug: 'laptop', isActive: true }] }) : path.startsWith('/admin/files?') ? new Response('', { status: 403 }) : new Response(null, { status: 204 }));
+    const admin = vi.fn<AdminRequest>().mockImplementation(async path => path.startsWith('/admin/matching?') ? page() : path.startsWith('/admin/categories?') ? Response.json({ items: [{ id: 9, name: 'Laptop', slug: 'laptop', isActive: true }] }) : path.startsWith('/admin/products/slug-availability?') ? new Response('', { status: 503 }) : path.startsWith('/admin/files?') ? new Response('', { status: 403 }) : new Response(null, { status: 204 }));
     renderPage(admin);
     await screen.findByRole('heading', { name: 'Laptop source' });
     fireEvent.click(screen.getByRole('button', { name: /Tạo sản phẩm mới/ }));
+    await screen.findByText(/Chưa kiểm tra được slug/);
     fireEvent.click(screen.getByRole('button', { name: /Chọn ảnh từ Files/ }));
     expect(await screen.findByText(/permission to load files/i)).toBeInTheDocument();
     fireEvent.keyDown(window, { key: 'Escape' });
     fireEvent.click(screen.getByRole('radio', { name: /Chưa có ảnh/ }));
     expect(screen.getByText('Cần ảnh chuẩn')).toBeInTheDocument();
+    await screen.findByText(/Chưa kiểm tra được slug/);
     expect(screen.getByRole('button', { name: 'Tạo và gắn' })).toBeEnabled();
     fireEvent.click(screen.getByRole('button', { name: 'Tạo và gắn' }));
     await waitFor(() => expect(admin).toHaveBeenCalledWith('/admin/matching/12/create-product', expect.objectContaining({ body: expect.stringContaining('"imageChoice":"none"') })));
     const body = JSON.parse(String(admin.mock.calls.find(([path]) => String(path).includes('/create-product'))?.[1]?.body));
     expect(body).toMatchObject({ name: 'Acme Notebook 16GB', brand: 'Acme', description: null, categoryId: 9, imageUrl: null, imageChoice: 'none' });
-    expect(body).not.toHaveProperty('slug');
+    expect(body.slug).toBe('acme-notebook-16gb');
     expect(body).not.toHaveProperty('imageId');
     expect(body).not.toHaveProperty('applyGroup');
   });
