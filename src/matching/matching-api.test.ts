@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { approveMatching, approveMatchingGroup, createMatchingProduct, fetchMatchings, restoreMatching, skipMatching } from './matching-api';
+import { approveMatching, approveMatchingGroup, createMatchingProduct, fetchAllPendingMatchings, fetchMatchings, restoreMatching, skipMatching } from './matching-api';
 
 const row = { id: 4, name: 'Laptop', verdict: 'confident', source: { ImageUrl: 'https://img.test/a.jpg', Price: 1200 }, attributes: { ram: '16GB' }, candidates: [{ productId: 7, score: 0.91, level: 'confident', differences: [] }] };
 
@@ -24,6 +24,28 @@ describe('matching API boundary', () => {
     expect(request).toHaveBeenCalledWith('/admin/matching?status=skipped&page=1&pageSize=20');
     expect(result.items).toHaveLength(1);
     expect(result.counts.pending).toBe(1);
+  });
+
+  it('recognizes root totalItems and loads every page before confirming a group', async () => {
+    const firstPage = { ...row, id: 2041, groupKey: 'qc-group' };
+    const secondPage = { ...row, id: 2042, groupKey: 'qc-group' };
+    const request = vi.fn()
+      .mockResolvedValueOnce(Response.json({ items: [firstPage], page: 1, pageSize: 1, totalItems: 2 }))
+      .mockResolvedValueOnce(Response.json({ items: [secondPage], page: 2, pageSize: 1, totalItems: 2 }));
+
+    await expect(fetchAllPendingMatchings(request)).resolves.toMatchObject([
+      { id: 2041, groupKey: 'qc-group' },
+      { id: 2042, groupKey: 'qc-group' },
+    ]);
+    expect(request).toHaveBeenNthCalledWith(2, '/admin/matching?status=pending&page=2&pageSize=100');
+  });
+
+  it('recognizes nested pagination.totalItems without weakening page consistency checks', async () => {
+    const request = vi.fn()
+      .mockResolvedValueOnce(Response.json({ items: [row], page: 1, pageSize: 1, pagination: { totalItems: 2 } }))
+      .mockResolvedValueOnce(Response.json({ items: [{ ...row, id: 5 }], page: 2, pageSize: 1, pagination: { totalItems: 3 } }));
+
+    await expect(fetchAllPendingMatchings(request)).rejects.toThrow('không nhất quán');
   });
 
   it('reports queue errors and sends explicit single and group decisions', async () => {
