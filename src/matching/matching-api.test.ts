@@ -12,6 +12,12 @@ describe('matching API boundary', () => {
     expect(result.counts.confident).toBe(9);
   });
 
+  it('recognizes the API totalItems pagination field required to verify complete groups', async () => {
+    const request = vi.fn().mockResolvedValue(Response.json({ items: [row], page: 1, pageSize: 100, totalItems: 75, counts: {} }));
+    const result = await fetchMatchings(request, { status: 'pending', verdict: 'all', q: '', page: 1, pageSize: 100 });
+    expect(result).toMatchObject({ total: 75, page: 1, pageSize: 100, hasPaginationMetadata: true });
+  });
+
   it('accepts the legacy array response while retaining a useful empty count', async () => {
     const request = vi.fn().mockResolvedValue(Response.json([row]));
     const result = await fetchMatchings(request, { status: 'skipped', verdict: 'all', q: '', page: 1, pageSize: 20 });

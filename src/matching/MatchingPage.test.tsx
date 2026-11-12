@@ -252,8 +252,8 @@ describe('MatchingPage', () => {
     const admin = vi.fn<AdminRequest>().mockImplementation(async (path) => {
       if (path.startsWith('/admin/matching?') && path.includes('pageSize=100')) {
         const pageNumber = Number(new URLSearchParams(path.split('?')[1]).get('page'));
-        if (pageNumber === 1) return Response.json({ items: [item], page: 1, pageSize: 1, total: 2, counts: {} });
-        return Response.json({ items: [second], page: 2, pageSize: 1, total: 2, counts: {} });
+        if (pageNumber === 1) return Response.json({ items: [item], page: 1, pageSize: 1, totalItems: 2, counts: {} });
+        return Response.json({ items: [second], page: 2, pageSize: 1, totalItems: 2, counts: {} });
       }
       if (path.startsWith('/admin/matching?')) return page([item]);
       return new Response(null, { status: 204 });

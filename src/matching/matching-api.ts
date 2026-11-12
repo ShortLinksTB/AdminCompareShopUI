@@ -45,10 +45,11 @@ export async function fetchMatchings(request: AdminRequest, query: { status: 'pe
   const body: unknown = await response.json();
   const root = record(body), items = Array.isArray(body) ? body : Array.isArray(root.items) ? root.items : [];
   const pagination = record(root.pagination);
+  const total = num(root.total) ?? num(root.totalItems) ?? num(pagination.total) ?? num(pagination.totalItems);
   const rawCounts = record(root.counts);
   const mapped = items.map(mapItem);
   const counts: MatchingCounts = { all: num(rawCounts.all) ?? mapped.length, pending: num(rawCounts.pending) ?? mapped.filter(i => i.status === 'pending').length, skipped: num(rawCounts.skipped) ?? mapped.filter(i => i.status === 'skipped').length, confident: num(rawCounts.confident) ?? 0, review: num(rawCounts.review) ?? 0, likely_new: num(rawCounts.likely_new) ?? 0, likely_skip: num(rawCounts.likely_skip) ?? 0 };
-  return { items: mapped, page: num(root.page) ?? query.page, pageSize: num(root.pageSize) ?? query.pageSize, total: num(root.total) ?? num(pagination.total) ?? mapped.length, counts, hasPaginationMetadata: !Array.isArray(body) && num(root.page) !== null && num(root.pageSize) !== null && (num(root.total) !== null || num(pagination.total) !== null) };
+  return { items: mapped, page: num(root.page) ?? query.page, pageSize: num(root.pageSize) ?? query.pageSize, total: total ?? mapped.length, counts, hasPaginationMetadata: !Array.isArray(body) && num(root.page) !== null && num(root.pageSize) !== null && total !== null };
 }
 
 export async function fetchAllPendingMatchings(request: AdminRequest): Promise<PendingMatching[]> {
