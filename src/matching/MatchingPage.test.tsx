@@ -71,6 +71,7 @@ describe('MatchingPage', () => {
     fireEvent.change(screen.getByRole('searchbox'), { target: { value: 'missing' } });
 
     expect(await screen.findByText('Hàng đợi vẫn còn mặt hàng. Hãy đổi từ khóa hoặc xóa tìm kiếm để xem lại.')).toBeInTheDocument();
+    expect(screen.getByLabelText('Hàng đợi').closest('.matching-layout')).toHaveClass('matching-layout-no-results');
     expect(screen.getByRole('button', { name: 'Xóa tìm kiếm' })).toBeInTheDocument();
     expect(screen.queryByText('Hàng đợi đã được xử lý')).not.toBeInTheDocument();
 
@@ -78,6 +79,7 @@ describe('MatchingPage', () => {
     expect(screen.getByRole('status', { name: 'Đang tải hàng đợi' })).toBeInTheDocument();
     expect(screen.queryByText('Hàng đợi đã được xử lý')).not.toBeInTheDocument();
     expect(await screen.findByRole('heading', { name: 'Laptop source' })).toBeInTheDocument();
+    expect(screen.getByLabelText('Hàng đợi').closest('.matching-layout')).not.toHaveClass('matching-layout-no-results');
   });
 
   it('preserves genuine pending and skipped empty states when no queue items remain', async () => {
@@ -92,6 +94,7 @@ describe('MatchingPage', () => {
 
     fireEvent.change(screen.getByRole('searchbox'), { target: { value: 'missing' } });
     expect(await screen.findByText('Hàng đợi đã được xử lý')).toBeInTheDocument();
+    expect(screen.getByLabelText('Hàng đợi').closest('.matching-layout')).not.toHaveClass('matching-layout-no-results');
     expect(screen.getByRole('button', { name: 'Xóa tìm kiếm' })).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: /Đã bỏ qua/ }));
