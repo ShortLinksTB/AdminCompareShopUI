@@ -111,7 +111,7 @@ describe('Studio shared components', () => {
     const overlay = document.querySelector('.studio-overlay')!; expect(document.body.style.overflow).toBe('hidden'); fireEvent.mouseDown(overlay); expect(close).toHaveBeenCalledOnce();
   });
   it('zooms the lightbox from 1x to 4x, pans while zoomed and clamps at 1x', () => {
-    render(<Lightbox open onClose={vi.fn()}><img alt="Zoom image" src="/image.png" /></Lightbox>);
+    const close = vi.fn(); render(<Lightbox open onClose={close}><img alt="Zoom image" src="/image.png" /></Lightbox>);
     const stage = document.querySelector('.studio-lightbox-stage') as HTMLDivElement; stage.getBoundingClientRect = () => ({ x: 0, y: 0, left: 0, top: 0, right: 300, bottom: 200, width: 300, height: 200, toJSON: () => ({}) }); stage.setPointerCapture = vi.fn();
     const wheel = createEvent.wheel(stage, { deltaY: -100, clientX: 200, clientY: 100 });
     fireEvent(stage, wheel);
@@ -121,6 +121,13 @@ describe('Studio shared components', () => {
     const pointer = (type: string, x: number, y: number) => { const event = new MouseEvent(type, { bubbles: true, clientX: x, clientY: y }); Object.defineProperty(event, 'pointerId', { value: 1 }); fireEvent(stage, event); };
     pointer('pointerdown', 40, 50); pointer('pointermove', 60, 70); pointer('pointerup', 60, 70);
     expect(stage.setPointerCapture).toHaveBeenCalledWith(1); expect(document.querySelector('.studio-lightbox-content')).toHaveStyle({ transform: 'translate(12.500000000000007px,20px) scale(1.15)' });
+    fireEvent.click(stage);
+    expect(screen.getByRole('dialog', { name: 'Xem ảnh' })).toBeInTheDocument();
+    pointer('pointerdown', 60, 70); pointer('pointermove', 70, 75); pointer('pointerup', 70, 75); fireEvent.click(stage);
+    expect(document.querySelector('.studio-lightbox-content')).toHaveStyle({ transform: 'translate(22.500000000000007px,25px) scale(1.15)' });
+    expect(screen.getByRole('dialog', { name: 'Xem ảnh' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Đóng ảnh' }));
+    expect(close).toHaveBeenCalledOnce();
     for (let index = 0; index < 20; index++) fireEvent.wheel(stage, { deltaY: -100, clientX: 200, clientY: 100 });
     expect(screen.getByText('400%')).toBeInTheDocument();
     for (let index = 0; index < 20; index++) fireEvent.wheel(stage, { deltaY: 100, clientX: 200, clientY: 100 });
