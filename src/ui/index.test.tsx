@@ -113,7 +113,9 @@ describe('Studio shared components', () => {
   it('zooms the lightbox from 1x to 4x, pans while zoomed and clamps at 1x', () => {
     render(<Lightbox open onClose={vi.fn()}><img alt="Zoom image" src="/image.png" /></Lightbox>);
     const stage = document.querySelector('.studio-lightbox-stage') as HTMLDivElement; stage.getBoundingClientRect = () => ({ x: 0, y: 0, left: 0, top: 0, right: 300, bottom: 200, width: 300, height: 200, toJSON: () => ({}) }); stage.setPointerCapture = vi.fn();
-    fireEvent.wheel(stage, { deltaY: -100, clientX: 200, clientY: 100 }); expect(screen.getByText('115%')).toBeInTheDocument(); expect(stage).toHaveClass('is-zoomed');
+    const wheel = new WheelEvent('wheel', { bubbles: true, cancelable: true, deltaY: -100, clientX: 200, clientY: 100 });
+    fireEvent(stage, wheel); expect(wheel.defaultPrevented).toBe(true); expect(screen.getByText('115%')).toBeInTheDocument(); expect(stage).toHaveClass('is-zoomed');
+    expect(document.querySelector('.studio-lightbox-content')).toHaveStyle({ transform: 'translate(-7.499999999999993px,0px) scale(1.15)' });
     const pointer = (type: string, x: number, y: number) => { const event = new MouseEvent(type, { bubbles: true, clientX: x, clientY: y }); Object.defineProperty(event, 'pointerId', { value: 1 }); fireEvent(stage, event); };
     pointer('pointerdown', 40, 50); pointer('pointermove', 60, 70); pointer('pointerup', 60, 70);
     expect(stage.setPointerCapture).toHaveBeenCalledWith(1); expect(document.querySelector('.studio-lightbox-content')).toHaveStyle({ transform: 'translate(12.500000000000007px,20px) scale(1.15)' });

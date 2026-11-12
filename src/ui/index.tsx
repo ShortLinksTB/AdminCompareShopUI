@@ -42,7 +42,25 @@ export function ErrorState({ title, children }: { title: string; children?: Reac
 export function Loading({ label = 'Đang tải' }: { label?: string }) { return <div className="studio-loading" role="status" aria-label={label}><i /><i /><i /></div>; }
 export function PageHeader({ eyebrow, title, description, actions }: { eyebrow?: string; title: string; description?: string; actions?: ReactNode }) { return <header className="studio-page-header">{eyebrow && <span>{eyebrow}</span>}<div><section><h1>{title}</h1>{description && <p>{description}</p>}</section>{actions}</div></header>; }
 export function Lightbox({ open, onClose, children, toolbar, label = 'Xem ảnh', className = '', clickZoom = false, resetKey }: { open: boolean; onClose: () => void; children: ReactNode; toolbar?: ReactNode; label?: string; className?: string; clickZoom?: boolean; resetKey?: string }) {
-  const [zoom, setZoom] = useState(1); const [pan, setPan] = useState({ x: 0, y: 0 }); const drag = useRef<{ id: number; x: number; y: number; panX: number; panY: number } | null>(null);
+  const [zoom, setZoom] = useState(1); const [pan, setPan] = useState({ x: 0, y: 0 }); const stage = useRef<HTMLDivElement>(null); const zoomRef = useRef(zoom); const panRef = useRef(pan); const drag = useRef<{ id: number; x: number; y: number; panX: number; panY: number } | null>(null);
+  zoomRef.current = zoom; panRef.current = pan;
   useEffect(() => { if (open) { setZoom(1); setPan({ x: 0, y: 0 }); drag.current = null; } }, [open, resetKey]);
-  return open ? <FocusLayer onClose={onClose} label={label} className={`studio-lightbox ${className}`.trim()}><Button tone="ghost" aria-label="Đóng ảnh" onClick={onClose}>×</Button>{toolbar && <div className="studio-lightbox-toolbar">{toolbar}</div>}<div className={`studio-lightbox-stage${zoom > 1 ? ' is-zoomed' : ''}`} onClick={event => { if (event.target === event.currentTarget) onClose(); else if (clickZoom && event.target instanceof HTMLImageElement) { const next = zoom > 1 ? 1 : 2; setZoom(next); if (next === 1) setPan({ x: 0, y: 0 }); } }} onWheel={event => { event.preventDefault(); const bounds = event.currentTarget.getBoundingClientRect(); const px = event.clientX - bounds.left - bounds.width / 2; const py = event.clientY - bounds.top - bounds.height / 2; const next = Math.min(4, Math.max(1, zoom * (event.deltaY < 0 ? 1.15 : 1 / 1.15))); setPan(next === 1 ? { x: 0, y: 0 } : { x: px - (px - pan.x) * next / zoom, y: py - (py - pan.y) * next / zoom }); setZoom(next); }} onPointerDown={event => { if (zoom <= 1) return; event.currentTarget.setPointerCapture(event.pointerId); drag.current = { id: event.pointerId, x: event.clientX, y: event.clientY, panX: pan.x, panY: pan.y }; }} onPointerMove={event => { if (drag.current?.id === event.pointerId) setPan({ x: drag.current.panX + event.clientX - drag.current.x, y: drag.current.panY + event.clientY - drag.current.y }); }} onPointerUp={() => { drag.current = null; }} onPointerCancel={() => { drag.current = null; }}><div className="studio-lightbox-content" style={{ transform: `translate(${pan.x}px,${pan.y}px) scale(${zoom})` }}>{children}</div><span className="studio-lightbox-hint">Scroll để zoom · kéo để di chuyển</span><span className="studio-lightbox-zoom">{Math.round(zoom * 100)}%</span></div></FocusLayer> : null;
+  useEffect(() => {
+    const element = stage.current;
+    if (!open || !element) return;
+    const handleWheel = (event: WheelEvent) => {
+      event.preventDefault();
+      const bounds = element.getBoundingClientRect();
+      const px = event.clientX - bounds.left - bounds.width / 2;
+      const py = event.clientY - bounds.top - bounds.height / 2;
+      const currentZoom = zoomRef.current;
+      const currentPan = panRef.current;
+      const next = Math.min(4, Math.max(1, currentZoom * (event.deltaY < 0 ? 1.15 : 1 / 1.15)));
+      setPan(next === 1 ? { x: 0, y: 0 } : { x: px - (px - currentPan.x) * next / currentZoom, y: py - (py - currentPan.y) * next / currentZoom });
+      setZoom(next);
+    };
+    element.addEventListener('wheel', handleWheel, { passive: false });
+    return () => element.removeEventListener('wheel', handleWheel);
+  }, [open]);
+  return open ? <FocusLayer onClose={onClose} label={label} className={`studio-lightbox ${className}`.trim()}><Button tone="ghost" aria-label="Đóng ảnh" onClick={onClose}>×</Button>{toolbar && <div className="studio-lightbox-toolbar">{toolbar}</div>}<div ref={stage} className={`studio-lightbox-stage${zoom > 1 ? ' is-zoomed' : ''}`} onClick={event => { if (event.target === event.currentTarget) onClose(); else if (clickZoom && event.target instanceof HTMLImageElement) { const next = zoom > 1 ? 1 : 2; setZoom(next); if (next === 1) setPan({ x: 0, y: 0 }); } }} onPointerDown={event => { if (zoom <= 1) return; event.currentTarget.setPointerCapture(event.pointerId); drag.current = { id: event.pointerId, x: event.clientX, y: event.clientY, panX: pan.x, panY: pan.y }; }} onPointerMove={event => { if (drag.current?.id === event.pointerId) setPan({ x: drag.current.panX + event.clientX - drag.current.x, y: drag.current.panY + event.clientY - drag.current.y }); }} onPointerUp={() => { drag.current = null; }} onPointerCancel={() => { drag.current = null; }}><div className="studio-lightbox-content" style={{ transform: `translate(${pan.x}px,${pan.y}px) scale(${zoom})` }}>{children}</div><span className="studio-lightbox-hint">Scroll để zoom · kéo để di chuyển</span><span className="studio-lightbox-zoom">{Math.round(zoom * 100)}%</span></div></FocusLayer> : null;
 }
