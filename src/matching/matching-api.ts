@@ -14,6 +14,14 @@ export type PendingMatching = {
 export type MatchingCounts = Record<Verdict | 'all' | 'pending' | 'skipped', number>;
 export type MatchingPageResult = { items: PendingMatching[]; page: number; pageSize: number; total: number; counts: MatchingCounts; hasPaginationMetadata: boolean };
 export type AdminRequest = (path: string, init?: RequestInit) => Promise<Response>;
+export async function checkProductSlugAvailability(request: AdminRequest, slug: string): Promise<boolean> {
+  const params = new URLSearchParams({ slug });
+  const response = await request(`/admin/products/slug-availability?${params}`);
+  if (!response.ok) throw new Error('Không thể kiểm tra slug.');
+  const body = record(await response.json());
+  if (typeof body.exists !== 'boolean') throw new Error('Phản hồi kiểm tra slug không hợp lệ.');
+  return body.exists;
+}
 
 const labels: Record<string, string> = { brand: 'Hãng', line: 'Dòng', chip: 'Chip', gpu: 'GPU', ram: 'RAM', ssd: 'Ổ cứng', screen: 'Màn hình', acc: 'Phụ kiện' };
 const verdicts = new Set<Verdict>(['confident', 'review', 'likely_new', 'likely_skip']);
@@ -93,13 +101,13 @@ export async function fetchAllPendingMatchings(request: AdminRequest): Promise<P
 }
 async function post(request: AdminRequest, path: string, body?: unknown): Promise<unknown> {
   const response = await request(path, { method: 'POST', ...(body === undefined ? {} : { headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }) });
-  if (!response.ok) { let message = `Thao tác thất bại (${response.status}).`; try { const data = record(await response.json()); message = str(data.message ?? data.title ?? data.detail) ?? message; } catch { /* Keep stable fallback for an empty error response. */ } throw new Error(message); }
+  if (!response.ok) { let message = `Thao tác thất bại (${response.status}).`, code = ''; try { const data = record(await response.json()); message = str(data.message ?? data.title ?? data.detail) ?? message; code = str(data.code ?? data.errorCode) ?? ''; } catch { /* Keep stable fallback for an empty error response. */ } const error = new Error(message) as Error & { code?: string }; if (code) error.code = code; throw error; }
   if (response.status === 204) return undefined;
   try { return await response.json(); } catch { return undefined; }
 }
 export const approveMatching = (request: AdminRequest, id: number, productId: number) => post(request, `/admin/matching/${id}/approve`, { productId });
 export const approveMatchingGroup = (request: AdminRequest, ids: number[], productId: number) => post(request, '/admin/matching/approve-group', { ids, productId });
-export type MatchingProductCreate = { name: string; brand: string; description: string | null; categoryId: number; imageUrl: string | null; imageChoice: 'files' | 'shop' | 'none'; applyToIds?: number[] };
+export type MatchingProductCreate = { name: string; slug?: string; brand: string; description: string | null; categoryId: number; imageUrl: string | null; imageChoice: 'files' | 'shop' | 'none'; applyToIds?: number[] };
 export const createMatchingProduct = (request: AdminRequest, id: number, input: MatchingProductCreate) => post(request, `/admin/matching/${id}/create-product`, input);
 export const skipMatching = (request: AdminRequest, id: number, reason: string, note: string) => post(request, `/admin/matching/${id}/skip`, { reason, note });
 export const restoreMatching = (request: AdminRequest, id: number) => post(request, `/admin/matching/${id}/restore`);

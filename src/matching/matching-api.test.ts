@@ -1,9 +1,14 @@
 import { describe, expect, it, vi } from 'vitest';
-import { approveMatching, approveMatchingGroup, createMatchingProduct, fetchMatchings, restoreMatching, skipMatching } from './matching-api';
+import { approveMatching, approveMatchingGroup, checkProductSlugAvailability, createMatchingProduct, fetchMatchings, restoreMatching, skipMatching } from './matching-api';
 
 const row = { id: 4, name: 'Laptop', verdict: 'confident', source: { ImageUrl: 'https://img.test/a.jpg', Price: 1200 }, attributes: { ram: '16GB' }, candidates: [{ productId: 7, score: 0.91, level: 'confident', differences: [] }] };
 
 describe('matching API boundary', () => {
+  it('checks exact slug availability using the authenticated admin endpoint contract', async () => {
+    const request = vi.fn().mockResolvedValue(Response.json({ slug: 'laptop-x', exists: true }));
+    await expect(checkProductSlugAvailability(request, 'laptop x')).resolves.toBe(true);
+    expect(request).toHaveBeenCalledWith('/admin/products/slug-availability?slug=laptop+x');
+  });
   it('maps the new paged contract and sends all supported filters', async () => {
     const request = vi.fn().mockResolvedValue(Response.json({ items: [row], page: 2, pageSize: 10, total: 21, counts: { all: 21, pending: 20, skipped: 1, confident: 9, review: 5, likely_new: 4, likely_skip: 2 } }));
     const result = await fetchMatchings(request, { status: 'pending', verdict: 'confident', q: ' mac ', page: 2, pageSize: 10 });

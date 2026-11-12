@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { Button, Card, EmptyState, ErrorState, Field, FilterChips, Kbd, Lightbox, Loading, Modal, PageHeader, Pill, SearchField, Switch, Toast } from '../ui';
 import { getAdminFiles, publicFileUrl, type AdminFile } from '../files/files-api';
 import { getCategories } from '../categories/categories-api';
-import { approveMatching, approveMatchingGroup, createMatchingProduct, displayVerdict, fetchAllPendingMatchings, fetchMatchings, formatPrice, restoreMatching, skipMatching, type AdminRequest, type MatchingCounts, type PendingMatching, type Verdict } from './matching-api';
+import { approveMatching, approveMatchingGroup, checkProductSlugAvailability, createMatchingProduct, displayVerdict, fetchAllPendingMatchings, fetchMatchings, formatPrice, restoreMatching, skipMatching, type AdminRequest, type MatchingCounts, type PendingMatching, type Verdict } from './matching-api';
 import './matching.css';
 
 type Dialog = 'create' | 'skip' | 'files' | null;
@@ -28,6 +28,9 @@ export function MatchingPage({ requestAdmin, permissions = [] }: { requestAdmin:
   const [loading, setLoading] = useState(true), [error, setError] = useState(''), [busy, setBusy] = useState(false), [actionError, setActionError] = useState(''), [toast, setToast] = useState('');
   const [dialog, setDialog] = useState<Dialog>(null), [lightbox, setLightbox] = useState(false);
   const [productName, setProductName] = useState(''), [productBrand, setProductBrand] = useState(''), [productSlug, setProductSlug] = useState(''), [imageChoice, setImageChoice] = useState<'files' | 'shop' | 'none'>('files'), [selectedFile, setSelectedFile] = useState<AdminFile | null>(null), [files, setFiles] = useState<AdminFile[]>([]), [filesError, setFilesError] = useState(''), [skipReason, setSkipReason] = useState(reasons[0][0]), [skipNote, setSkipNote] = useState('');
+  const [slugState, setSlugState] = useState<'idle' | 'checking' | 'available' | 'duplicate' | 'unavailable' | 'conflict'>('idle');
+  const [slugConflictMessage, setSlugConflictMessage] = useState('');
+  const slugSuggestion = `${productSlug.trim()}-2`;
   const canCreate = permissions.includes('products.create'), canApprove = permissions.includes('matching.approve');
   const current = items.find(item => item.id === selectedId) ?? items[0] ?? null;
   const activeCandidate = current?.candidates.find(item => item.productId === candidateId) ?? null;
@@ -72,14 +75,30 @@ export function MatchingPage({ requestAdmin, permissions = [] }: { requestAdmin:
   }, [requestAdmin, status, verdict, query, page, selectedId]);
   useEffect(() => { const timer = window.setTimeout(() => void load(1), 250); return () => window.clearTimeout(timer); }, [status, verdict, query, requestAdmin]);
 
+  useEffect(() => {
+    if (dialog !== 'create' || !productSlug.trim()) { setSlugState('idle'); return; }
+    let active = true;
+    setSlugState('checking');
+    const timer = window.setTimeout(() => {
+      void checkProductSlugAvailability(requestAdmin, productSlug.trim()).then(exists => {
+        if (active) setSlugState(exists ? 'duplicate' : 'available');
+      }).catch(() => { if (active) setSlugState('unavailable'); });
+    }, 400);
+    return () => { active = false; window.clearTimeout(timer); };
+  }, [dialog, productSlug, requestAdmin]);
+
   const runAction = async (action: () => Promise<unknown>, message: string) => {
     if (!current || busy) return;
     setBusy(true); setActionError('');
     try { await action(); setDialog(null); setToast(message); setCandidateId(null); await load(page); }
-    catch (cause) { setActionError(cause instanceof Error ? cause.message : 'Thao tác thất bại. Vui lòng thử lại.'); }
+    catch (cause) {
+      if (dialog === 'create' && cause instanceof Error && 'code' in cause && (cause as Error & { code?: string }).code === 'slug_conflict') {
+        setSlugConflictMessage(cause.message); setSlugState('conflict'); setActionError('');
+      } else setActionError(cause instanceof Error ? cause.message : 'Thao tác thất bại. Vui lòng thử lại.');
+    }
     finally { setBusy(false); }
   };
-  const openCreate = () => { if (!current || !canCreate) return; const name = [current.attributes['Hãng'] ?? current.brand, current.attributes['Dòng'], current.attributes['Chip'], current.attributes['RAM'], current.attributes['Ổ cứng']].filter(Boolean).join(' '); setProductName(name || current.name); setProductBrand(current.attributes['Hãng'] ?? current.brand ?? ''); setProductSlug(makeSlug(name || current.name)); setImageChoice('files'); setSelectedFile(null); setActionError(''); setDialog('create'); };
+  const openCreate = () => { if (!current || !canCreate) return; const name = [current.attributes['Hãng'] ?? current.brand, current.attributes['Dòng'], current.attributes['Chip'], current.attributes['RAM'], current.attributes['Ổ cứng']].filter(Boolean).join(' '); setProductName(name || current.name); setProductBrand(current.attributes['Hãng'] ?? current.brand ?? ''); setProductSlug(makeSlug(name || current.name)); setSlugState('idle'); setSlugConflictMessage(''); setImageChoice('files'); setSelectedFile(null); setActionError(''); setDialog('create'); };
   const openFiles = async () => { setDialog('files'); setFilesError(''); try { const result = await getAdminFiles(requestAdmin, 1, 24, '', 'image'); setFiles(result.items); } catch (cause) { setFilesError(cause instanceof Error ? cause.message : 'Không tải được Files.'); } };
   const approve = () => { if (!activeCandidate || !current) return; const ids = groupOn && !isGroupLoading && !currentGroupError && completeGroupItems.length > 1 ? completeGroupItems.map(item => item.id) : [current.id]; void runAction(() => ids.length > 1 ? approveMatchingGroup(requestAdmin, ids, activeCandidate.productId) : approveMatching(requestAdmin, current.id, activeCandidate.productId), `Đã gửi duyệt ${ids.length} mặt hàng.`); };
   const create = () => { if (!current) return; void runAction(async () => {
@@ -87,7 +106,7 @@ export function MatchingPage({ requestAdmin, permissions = [] }: { requestAdmin:
     const laptop = categories.items.find(category => category.isActive && (category.name.trim().toLocaleLowerCase() === 'laptop' || category.slug.trim().toLocaleLowerCase() === 'laptop'));
     if (!laptop) throw new Error('Không tìm thấy danh mục Laptop đang hoạt động. Vui lòng thử lại sau khi kiểm tra danh mục.');
     const applyToIds = groupOn && completeGroupItems.length > 1 && !currentGroupError ? completeGroupItems.map(item => item.id) : undefined;
-    return createMatchingProduct(requestAdmin, current.id, { name: productName.trim(), brand: productBrand.trim(), description: current.source.specificationsJson ?? null, categoryId: laptop.id, imageUrl: imageChoice === 'files' ? selectedFile ? publicFileUrl(selectedFile.id) : null : imageChoice === 'shop' ? current.source.imageUrl : null, imageChoice, ...(applyToIds ? { applyToIds } : {}) });
+    return createMatchingProduct(requestAdmin, current.id, { name: productName.trim(), slug: productSlug.trim(), brand: productBrand.trim(), description: current.source.specificationsJson ?? null, categoryId: laptop.id, imageUrl: imageChoice === 'files' ? selectedFile ? publicFileUrl(selectedFile.id) : null : imageChoice === 'shop' ? current.source.imageUrl : null, imageChoice, ...(applyToIds ? { applyToIds } : {}) });
   }, 'Đã tạo sản phẩm và gắn mặt hàng.'); };
   const skip = () => { if (!current) return; void runAction(() => skipMatching(requestAdmin, current.id, skipReason, skipNote.trim()), 'Đã lưu mặt hàng vào danh sách bỏ qua.'); };
 
@@ -149,8 +168,16 @@ export function MatchingPage({ requestAdmin, permissions = [] }: { requestAdmin:
     </div>
     <div className="matching-shortcuts"><span><Kbd>↑</Kbd> <Kbd>↓</Kbd> chọn mặt hàng</span><span><Kbd>1</Kbd>–<Kbd>5</Kbd> chọn gợi ý</span><span><Kbd>Enter</Kbd> duyệt</span><span><Kbd>N</Kbd> tạo mới</span><span><Kbd>S</Kbd> bỏ qua</span></div>
 
-    <Modal open={dialog === 'create'} onClose={() => setDialog(null)} title="Tạo sản phẩm mới" actions={<><Button tone="ghost" onClick={() => setDialog(null)}>Huỷ</Button><Button tone="primary" disabled={busy || !productName.trim() || !productBrand.trim() || !productSlug.trim() || (imageChoice === 'files' && !selectedFile)} onClick={create}>Tạo và gắn</Button></>}>
-      <div className="matching-form">{current?.groupKey && isGroupLoading && <p className="matching-note" role="status">Đang xác minh toàn bộ nhóm; tạo sản phẩm sẽ chỉ áp dụng cho item đang chọn cho tới khi xác minh hoàn tất.</p>}{current?.groupKey && currentGroupError && <p className="matching-note matching-note-warning" role="alert">Không xác minh được nhóm; tạo sản phẩm chỉ áp dụng cho item đang chọn. {currentGroupError}</p>}<Field label="Tên sản phẩm chuẩn" value={productName} onChange={event => setProductName(event.target.value)} /><div className="matching-form-row"><Field label="Hãng" value={productBrand} onChange={event => setProductBrand(event.target.value)} /><span className="matching-category-note">Danh mục: Laptop</span></div><Field label="Slug" value={productSlug} onChange={event => setProductSlug(event.target.value)} />
+    <Modal open={dialog === 'create'} onClose={() => setDialog(null)} title="Tạo sản phẩm mới" actions={<><Button tone="ghost" onClick={() => setDialog(null)}>Huỷ</Button><Button tone="primary" disabled={busy || slugState === 'checking' || slugState === 'duplicate' || slugState === 'conflict' || !productName.trim() || !productBrand.trim() || !productSlug.trim() || (imageChoice === 'files' && !selectedFile)} onClick={create}>Tạo và gắn</Button></>}>
+      <div className="matching-form">{current?.groupKey && isGroupLoading && <p className="matching-note" role="status">Đang xác minh toàn bộ nhóm; tạo sản phẩm sẽ chỉ áp dụng cho item đang chọn cho tới khi xác minh hoàn tất.</p>}{current?.groupKey && currentGroupError && <p className="matching-note matching-note-warning" role="alert">Không xác minh được nhóm; tạo sản phẩm chỉ áp dụng cho item đang chọn. {currentGroupError}</p>}<Field label="Tên sản phẩm chuẩn" value={productName} onChange={event => setProductName(event.target.value)} /><div className="matching-form-row"><Field label="Hãng" value={productBrand} onChange={event => setProductBrand(event.target.value)} /><span className="matching-category-note">Danh mục: Laptop</span></div><div className="matching-slug-field"><Field label="Slug" id="matching-product-slug" value={productSlug} onChange={event => setProductSlug(event.target.value)} aria-invalid={slugState === 'duplicate' || slugState === 'conflict'} aria-describedby="matching-slug-feedback" />
+        <div id="matching-slug-feedback" className={`matching-slug-feedback${slugState === 'duplicate' || slugState === 'conflict' ? ' is-error' : slugState === 'unavailable' ? ' is-warning' : ''}`} aria-live="polite" aria-atomic="true">
+          {slugState === 'checking' && 'Đang kiểm tra slug…'}
+          {slugState === 'available' && 'Slug dùng được.'}
+          {slugState === 'duplicate' && <>Slug “{productSlug.trim()}” đã có sản phẩm khác dùng. Gợi ý: <button type="button" onClick={() => setProductSlug(slugSuggestion)}>Dùng “{slugSuggestion}”</button></>}
+          {slugState === 'conflict' && <>{slugConflictMessage || `Slug “${productSlug.trim()}” vừa được sử dụng.`} Đổi slug rồi thử lại. Gợi ý: <button type="button" onClick={() => setProductSlug(slugSuggestion)}>Dùng “{slugSuggestion}”</button></>}
+          {slugState === 'unavailable' && 'Chưa kiểm tra được slug. Bạn vẫn có thể tạo; máy chủ sẽ báo nếu slug bị trùng.'}
+        </div>
+      </div>
         <fieldset className="matching-image-choices"><legend>Ảnh sản phẩm chuẩn</legend><label><input type="radio" name="matching-image" checked={imageChoice === 'files'} onChange={() => setImageChoice('files')} /><span><b>Chọn từ Files</b><small>Khuyến nghị ảnh vuông 1000 × 1000 px trở lên.</small>{imageChoice === 'files' && <span className="matching-file-choice"><Button size="sm" onClick={() => void openFiles()}>Chọn ảnh từ Files…</Button>{selectedFile ? selectedFile.originalFileName : 'Chưa chọn ảnh'}</span>}</span></label><label><input type="radio" name="matching-image" checked={imageChoice === 'shop'} onChange={() => setImageChoice('shop')} /><span><b>Dùng tạm ảnh của shop</b><small>Ảnh nguồn có thể chưa đạt chuẩn.</small>{imageChoice === 'shop' && <Pill tone="warn">Cần ảnh chuẩn</Pill>}</span></label><label><input type="radio" name="matching-image" checked={imageChoice === 'none'} onChange={() => setImageChoice('none')} /><span><b>Chưa có ảnh</b><small>Ảnh sẽ được bổ sung sau.</small>{imageChoice === 'none' && <Pill tone="warn">Cần ảnh chuẩn</Pill>}</span></label></fieldset>
         {current?.groupKey && !isGroupLoading && !currentGroupError && completeGroupItems.length > 1 && <label className="matching-apply-group"><Switch checked={groupOn} onChange={setGroupOn} label="Áp dụng cho cả nhóm" /><span>Gắn {groupOn ? completeGroupItems.length : 1} mặt hàng vào sản phẩm mới</span></label>}
         <div className="matching-prefill"><b>Thông số điền sẵn</b><div className="matching-attributes">{attrsOrder.filter(key => sourceAttrs[key]).map(key => <span className="matching-attribute" key={key}><small>{key}</small><b>{sourceAttrs[key]}</b></span>)}</div></div>
