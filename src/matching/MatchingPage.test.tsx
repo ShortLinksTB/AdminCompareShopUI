@@ -61,6 +61,26 @@ describe('MatchingPage', () => {
     expect(screen.queryByText('Hàng đợi đã được xử lý')).not.toBeInTheDocument();
   });
 
+  it('explains a search with no matches and clears the search to restore the populated queue', async () => {
+    const admin = vi.fn<AdminRequest>().mockImplementation(async path => {
+      if (!path.startsWith('/admin/matching?')) return new Response(null, { status: 204 });
+      if (path.includes('q=missing')) return Response.json({ items: [], page: 1, pageSize: 20, total: 0, counts: { all: 4, pending: 3, skipped: 1, confident: 1, review: 1, likely_new: 1, likely_skip: 1 } });
+      return page();
+    });
+    renderPage(admin);
+    await screen.findByRole('heading', { name: 'Laptop source' });
+
+    fireEvent.change(screen.getByRole('searchbox'), { target: { value: 'missing' } });
+    expect(await screen.findByText('Hàng đợi vẫn còn mặt hàng. Hãy đổi từ khóa hoặc xóa tìm kiếm để xem lại.')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Xóa tìm kiếm' })).toBeInTheDocument();
+    expect(screen.queryByText('Hàng đợi đã được xử lý')).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Xóa tìm kiếm' }));
+    expect(await screen.findByRole('heading', { name: 'Laptop source' })).toBeInTheDocument();
+    expect(screen.getByRole('searchbox')).toHaveValue('');
+    await waitFor(() => expect(admin.mock.calls.some(([path]) => String(path).includes('q=missing'))).toBe(true));
+  });
+
   it('shows explicit create controls only with products.create and supports Files image selection', async () => {
     const files = { items: [{ id: 'file-guid', originalFileName: 'laptop.png', contentType: 'image/png', sizeBytes: 1000, width: 1000, height: 1000, uploadedBy: 'tester', uploadedAtUtc: '' }] };
     const admin = vi.fn<AdminRequest>().mockImplementation(async path => path.startsWith('/admin/matching?') ? page() : path.startsWith('/admin/files?') ? Response.json(files) : new Response(null, { status: 204 }));
