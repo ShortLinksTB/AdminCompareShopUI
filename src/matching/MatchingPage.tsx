@@ -101,7 +101,7 @@ export function MatchingPage({ requestAdmin, permissions = [] }: { requestAdmin:
   const filterItems = [{ value: 'all', label: 'Tất cả', count: counts.all }, { value: 'confident', label: 'Chắc chắn', count: counts.confident }, { value: 'review', label: 'Cần xem', count: counts.review }, { value: 'likely_new', label: 'Sản phẩm mới', count: counts.likely_new }, { value: 'likely_skip', label: 'Có thể bỏ qua', count: counts.likely_skip }, { value: 'skipped', label: 'Đã bỏ qua', count: counts.skipped }];
   const pages = Math.max(1, Math.ceil(total / 20));
   const sourceAttrs = current?.attributes ?? {};
-  const hasSearchMatchesInQueue = status === 'skipped' ? counts.skipped > 0 : counts.all > 0;
+  const hasSearchMatchesInQueue = status === 'skipped' ? counts.skipped > 0 : counts.pending > 0;
 
   return <main className="matching-studio">
     <PageHeader eyebrow="Catalog" title="Product Matching" description="So sánh thông số và duyệt gợi ý. Mọi quyết định đều do bạn xác nhận." actions={<div className="matching-progress"><span className="matching-progress-ring" aria-hidden="true">{counts.all ? Math.min(100, Math.round(handledItems / counts.all * 100)) : 0}%</span><span><b>{handledItems} / {counts.all}</b><small>đã xử lý trong hàng đợi</small></span></div>} />
