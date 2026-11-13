@@ -128,6 +128,16 @@ describe('mobile application navigation', () => {
     expect(document.querySelector('.admin-breadcrumb')).toHaveTextContent('GiaTot Admin / Studio components');
   });
 
+  it('renders Settings on its existing /settings route', () => {
+    auth.permissions = ['settings.manage'];
+    renderApp('/settings');
+
+    expect(screen.getByRole('heading', { name: 'Settings' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'General' })).toBeInTheDocument();
+    expect(document.querySelector('.admin-breadcrumb')).toHaveTextContent('GiaTot Admin / Settings');
+    expect(auth.requestAdmin).not.toHaveBeenCalled();
+  });
+
   it('loads Files on the existing /files route for users with files.read', async () => {
     auth.permissions = ['files.read'];
     auth.requestAdmin.mockResolvedValue(Response.json({ items: [], pageNumber: 1, pageSize: 10, totalItems: 0 }));
