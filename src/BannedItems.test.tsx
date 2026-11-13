@@ -152,8 +152,8 @@ describe('Banned items routes', () => {
 
   it('keeps the add drawer open and disables Cancel while a ban is submitting', async () => {
     const user = userEvent.setup();
-    let finishCreate!: () => void;
-    vi.mocked(createBannedItem).mockReturnValueOnce(new Promise<void>(resolve => { finishCreate = resolve; }));
+    let failCreate!: (failure: Error) => void;
+    vi.mocked(createBannedItem).mockReturnValueOnce(new Promise<void>((_resolve, reject) => { failCreate = reject; }));
     renderRoute('/banned-items');
     await screen.findAllByText('Example Brand');
     await user.click(screen.getByRole('button', { name: /Add banned item/ }));
@@ -174,7 +174,20 @@ describe('Banned items routes', () => {
     fireEvent.mouseDown(document.querySelector('.studio-overlay')!);
     expect(screen.getByRole('dialog', { name: 'Add banned item' })).toBeTruthy();
 
-    finishCreate();
+    failCreate(new Error('Service unavailable'));
+    expect(await screen.findByRole('alert')).toHaveTextContent('Service unavailable');
+    expect(within(screen.getByRole('dialog', { name: 'Add banned item' })).getByRole('button', { name: 'Cancel' })).toBeEnabled();
+    await user.keyboard('{Escape}');
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Add banned item' })).toBeNull());
+
+    await user.click(screen.getByRole('button', { name: /Add banned item/ }));
+    const reopenedForHeader = await screen.findByRole('dialog', { name: 'Add banned item' });
+    await user.click(within(reopenedForHeader).getByRole('button', { name: 'Đóng' }));
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Add banned item' })).toBeNull());
+
+    await user.click(screen.getByRole('button', { name: /Add banned item/ }));
+    await screen.findByRole('dialog', { name: 'Add banned item' });
+    fireEvent.mouseDown(document.querySelector('.studio-overlay')!);
     await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Add banned item' })).toBeNull());
   });
 
