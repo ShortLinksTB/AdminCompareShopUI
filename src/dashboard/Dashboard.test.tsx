@@ -37,6 +37,10 @@ describe('Dashboard', () => {
     expect(screen.getByRole('heading', { name: 'Traffic & affiliate clicks' })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Data health' })).toBeInTheDocument();
     expect(screen.getByText('MacBook Air M5 13 16GB 512GB')).toBeInTheDocument();
+    const outlierPanel = screen.getByRole('heading', { name: 'Offers flagged as outlier' }).closest('.dashboard-outlier-panel');
+    expect(outlierPanel).toHaveClass('studio-card');
+    expect(outlierPanel?.querySelector('.dashboard-outlier-heading')).not.toBeNull();
+    expect(outlierPanel?.querySelector('.dashboard-outlier-content .dashboard-offer-table')).toBeInTheDocument();
     fireEvent.click(screen.getByText('Bảng dữ liệu thay thế cho biểu đồ'));
     expect(screen.getAllByRole('table')[0]).toHaveTextContent('6,840 lượt xem');
     expect(screen.getByLabelText('Khoảng thời gian')).toHaveValue('30 ngày');
@@ -56,6 +60,18 @@ describe('Dashboard', () => {
     expect(screen.getAllByText('—').length).toBeGreaterThan(0);
     fireEvent.click(screen.getByRole('button', { name: 'Retry' }));
     expect(await screen.findByText('No offers found')).toBeInTheDocument();
+  });
+
+  it('keeps the outlier empty state inside its separated panel content', async () => {
+    vi.mocked(getAdminOffers).mockResolvedValueOnce({ ...offerPage, items: offerPage.items.map(offer => ({ ...offer, isOutlier: false })) });
+    renderDashboard();
+
+    expect(await screen.findByText('No flagged offers')).toBeInTheDocument();
+    const heading = screen.getByRole('heading', { name: 'Offers flagged as outlier' });
+    const panel = heading.closest('.dashboard-outlier-panel');
+    expect(panel).toHaveClass('studio-card');
+    expect(panel?.querySelector('.dashboard-outlier-heading')).toContainElement(heading);
+    expect(panel?.querySelector('.dashboard-outlier-content .dashboard-offers-state')).toHaveTextContent('No flagged offers');
   });
 
   it('does not call APIs for missing permissions and retains matching dashboard content', async () => {
