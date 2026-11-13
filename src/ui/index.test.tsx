@@ -45,6 +45,16 @@ describe('Studio shared components', () => {
     const change = vi.fn(); render(<><Toolbar><Field label="Search" placeholder="Name" /></Toolbar><DataTable><thead><tr><th>Name</th></tr></thead><tbody><tr><td>One</td></tr></tbody></DataTable><TableFooter start={1} end={10} total={20}><Pager page={1} pages={2} onChange={change} /></TableFooter></>);
     expect(screen.getByLabelText('Search')).toBeInTheDocument(); expect(screen.getByText('One')).toBeInTheDocument(); fireEvent.click(screen.getByRole('button', { name: 'Trang sau' })); expect(change).toHaveBeenCalledWith(2);
   });
+  it('keeps the shared pager formatter and disabled state with a caller-provided footer summary', () => {
+    const change = vi.fn();
+    render(<><TableFooter start={1} end={10} total={20} summary="Records 1–10 of 20" /><Pager page={2} pages={4} onChange={change} formatPage={(page, pages) => `${page} sur ${pages}`} disabled /></>);
+    expect(screen.getByText('Records 1–10 of 20')).toBeInTheDocument();
+    expect(screen.getByText('2 sur 4')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Trang trước' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Trang sau' })).toBeDisabled();
+    fireEvent.click(screen.getByRole('button', { name: 'Trang trước' }));
+    expect(change).not.toHaveBeenCalled();
+  });
   it('styles native selects through shared Studio density variants', () => {
     render(<><Select aria-label="Sort"><option value="name">Name</option></Select><Select size="sm" aria-label="Page size"><option value="10">10</option></Select></>);
     expect(screen.getByRole('combobox', { name: 'Sort' })).toHaveClass('studio-select', 'studio-select-md');

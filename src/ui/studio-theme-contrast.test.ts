@@ -39,6 +39,12 @@ describe('Studio navigation group label contrast', () => {
     expect(contrast('#0e6538', '#e9f1eb')).toBeGreaterThanOrEqual(4.5);
   });
 
+  it('keeps shared table headings above 4.5:1 in both themes', () => {
+    expect(componentStyles).toContain('.studio-table th{padding:12px 16px;border-bottom:1px solid var(--studio-border);color:var(--studio-muted)');
+    expect(contrast('#53626f', '#ffffff')).toBeGreaterThanOrEqual(4.5);
+    expect(contrast('#a9b8c4', '#101b26')).toBeGreaterThanOrEqual(4.5);
+  });
+
   it('keeps the fallback avatar glyph readable against its rendered background in both themes', () => {
     expect(styles).toContain('.studio-shell .user-avatar{color:#17202a}');
     expect(contrast('#17202a', '#f5a27d')).toBeGreaterThanOrEqual(4.5);
