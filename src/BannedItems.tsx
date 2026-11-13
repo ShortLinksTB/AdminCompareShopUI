@@ -1,6 +1,7 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { BanApiError, createBannedItem, getBannedItems, getProductTargets, revokeBannedItem, type AdminRequest, type BanTargetType, type BannedItem, type ProductTarget } from './bannedItemsApi';
+import { Button, Card, DataTable, Drawer, EmptyState, ErrorState, Loading, Modal, PageHeader, Pager, Pill, SearchField, Select, TableFooter, Toolbar } from './ui';
 import './bannedItems.css';
 
 const pageSize = 20;
@@ -91,57 +92,46 @@ function BannedItemsPage({ canManage, requestAdmin }: { canManage: boolean; requ
   };
 
   return <div className="banned-page">
-    <div className="page-header">
-      <div><span className="eyebrow">CATALOG & PRICING</span><h1>Banned items</h1><p>Manage brands and products hidden from public CompareShop.</p></div>
-      {canManage && <button className="primary-button" onClick={openAdd}>＋ Add banned item</button>}
-    </div>
+    <PageHeader eyebrow="CATALOG & PRICING" title="Banned items" description="Manage brands and products hidden from public CompareShop." actions={canManage && <Button tone="primary" onClick={openAdd}>＋ Add banned item</Button>} />
 
-    <div className="banned-toolbar" role="search">
-      <label className="toolbar-search">⌕<input aria-label="Search banned items" value={search} onChange={event => setSearch(event.target.value)} placeholder="Search brand or product…" /></label>
-      <label className="banned-filter"><span className="sr-only">Filter by target type</span><select value={targetType} onChange={event => { setTargetType(event.target.value as 'all' | BanTargetType); setPage(1); }}><option value="all">All target types</option><option value="Brand">Brand</option><option value="Product">Product</option></select></label>
-      <label className="banned-filter"><span className="sr-only">Filter by status</span><select value={String(active)} onChange={event => { setActive(event.target.value === 'true'); setPage(1); }}><option value="true">Active</option><option value="false">Revoked</option></select></label>
-    </div>
+    <Toolbar className="banned-toolbar" role="search" aria-label="Filter banned items">
+      <SearchField label="Search banned items" type="search" value={search} onChange={event => setSearch(event.target.value)} placeholder="Search brand or product…" />
+      <Select aria-label="Filter by target type" value={targetType} onChange={event => { setTargetType(event.target.value as 'all' | BanTargetType); setPage(1); }}><option value="all">All target types</option><option value="Brand">Brand</option><option value="Product">Product</option></Select>
+      <Select aria-label="Filter by status" value={String(active)} onChange={event => { setActive(event.target.value === 'true'); setPage(1); }}><option value="true">Active</option><option value="false">Revoked</option></Select>
+    </Toolbar>
 
-    {error && <div className="banned-alert" role="alert">{error}<button className="outline-button small" onClick={() => setReloadKey(current => current + 1)}>Retry</button></div>}
+    {error && <div className="banned-alert"><ErrorState title={error} /><Button size="sm" onClick={() => setReloadKey(current => current + 1)}>Retry</Button></div>}
     {loading ? <BannedItemsLoading />
-      : items.length === 0 && !error ? <div className="banned-state panel"><strong>{query ? 'No results' : `No ${active ? 'active' : 'revoked'} bans found`}</strong><span>{query ? `No banned items match “${query}”.` : 'Try another target type or add a ban.'}</span>{query && <button className="outline-button small" onClick={() => setSearch('')}>Clear search</button>}{canManage && !query && <button className="primary-button" onClick={openAdd}>＋ Add banned item</button>}</div>
+      : items.length === 0 && !error ? <Card className="banned-state"><EmptyState title={query ? 'No results' : `No ${active ? 'active' : 'revoked'} bans found`}>{query ? `No banned items match “${query}”.` : 'Try another target type or add a ban.'}</EmptyState>{query && <Button size="sm" onClick={() => setSearch('')}>Clear search</Button>}{canManage && !query && <Button tone="primary" onClick={openAdd}>＋ Add banned item</Button>}</Card>
         : <>
-          <section className="panel banned-table-panel" aria-label="Banned items list">
-            <div className="banned-table-scroll"><table>
-              <thead><tr><th>Target</th><th>Reason</th><th>Status</th><th>Added by</th><th>Added at</th><th>Revoked by</th><th>Revoked at</th>{canManage && <th><span className="sr-only">Actions</span></th>}</tr></thead>
+          <Card className="banned-table-panel" aria-label="Banned items list">
+            <DataTable role="region" tabIndex={0} aria-label="Banned items table, scroll horizontally"><thead><tr><th scope="col">Target</th><th scope="col">Reason</th><th scope="col">Status</th><th scope="col">Added by</th><th scope="col">Added at</th><th scope="col">Revoked by</th><th scope="col">Revoked at</th>{canManage && <th scope="col"><span className="sr-only">Actions</span></th>}</tr></thead>
               <tbody>{items.map(item => <tr key={item.id}>
                 <td><strong>{targetName(item)}</strong><small>{item.targetType}{item.targetType === 'Product' && item.brandName ? ` · ${item.brandName}` : ''}</small></td>
                 <td className="banned-reason">{item.reason || '—'}</td>
-                <td><span className={`banned-status ${item.isActive ? 'is-active' : 'is-revoked'}`}><i />{item.isActive ? 'Active' : 'Revoked'}</span></td>
+                <td><Pill tone={item.isActive ? 'ok' : 'neutral'}>{item.isActive ? '● Active' : '◆ Revoked'}</Pill></td>
                 <td>{item.createdBy || '—'}</td><td>{dateTime(item.createdAtUtc)}</td><td>{item.revokedBy || '—'}</td><td>{dateTime(item.revokedAtUtc)}</td>
-                {canManage && <td>{item.isActive && <button className="banned-revoke-link" onClick={() => setPendingRevoke(item)}>Revoke</button>}</td>}
-              </tr>)}</tbody>
-            </table></div>
-            <div className="table-footer"><span>Showing {totalItems === 0 ? 0 : (page - 1) * pageSize + 1}–{Math.min(page * pageSize, totalItems)} of {totalItems} entries</span><div><button aria-label="Previous page" disabled={page <= 1} onClick={() => setPage(current => current - 1)}>‹</button><span className="banned-page-number">Page {page} of {pageCount}</span><button aria-label="Next page" disabled={page >= pageCount} onClick={() => setPage(current => current + 1)}>›</button></div></div>
-          </section>
-          <section className="banned-cards" aria-label="Banned items list">{items.map(item => <article className="panel banned-card" key={item.id}>
-            <div className="banned-card-head"><div><strong>{targetName(item)}</strong><small>{item.targetType}{item.targetType === 'Product' && item.brandName ? ` · ${item.brandName}` : ''}</small></div><span className={`banned-status ${item.isActive ? 'is-active' : 'is-revoked'}`}><i />{item.isActive ? 'Active' : 'Revoked'}</span></div>
+                {canManage && <td>{item.isActive && <Button tone="danger" size="sm" onClick={() => setPendingRevoke(item)}>Revoke</Button>}</td>}
+              </tr>)}</tbody></DataTable>
+            <TableFooter start={totalItems === 0 ? 0 : (page - 1) * pageSize + 1} end={Math.min(page * pageSize, totalItems)} total={totalItems} summary={`Showing ${totalItems === 0 ? 0 : (page - 1) * pageSize + 1}–${Math.min(page * pageSize, totalItems)} of ${totalItems} entries`}><Pager page={page} pages={pageCount} onChange={setPage} previousLabel="Previous page" nextLabel="Next page" formatPage={(current, pages) => `Page ${current} of ${pages}`} /></TableFooter>
+          </Card>
+          <section className="banned-cards" aria-label="Banned items list">{items.map(item => <Card as="article" className="banned-card" key={item.id}>
+            <div className="banned-card-head"><div><strong>{targetName(item)}</strong><small>{item.targetType}{item.targetType === 'Product' && item.brandName ? ` · ${item.brandName}` : ''}</small></div><Pill tone={item.isActive ? 'ok' : 'neutral'}>{item.isActive ? '● Active' : '◆ Revoked'}</Pill></div>
             <p className="banned-card-reason">{item.reason || 'No reason provided.'}</p>
             <dl><div><dt>Added by</dt><dd>{item.createdBy || '—'}</dd></div><div><dt>Added at</dt><dd>{dateTime(item.createdAtUtc)}</dd></div>{!item.isActive && <><div><dt>Revoked by</dt><dd>{item.revokedBy || '—'}</dd></div><div><dt>Revoked at</dt><dd>{dateTime(item.revokedAtUtc)}</dd></div></>}</dl>
-            {canManage && item.isActive && <button className="banned-mobile-revoke" onClick={() => setPendingRevoke(item)}>Revoke ban</button>}
-          </article>)}</section>
+            {canManage && item.isActive && <Button tone="danger" className="banned-mobile-revoke" onClick={() => setPendingRevoke(item)}>Revoke ban</Button>}
+          </Card>)}</section>
         </>}
 
-    {pendingRevoke && <div className="banned-dialog-backdrop" role="presentation"><section className="banned-dialog" role="alertdialog" aria-modal="true" aria-labelledby="revoke-title" aria-describedby="revoke-description">
-      <span className="banned-dialog-icon">!</span><h2 id="revoke-title">Revoke this ban?</h2><p id="revoke-description">{targetName(pendingRevoke)} will be marked as revoked. Confirm to continue.</p>
-      {error && <div className="banned-alert" role="alert">{error}</div>}
-      <div><button className="outline-button" disabled={revoking} onClick={() => setPendingRevoke(null)}>Cancel</button><button className="banned-danger-button" disabled={revoking} onClick={revoke}>{revoking ? 'Revoking…' : 'Revoke ban'}</button></div>
-    </section></div>}
-    {addOpen && <BannedItemForm canManage requestAdmin={requestAdmin} fullScreen={false} onCancel={() => setAddOpen(false)} onCreated={() => { setAddOpen(false); setReloadKey(current => current + 1); }} />}
+    <Modal open={Boolean(pendingRevoke)} onClose={() => { if (!revoking) setPendingRevoke(null); }} title="Revoke this ban?" role="alertdialog" className="banned-confirm-modal" actions={<><Button disabled={revoking} onClick={() => setPendingRevoke(null)}>Cancel</Button><Button tone="danger" disabled={revoking} onClick={revoke}>{revoking ? 'Revoking…' : 'Revoke ban'}</Button></>}>
+      <p>{pendingRevoke && `${targetName(pendingRevoke)} will be marked as revoked. Confirm to continue.`}</p>{error && <ErrorState title={error} />}
+    </Modal>
+    <Drawer open={addOpen} onClose={() => setAddOpen(false)} title="Add banned item"><BannedItemForm canManage requestAdmin={requestAdmin} fullScreen={false} onCancel={() => setAddOpen(false)} onCreated={() => { setAddOpen(false); setReloadKey(current => current + 1); }} /></Drawer>
   </div>;
 }
 
 function BannedItemsLoading() {
-  return <div className="banned-loading" role="status" aria-label="Loading banned items">
-    <section className="panel banned-skeleton-table" aria-hidden="true">{Array.from({ length: 5 }, (_, index) => <div className="banned-skeleton-row" key={index}><i /><i /><i /><i /></div>)}</section>
-    <section className="banned-skeleton-cards" aria-hidden="true">{Array.from({ length: 3 }, (_, index) => <div className="panel banned-skeleton-card" key={index}><i /><i /><i /></div>)}</section>
-    <span className="sr-only">Loading banned items…</span>
-  </div>;
+  return <Loading label="Loading banned items" />;
 }
 
 function BannedItemForm({ canManage, requestAdmin, fullScreen, onCancel, onCreated }: { canManage: boolean; requestAdmin: AdminRequest; fullScreen: boolean; onCancel: () => void; onCreated: () => void }) {
@@ -204,7 +194,7 @@ function BannedItemForm({ canManage, requestAdmin, fullScreen, onCancel, onCreat
   };
 
   const form = <>
-    <div className="banned-form-heading"><div><span className="eyebrow">CATALOG & PRICING / BANNED ITEMS</span><h2 id="add-banned-title">Add banned item</h2><p>Choose a catalog target and explain why it is being banned.</p></div><button className="banned-close-button" type="button" aria-label="Close add banned item" onClick={onCancel}>×</button></div>
+    <div className="banned-form-heading"><div><span className="eyebrow">CATALOG & PRICING / BANNED ITEMS</span>{fullScreen && <h2>Add banned item</h2>}<p>Choose a catalog target and explain why it is being banned.</p></div>{fullScreen && <Button tone="ghost" type="button" aria-label="Close add banned item" onClick={onCancel}>×</Button>}</div>
     <form className="banned-form" onSubmit={submit}>
       <div className="banned-notice">This target will be hidden from public CompareShop when the ban takes effect.</div>
       <h3>Entry details</h3>
@@ -224,11 +214,11 @@ function BannedItemForm({ canManage, requestAdmin, fullScreen, onCancel, onCreat
       </div>
       <label className="banned-field" htmlFor="banReason"><span>Ban reason <b>*</b></span><textarea id="banReason" required maxLength={1000} value={reason} onChange={event => setReason(event.target.value)} placeholder="Describe why this target is being banned…" /><small>This reason is visible to authorized Admin users.</small></label>
       {error && <div className="banned-alert" role="alert">{error}</div>}
-      <div className="banned-form-actions"><button className="outline-button" type="button" disabled={submitting} onClick={onCancel}>Cancel</button><button className="primary-button" type="submit" disabled={submitting || !selectedTarget || !reason.trim()}>{submitting ? 'Adding…' : 'Add to banned list'}</button></div>
+      <div className="banned-form-actions"><Button type="button" disabled={submitting} onClick={onCancel}>Cancel</Button><Button tone="primary" type="submit" disabled={submitting || !selectedTarget || !reason.trim()}>{submitting ? 'Adding…' : 'Add to banned list'}</Button></div>
     </form>
-    {fullScreen && <aside className="panel banned-recent"><h2>Recently added</h2>{recent.length ? recent.map(item => <div className="banned-recent-item" key={item.id}><strong>{targetName(item)}</strong><small>Added by {item.createdBy || '—'} · {dateTime(item.createdAtUtc)}</small></div>) : <p>No active bans to preview.</p>}</aside>}
+    {fullScreen && <Card className="banned-recent"><h2>Recently added</h2>{recent.length ? recent.map(item => <div className="banned-recent-item" key={item.id}><strong>{targetName(item)}</strong><small>Added by {item.createdBy || '—'} · {dateTime(item.createdAtUtc)}</small></div>) : <p>No active bans to preview.</p>}</Card>}
   </>;
   return fullScreen
-    ? <div className="banned-page banned-form-page"><div className="banned-mobile-back"><button className="outline-button" type="button" onClick={onCancel}>‹ Back to banned items</button></div><div className="page-header"><div><span className="eyebrow">CATALOG & PRICING / BANNED ITEMS</span><h1>Add banned item</h1><p>Choose a target and provide a reason.</p></div></div><div className="banned-form-layout"><section className="panel banned-mobile-form">{form}</section></div></div>
-    : <div className="banned-drawer-backdrop" role="presentation" onMouseDown={event => { if (event.target === event.currentTarget && !submitting) onCancel(); }}><aside className="banned-drawer" role="dialog" aria-modal="true" aria-labelledby="add-banned-title"><div className="banned-drawer-scroll"><div className="banned-drawer-body">{form}</div></div></aside></div>;
+    ? <div className="banned-page banned-form-page"><div className="banned-mobile-back"><Button type="button" onClick={onCancel}>‹ Back to banned items</Button></div><PageHeader eyebrow="CATALOG & PRICING / BANNED ITEMS" title="Add banned item" description="Choose a target and provide a reason." /><div className="banned-form-layout"><Card className="banned-mobile-form">{form}</Card></div></div>
+    : <div className="banned-form-drawer-content">{form}</div>;
 }
