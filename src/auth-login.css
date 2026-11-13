@@ -8,6 +8,7 @@
   --studio-muted: #53626f;
   --studio-faint: #53626f;
   --studio-brand: #ff5a00;
+  --studio-spinner: #e64a00;
   --studio-brand-text: #b83c00;
   --studio-brand-soft: #ff5a001a;
   --studio-on-brand: #17202a;
@@ -53,7 +54,7 @@
 
 .studio-login .auth-spinner {
   border-color: var(--studio-border);
-  border-top-color: var(--studio-brand);
+  border-top-color: var(--studio-spinner);
 }
 
 .studio-login .studio-login-action {
@@ -90,6 +91,7 @@
     --studio-muted: #c0cbd3;
     --studio-faint: #c0cbd3;
     --studio-brand-text: #ff9c6b;
+    --studio-spinner: #ff8a50;
     --studio-brand-soft: #ff5a0022;
     --studio-focus: #93c5fd;
     --studio-shadow: 0 18px 60px #0006;
@@ -113,7 +115,7 @@
 @media (prefers-reduced-motion: reduce) {
   .studio-login .auth-spinner {
     animation: none;
-    border-top-color: var(--studio-brand);
-    border-right-color: var(--studio-brand);
+    border-top-color: var(--studio-spinner);
+    border-right-color: var(--studio-spinner);
   }
 }
