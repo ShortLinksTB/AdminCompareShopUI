@@ -142,16 +142,16 @@ describe('AdminCompareShopBlog', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent('status 500');
   });
 
-  it('zooms the cover lightbox and closes with Escape', async () => {
+  it('zooms the shared cover lightbox and closes with Escape', async () => {
     const user = userEvent.setup();
     setup();
     await screen.findByText('Cách săn sale');
     await user.click(screen.getByLabelText('Zoom cover'));
     const dialog = screen.getByRole('dialog', { name: 'Cover image preview' });
     expect(within(dialog).getByText('100%')).toBeInTheDocument();
-    await user.click(dialog.querySelector('.blog-lightbox-box')!);
+    await user.click(within(dialog).getByRole('img', { name: 'Cover preview' }));
     expect(within(dialog).getByText('200%')).toBeInTheDocument();
-    fireEvent.wheel(dialog.querySelector('.blog-lightbox-box')!, { deltaY: -100 });
+    fireEvent.wheel(dialog.querySelector('.studio-lightbox-stage')!, { deltaY: -100 });
     await user.keyboard('{Escape}');
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
   });
