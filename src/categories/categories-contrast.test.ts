@@ -4,9 +4,8 @@ import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
 
 const globalStyles = readFileSync('src/styles.css', 'utf8').replace(/\s+/g, ' ');
-const categoryStyles = readFileSync('src/categories/categories.css', 'utf8').replace(/\s+/g, ' ');
-const categoryPage = readFileSync('src/categories/CategoriesPage.tsx', 'utf8').replace(/\s+/g, ' ');
 const studioStyles = readFileSync('src/ui/studio-ui.css', 'utf8').replace(/\s+/g, ' ');
+const categoryStyles = readFileSync('src/categories/categories.css', 'utf8').replace(/\s+/g, ' ');
 
 function luminance(hex: string) {
   const [red, green, blue] = hex.match(/[0-9a-f]{2}/gi)!.map(channel => {
@@ -22,21 +21,18 @@ function contrast(foreground: string, background: string) {
   return (Math.max(first, second) + 0.05) / (Math.min(first, second) + 0.05);
 }
 
-describe('Categories accessible accent pairings', () => {
-  it('keeps the orange accent and supplies AA foregrounds in both themes', () => {
-    expect(globalStyles).toContain(':root{--accent-readable:#c24100;--on-accent:#17202a}');
-    expect(globalStyles).toContain('.dark{--accent-readable:#ff7b38;--on-accent:#17202a}');
-    expect(globalStyles).toContain('.eyebrow{color:var(--accent-readable)}');
-    expect(globalStyles).toContain('.primary-button{color:var(--on-accent)}');
-    expect(categoryPage).toContain('Button tone="primary"');
-    expect(categoryPage).toContain('Pill tone="info"');
-    expect(categoryPage).toContain('<Card className="categories-card" aria-label="Categories">');
-    expect(categoryPage).toContain('<Modal open={!!editor}');
-    expect(categoryStyles).not.toContain('categories-button-primary');
-    expect(studioStyles).toContain('.studio-button-primary');
+describe('Categories Studio accessible accent pairings', () => {
+  it('uses shared Studio accent pairings that meet AA in both themes', () => {
+    expect(studioStyles).toContain('.studio-button-primary{border-color:transparent;background:linear-gradient(135deg,#ff7a2e,#ff5a00);color:var(--studio-on-brand)}');
+    expect(globalStyles).toContain('--studio-brand:#ff5a00');
+    expect(globalStyles).toContain('--studio-on-brand:#17202a');
+    expect(globalStyles).toContain('--studio-brand-text:#ff8a4d');
+    expect(globalStyles).toContain('--studio-brand-text:#c24100');
+    expect(categoryStyles).not.toContain('.categories-button-primary');
+    expect(categoryStyles).not.toContain('.category-level-pill');
 
-    expect(contrast('#c24100', '#f7f9fb')).toBeGreaterThanOrEqual(4.5);
-    expect(contrast('#ff7b38', '#101820')).toBeGreaterThanOrEqual(4.5);
+    expect(contrast('#c24100', '#f3f6fa')).toBeGreaterThanOrEqual(4.5);
+    expect(contrast('#ff8a4d', '#080e15')).toBeGreaterThanOrEqual(4.5);
     expect(contrast('#17202a', '#ff5a00')).toBeGreaterThanOrEqual(4.5);
   });
 });

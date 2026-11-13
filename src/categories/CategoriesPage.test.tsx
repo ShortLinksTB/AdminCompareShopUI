@@ -37,9 +37,9 @@ describe('Categories page', () => {
     expect(screen.getByRole('status', { name: 'Đang tải categories' })).toBeInTheDocument();
     resolve(page());
     expect(await screen.findByText('Audio')).toBeInTheDocument();
-    expect(screen.getByText('SYSTEM').parentElement).toHaveClass('studio-page-header');
+    expect(screen.getByText('SYSTEM').closest('header')).toHaveClass('studio-page-header');
     expect(screen.getByRole('heading', { name: 'Categories', level: 1 })).toBeInTheDocument();
-    expect(screen.getByText(/Taxonomy sản phẩm/)).toBeInTheDocument();
+    expect(document.querySelector('.studio-page-header p')).toHaveTextContent('Taxonomy sản phẩm — CRUD qua /admin/categories, theo đúng pattern Partner Shops.');
     expect(screen.queryByText(/Operator trở lên/)).not.toBeInTheDocument();
     expect(screen.getByText('audio')).toBeInTheDocument();
     expect(screen.getByText('7')).toBeInTheDocument();
@@ -47,6 +47,10 @@ describe('Categories page', () => {
     expect(within(table).getAllByRole('columnheader')).toHaveLength(6);
     expect(within(table).queryByRole('columnheader', { name: /Active/i })).not.toBeInTheDocument();
     expect(screen.queryByText(/Phones|Computers|mock/i)).not.toBeInTheDocument();
+    const footer = screen.getByText('Showing 1–1 of 1 categories').parentElement!;
+    expect(footer.firstElementChild).toHaveTextContent('Hiển thị');
+    expect(footer.firstElementChild).toHaveTextContent('Tổng 1 category');
+    expect(footer.lastElementChild?.firstElementChild).toHaveClass('studio-pager');
     expect(api.getCategories).toHaveBeenCalledWith(requestAdmin, 1, 100);
   });
 
@@ -69,7 +73,7 @@ describe('Categories page', () => {
     renderPage();
     expect(await screen.findByText('Phones')).toBeInTheDocument();
     const table = screen.getByRole('table');
-    expect(within(table).getAllByRole('columnheader').map(header => header.textContent)).toEqual(['Id', 'Name', 'Slug', 'Level', 'Parent', 'Actions']);
+    expect(within(table).getAllByRole('columnheader').map(header => header.textContent)).toEqual(['Id', 'Name', 'Slug', 'Level', 'Parent', '']);
     expect(screen.getByText('Level 1')).toBeInTheDocument();
     expect(screen.getByText('Level 2')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Thu gọn Electronics' })).toBeInTheDocument();
@@ -77,9 +81,9 @@ describe('Categories page', () => {
     expect(screen.queryByText('Phones')).not.toBeInTheDocument();
     await userEvent.click(screen.getByRole('button', { name: 'Mở rộng Electronics' }));
     expect(screen.getByText('Phones')).toBeInTheDocument();
-    await userEvent.click(document.querySelector('summary[aria-label="Actions for Phones"]')!);
+    await userEvent.click(screen.getByLabelText('Actions for Phones'));
     await userEvent.click(screen.getByRole('button', { name: 'Sửa' }));
-    expect(screen.getByRole('combobox', { name: /Parent category/ })).toHaveValue('1006');
+    expect(screen.getByLabelText('Parent category')).toHaveValue('1006');
     await userEvent.click(screen.getByRole('button', { name: 'Lưu category' }));
     await waitFor(() => expect(api.updateCategory).toHaveBeenCalledWith(requestAdmin, 7, { slug: 'phones', name: 'Phones', isActive: true, parentCategoryId: 1006 }));
   });
@@ -104,7 +108,7 @@ describe('Categories page', () => {
     expect(screen.getByText('Computers')).toBeInTheDocument();
     expect(screen.getByText('Showing 1–1 of 1 categories')).toBeInTheDocument();
     expect(screen.getByText(/Tổng/).parentElement).toHaveTextContent('1 category');
-    await userEvent.click(document.querySelector('summary[aria-label="Actions for Computers"]')!);
+    await userEvent.click(screen.getByLabelText('Actions for Computers'));
     expect(screen.getByRole('button', { name: 'Sửa' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Xoá' })).toBeInTheDocument();
   });
@@ -139,7 +143,7 @@ describe('Categories page', () => {
     renderPage(['categories.read', 'categories.update']);
     expect(await screen.findByText('Audio')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /Thêm category/ })).not.toBeInTheDocument();
-    await userEvent.click(document.querySelector('summary[aria-label="Actions for Audio"]')!);
+    await userEvent.click(screen.getByLabelText('Actions for Audio'));
     expect(screen.getByRole('button', { name: 'Sửa' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Xoá' })).not.toBeInTheDocument();
   });
@@ -185,12 +189,32 @@ describe('Categories page', () => {
     expect(api.getCategories).toHaveBeenCalledTimes(2);
   });
 
+  it('does not dismiss the edit dialog with Escape while an update is pending', async () => {
+    const user = userEvent.setup();
+    let rejectUpdate!: (reason: Error) => void;
+    api.updateCategory.mockReturnValueOnce(new Promise<AdminCategory>((_, reject) => { rejectUpdate = reject; }));
+    renderPage();
+    await user.click(await screen.findByLabelText('Actions for Audio'));
+    await user.click(screen.getByRole('button', { name: 'Sửa' }));
+    await user.clear(screen.getByLabelText('Name'));
+    await user.type(screen.getByLabelText('Name'), 'Audio gear');
+    await user.click(screen.getByRole('button', { name: 'Lưu category' }));
+    expect(await screen.findByRole('button', { name: 'Đang lưu…' })).toBeDisabled();
+    await user.keyboard('{Escape}');
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
+    expect(screen.getByLabelText('Name')).toHaveValue('Audio gear');
+    rejectUpdate(new Error('offline'));
+    expect(await screen.findByRole('alert')).toHaveTextContent('offline');
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
+    expect(screen.getByLabelText('Name')).toHaveValue('Audio gear');
+  });
+
   it('deletes after confirmation and returns to the previous page when the final row is removed', async () => {
     const user = userEvent.setup();
     api.getCategories.mockResolvedValueOnce(page([category], 2, 21)).mockResolvedValueOnce(page([category], 1, 20));
     renderPage();
     expect(await screen.findByText('Page 2 of 2')).toBeInTheDocument();
-    await user.click(document.querySelector('summary[aria-label="Actions for Audio"]')!);
+    await user.click(screen.getByLabelText('Actions for Audio'));
     await user.click(screen.getByRole('button', { name: 'Xoá' }));
     await waitFor(() => expect(api.deleteCategory).toHaveBeenCalledWith(requestAdmin, 7));
     await waitFor(() => expect(api.getCategories).toHaveBeenLastCalledWith(requestAdmin, 1, 20));
@@ -203,9 +227,9 @@ describe('Categories page', () => {
     api.deleteCategory.mockReturnValueOnce(new Promise<void>(resolve => { finishDelete = resolve; }));
     renderPage();
     await screen.findByText('Audio');
-    await user.click(document.querySelector('summary[aria-label="Actions for Audio"]')!);
+    await user.click(screen.getByLabelText('Actions for Audio'));
     await user.click(screen.getByRole('button', { name: 'Xoá' }));
-    await user.click(document.querySelector('summary[aria-label="Actions for Audio"]')!);
+    await user.click(screen.getByLabelText('Actions for Audio'));
     expect(screen.getByRole('button', { name: 'Đang xoá…' })).toBeDisabled();
     expect(screen.getByRole('button', { name: 'Sửa' })).toBeDisabled();
     finishDelete();
@@ -217,11 +241,11 @@ describe('Categories page', () => {
     api.deleteCategory.mockRejectedValueOnce(new Error('Delete restricted.'));
     renderPage();
     await screen.findByText('Audio');
-    await user.click(document.querySelector('summary[aria-label="Actions for Audio"]')!);
+    await user.click(screen.getByLabelText('Actions for Audio'));
     await user.click(screen.getByRole('button', { name: 'Xoá' }));
     expect(await screen.findByRole('alert')).toHaveTextContent('Delete restricted.');
     expect(screen.getByText('Audio')).toBeInTheDocument();
-    await user.click(document.querySelector('summary[aria-label="Actions for Audio"]')!);
+    await user.click(screen.getByLabelText('Actions for Audio'));
     expect(screen.getByRole('button', { name: 'Sửa' })).toBeInTheDocument();
   });
 });
