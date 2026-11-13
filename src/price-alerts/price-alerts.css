@@ -1,0 +1,29 @@
+.price-alerts-page{min-width:0}
+.price-alerts-metrics{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;margin:0 0 18px}
+.price-alerts-metric{display:grid;gap:10px;padding:18px 20px}
+.price-alerts-metric-label{display:flex;align-items:center;gap:10px;color:var(--studio-muted);font-size:12px;font-weight:650}
+.price-alerts-metric-label i{display:grid;width:34px;height:34px;place-items:center;border-radius:11px;background:var(--studio-brand-soft);color:var(--studio-brand-text);font-size:16px;font-style:normal}
+.price-alerts-metric strong{color:var(--studio-text);font:700 28px/1.15 var(--studio-display);font-variant-numeric:tabular-nums}
+.price-alerts-metric small{color:var(--studio-ok);font-weight:650}
+.price-alerts-table-card{overflow:hidden}
+.price-alerts-table-scroll{max-width:100%;overflow-x:auto}
+.price-alerts-table-scroll .studio-table{min-width:850px}
+.price-alerts-table-scroll .studio-table td{white-space:nowrap}
+.price-alerts-table-scroll .studio-table td:first-child{white-space:normal;min-width:190px}
+.price-alerts-table-scroll .studio-table td:first-child strong,.price-alerts-table-scroll .studio-table td:first-child small{display:block}
+.price-alerts-table-scroll .studio-table td:first-child small{margin-top:4px;color:var(--studio-muted)}
+.price-alerts-money{font-family:var(--studio-display);font-size:13px;font-weight:650;font-variant-numeric:tabular-nums}
+.price-alerts-footer{display:flex;justify-content:space-between;gap:12px;padding:14px 18px;border-top:1px solid var(--studio-border);color:var(--studio-muted);font-size:12px}
+.price-alerts-state-examples{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin-top:20px}
+.price-alerts-state{min-width:0;padding:14px 16px;border-style:dashed;background:var(--studio-surface2);color:var(--studio-muted);font-size:12px}
+.price-alerts-state>b{display:block;margin-bottom:4px;color:var(--studio-text);font-size:13px}
+.price-alerts-state .studio-state{min-height:0;justify-items:start;gap:4px;padding:0;text-align:left}
+.price-alerts-state .studio-state>b{font:600 13px Inter,system-ui,sans-serif}
+.price-alerts-state .studio-state p{color:inherit}
+.price-alerts-loading{color:var(--studio-brand-text)}
+.price-alerts-loading .studio-loading{min-height:0;justify-content:flex-start;color:inherit}
+.price-alerts-error{border-color:var(--studio-bad);color:var(--studio-bad)}
+.price-alerts-error .studio-state>b{color:var(--studio-text)}
+@media(max-width:720px){.price-alerts-metrics{grid-template-columns:1fr}.price-alerts-metric{grid-template-columns:auto 1fr;column-gap:12px;align-items:center;padding:14px 16px}.price-alerts-metric-label{grid-row:span 2}.price-alerts-metric-label i{grid-row:span 2}.price-alerts-metric strong{font-size:24px}.price-alerts-metric small{grid-column:2}}
+@media(max-width:700px){.price-alerts-state-examples{grid-template-columns:1fr}}
+@media(max-width:560px){.price-alerts-footer{align-items:flex-start;flex-direction:column}}
