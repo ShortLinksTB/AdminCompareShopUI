@@ -39,7 +39,7 @@ export function PriceAlertsPage() {
     <section className="price-alerts-state-examples" aria-label="Price alert state examples">
       <Card className="price-alerts-state price-alerts-loading"><b>Loading</b><Loading label="Price alerts are loading" /></Card>
       <Card className="price-alerts-state"><EmptyState title="Empty">No price alerts available.</EmptyState></Card>
-      <Card className="price-alerts-state price-alerts-error"><ErrorState title="Error">Could not load price alerts.</ErrorState></Card>
+      <Card className="price-alerts-state price-alerts-error"><ErrorState title="Error">Could not load price alerts. Retry.</ErrorState></Card>
     </section>
   </div>;
 }

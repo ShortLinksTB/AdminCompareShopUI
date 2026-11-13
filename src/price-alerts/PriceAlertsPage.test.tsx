@@ -28,7 +28,7 @@ describe('PriceAlertsPage', () => {
     const states = screen.getByRole('region', { name: 'Price alert state examples' });
     expect(within(states).getByRole('status', { name: 'Price alerts are loading' })).toBeInTheDocument();
     expect(within(states).getByText('No price alerts available.')).toBeInTheDocument();
-    expect(within(states).getByRole('alert')).toHaveTextContent('Could not load price alerts.');
+    expect(within(states).getByRole('alert')).toHaveTextContent('Could not load price alerts. Retry.');
     expect(within(states).queryByRole('button')).not.toBeInTheDocument();
   });
 });
