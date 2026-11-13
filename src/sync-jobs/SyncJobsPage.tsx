@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { getSyncJobs, retrySyncJob, type AdminRequest, type SyncJob } from './sync-jobs-api';
+import { Button, Card, DataTable, EmptyState, ErrorState, Loading, PageHeader, Pill } from '../ui';
 import './sync-jobs.css';
 
 function formatUtc(value: string | null): string {
@@ -14,11 +15,11 @@ function formatUtc(value: string | null): string {
   return `${day}/${month} ${hour}:${minute}`;
 }
 
-function statusStyle(state: SyncJob['state']): string {
-  if (state === 'Success') return 'success';
-  if (state === 'Failed') return 'failed';
-  if (state === 'Running' || state === 'Queued') return 'running';
-  return 'partial';
+function statusTone(state: SyncJob['state']): 'ok' | 'bad' | 'warn' | 'info' {
+  if (state === 'Success') return 'ok';
+  if (state === 'Failed') return 'bad';
+  if (state === 'Running' || state === 'Queued') return 'info';
+  return 'warn';
 }
 
 export function SyncJobsPage({ requestAdmin, permissions }: { requestAdmin: AdminRequest; permissions: string[] }) {
@@ -62,23 +63,23 @@ export function SyncJobsPage({ requestAdmin, permissions }: { requestAdmin: Admi
   }
 
   return <div className="sync-jobs-page">
-    <div className="page-header"><div><span className="eyebrow">System</span><h1>Sync Jobs</h1><p>Theo dõi lịch sử chạy đồng bộ dữ liệu, retry job lỗi.</p></div></div>
-    {loadError && <div className="sync-jobs-alert" role="alert">{loadError}<button className="outline-button small" type="button" onClick={() => setReloadKey(value => value + 1)}>Retry</button></div>}
-    {retryError && <div className="sync-jobs-alert" role="alert">{retryError}</div>}
+    <PageHeader eyebrow="SYSTEM" title="Sync Jobs" description="Theo dõi lịch sử chạy đồng bộ dữ liệu, retry job lỗi." />
+    {loadError && <div className="sync-jobs-feedback"><ErrorState title={loadError} /><div className="sync-jobs-feedback-action"><Button size="sm" onClick={() => setReloadKey(value => value + 1)}>Retry</Button></div></div>}
+    {retryError && <div className="sync-jobs-feedback"><ErrorState title={retryError} /></div>}
     {notice && <div className="sync-jobs-notice" role="status">{notice}</div>}
-    <section className="panel sync-jobs-panel" aria-label="Sync Jobs">
-      {loading && jobs.length === 0 && !loadError ? <div className="sync-jobs-state" role="status">Loading Sync Jobs…</div>
-        : !loading && !loadError && jobs.length === 0 ? <div className="sync-jobs-state" role="status"><strong>No Sync Jobs yet</strong><span>Jobs will appear here when a data source has run.</span></div>
-          : jobs.length > 0 && <div className="sync-jobs-table-wrap"><table><thead><tr><th>Job</th><th>Bắt đầu</th><th>Kết thúc</th><th>Trạng thái</th><th aria-label="Actions"></th></tr></thead>
+    <Card className="sync-jobs-panel" aria-label="Sync Jobs">
+      {loading && jobs.length === 0 && !loadError ? <Loading label="Loading Sync Jobs…">Loading Sync Jobs…</Loading>
+        : !loading && !loadError && jobs.length === 0 ? <EmptyState title="No Sync Jobs yet">Jobs will appear here when a data source has run.</EmptyState>
+          : jobs.length > 0 && <DataTable className="sync-jobs-table-wrap"><thead><tr><th>Job</th><th>Bắt đầu</th><th>Kết thúc</th><th>Trạng thái</th><th aria-label="Actions"></th></tr></thead>
             <tbody>{jobs.map(job => {
               const eligible = job.state === 'Failed' || job.state === 'Partial';
               return <tr key={job.id}>
                 <td className="sync-job-name">{job.dataSource}</td><td>{formatUtc(job.startedAtUtc)}</td><td>{formatUtc(job.finishedAtUtc)}</td>
-                <td><span className={`sync-job-status sync-job-status-${statusStyle(job.state)}`}>{job.state}</span></td>
-                <td className="sync-job-action"><button className="sync-job-button" type="button" disabled={!canExecute || !eligible || retryingId !== null} onClick={() => void retry(job)}>{retryingId === job.id ? 'Retrying…' : 'Retry'}</button></td>
+                <td><Pill tone={statusTone(job.state)} size="sm">{job.state}</Pill></td>
+                <td className="sync-job-action"><Button size="sm" type="button" disabled={!canExecute || !eligible || retryingId !== null} onClick={() => void retry(job)}>{retryingId === job.id ? 'Retrying…' : 'Retry'}</Button></td>
               </tr>;
-            })}</tbody></table></div>}
+            })}</tbody></DataTable>}
       <div className="sync-jobs-footer"><span>{jobs.length} {jobs.length === 1 ? 'job' : 'jobs'}</span><span>Retry is available for failed or partial jobs.</span></div>
-    </section>
+    </Card>
   </div>;
 }
