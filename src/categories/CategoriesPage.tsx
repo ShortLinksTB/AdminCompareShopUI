@@ -150,7 +150,7 @@ export function CategoriesPage({ requestAdmin, permissions }: { requestAdmin: Ad
       </TableFooter>
     </Card>
 
-    <Modal open={editor !== null} onClose={() => !saving && setEditor(null)} title={editor?.category ? 'Sửa category' : 'Thêm category'} actions={<><Button type="button" tone="ghost" disabled={saving} onClick={() => setEditor(null)}>Huỷ</Button><Button type="submit" form="categories-form" tone="primary" disabled={saving}>{saving ? 'Đang lưu…' : 'Lưu category'}</Button></>}>
+    <Modal className="categories-modal" open={editor !== null} onClose={() => !saving && setEditor(null)} title={editor?.category ? 'Sửa category' : 'Thêm category'} actions={<><Button type="button" tone="ghost" disabled={saving} onClick={() => setEditor(null)}>Huỷ</Button><Button type="submit" form="categories-form" tone="primary" disabled={saving}>{saving ? 'Đang lưu…' : 'Lưu category'}</Button></>}>
       <form id="categories-form" className="categories-form" onSubmit={event => void submit(event)}>
         <p>Nhập thông tin taxonomy sản phẩm.</p>
         {formError && <ErrorState title={formError} />}

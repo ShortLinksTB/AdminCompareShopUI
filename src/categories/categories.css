@@ -1,4 +1,5 @@
 .categories-page{min-width:0;color:var(--studio-text)}
+.studio-modal.categories-modal{width:min(460px,100%)}
 .categories-page .studio-page-header>div{flex-wrap:wrap}
 .categories-card{overflow:hidden}
 .categories-loading{display:grid;min-height:150px;justify-items:center;align-content:center;gap:8px;color:var(--studio-muted);font-size:13px}
