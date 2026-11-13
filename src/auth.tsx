@@ -42,7 +42,7 @@ function requestedPath(): string {
 }
 
 export function AuthLoadingScreen({ message = 'Đang xác thực phiên đăng nhập…' }: { message?: string }) {
-  return <main className="auth-canvas"><section className="auth-card" role="status"><Brand /><h1>{message}</h1><p>Vui lòng chờ trong giây lát để đăng nhập an toàn.</p><div className="auth-spinner" aria-label="Đang tải" /><div className="auth-status">Đang kết nối với Keycloak…</div></section></main>;
+  return <main className="auth-canvas studio-login"><section className="auth-card" role="status"><Brand /><h1>{message}</h1><p>Vui lòng chờ trong giây lát để đăng nhập an toàn.</p><div className="auth-spinner" aria-label="Đang tải" /><div className="auth-status">Đang kết nối với Keycloak…</div></section></main>;
 }
 
 function Brand() {
