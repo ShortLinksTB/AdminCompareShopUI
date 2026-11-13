@@ -22,6 +22,11 @@ function contrast(foreground: string, background: string) {
 }
 
 describe('Categories Studio accessible accent pairings', () => {
+  it('caps shared Studio modals at the shell reference width and keeps them viewport-safe', () => {
+    expect(studioStyles).toContain('.studio-overlay{position:fixed;inset:0;z-index:1000;display:grid;place-items:center;padding:16px');
+    expect(studioStyles).toContain('.studio-modal,.studio-drawer{width:min(520px,100%);max-height:calc(100vh - 32px);overflow:auto');
+  });
+
   it('uses shared Studio accent pairings that meet AA in both themes', () => {
     expect(studioStyles).toContain('.studio-button-primary{border-color:transparent;background:linear-gradient(135deg,#ff7a2e,#ff5a00);color:var(--studio-on-brand)}');
     expect(globalStyles).toContain('--studio-brand:#ff5a00');
