@@ -25,6 +25,7 @@ describe('Categories Studio accessible accent pairings', () => {
   it('caps shared Studio modals at the shell reference width and keeps them viewport-safe', () => {
     expect(studioStyles).toContain('.studio-overlay{position:fixed;inset:0;z-index:1000;display:grid;place-items:center;padding:16px');
     expect(studioStyles).toContain('.studio-modal,.studio-drawer{width:min(520px,100%);max-height:calc(100vh - 32px);overflow:auto');
+    expect(categoryStyles).toContain('.studio-overlay:has(.categories-form) .studio-modal{width:min(460px,100%)}');
   });
 
   it('uses shared Studio accent pairings that meet AA in both themes', () => {

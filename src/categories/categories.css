@@ -21,6 +21,7 @@
 .categories-total{display:inline-flex;gap:4px;padding:4px 10px;border:1px solid var(--studio-border);border-radius:999px;background:var(--studio-bg2);color:var(--studio-text);font-weight:700}
 .categories-total b{color:var(--studio-brand-text)}
 .categories-form{display:grid;gap:15px}
+.studio-overlay:has(.categories-form) .studio-modal{width:min(460px,100%)}
 .categories-form>p{margin:0;color:var(--studio-muted);font-size:12px}
 .categories-form .studio-error-state{min-height:0;justify-items:start;padding:10px 12px;text-align:left}
 .categories-parent-field{display:grid;min-width:0;gap:6px;color:var(--studio-muted);font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase}
