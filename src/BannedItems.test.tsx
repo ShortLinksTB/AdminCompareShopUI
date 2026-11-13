@@ -237,6 +237,21 @@ describe('Banned items routes', () => {
     }
   });
 
+  it('keeps the reason field and actions in form order at the 390×844 mobile viewport', async () => {
+    const originalWidth = window.innerWidth;
+    Object.defineProperty(window, 'innerWidth', { configurable: true, value: 390 });
+    try {
+      renderApp('/banned-items/new', ['compliance.read', 'compliance.manage']);
+      const reason = await screen.findByLabelText(/Ban reason/);
+      const actions = reason.closest('form')!.querySelector('.banned-form-actions')!;
+      expect(reason).toBeVisible();
+      expect(actions).toBeVisible();
+      expect(reason.compareDocumentPosition(actions) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    } finally {
+      Object.defineProperty(window, 'innerWidth', { configurable: true, value: originalWidth });
+    }
+  });
+
   it('does not grant compliance access without the compliance permissions from the backend', async () => {
     window.localStorage.setItem('giatot-admin-role', 'Super Admin');
     renderApp('/banned-items', []);
