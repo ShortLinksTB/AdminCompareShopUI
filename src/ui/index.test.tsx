@@ -88,8 +88,11 @@ describe('Studio shared components', () => {
     document.body.append(shell);
     const { unmount } = render(<Modal open onClose={() => undefined} title="Category editor" className="categories-modal">Form</Modal>, { container: shell.querySelector('main')! });
     const overlay = shell.querySelector('.studio-overlay');
+    const sidebar = shell.querySelector('.admin-sidebar');
     expect(overlay?.parentElement).toBe(shell);
-    expect(shell.querySelector('.admin-sidebar')?.compareDocumentPosition(overlay!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(sidebar).not.toBeNull();
+    expect(overlay).not.toBeNull();
+    expect(sidebar!.compareDocumentPosition(overlay!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(screen.getByRole('dialog', { name: 'Category editor' })).toHaveClass('studio-modal', 'categories-modal');
     unmount(); shell.remove();
   });
