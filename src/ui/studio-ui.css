@@ -17,3 +17,4 @@
 .studio-shell{--studio-control-border:#718096}.studio-shell[data-theme="light"]{--studio-control-border:#7a8794}.studio-checkbox{border-color:var(--studio-control-border)}
 
 .studio-shell .studio-command-trigger kbd{color:var(--studio-kbd,var(--studio-faint))}
+.studio-lightbox-toolbar{position:absolute;top:12px;left:14px;right:58px;z-index:1;overflow-wrap:anywhere;color:var(--studio-text);font-size:13px;font-weight:700}
