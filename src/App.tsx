@@ -20,6 +20,8 @@ import { AdminCompareShopBlog } from './blog/AdminCompareShopBlog';
 import { StudioReferencePage } from './ui/StudioReferencePage';
 import { DataSourcesPage } from './data-sources/DataSourcesPage';
 import { SEOPage } from './seo/SEOPage';
+import { Button, Card, PageHeader as StudioPageHeader, Switch } from './ui';
+import './feature-flags.css';
 import './ui/studio-shell-fixes.css';
 
 const money = (value: number) => new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND', maximumFractionDigits: 0 }).format(value);
@@ -187,4 +189,25 @@ function AuditLogsAdminRoute() { const { requestAdmin } = useAuth(); return <Aud
 function FilesRoute() { const { requestAdmin, permissions } = useAuth(); return permissions.includes('files.read') ? <FilesPage requestAdmin={requestAdmin} permissions={permissions} /> : <Navigate to="/forbidden" replace />; }
 function BlogRoute() { const { requestAdmin, permissions, userName } = useAuth(); return permissions.includes('articles.read') ? <AdminCompareShopBlog requestAdmin={requestAdmin} permissions={permissions} authorName={userName} /> : <Navigate to="/forbidden" replace />; }
 export function App() { return <AuthProvider><FeatureFlagsProvider><Routes><Route path="login" element={<LoginRoute />} /><Route path="auth/callback" element={<CallbackPage />} /><Route path="forbidden" element={<ForbiddenPage />} /><Route element={<ProtectedLayout />}><Route element={<Shell />}><Route index element={<DashboardRoute />} /><Route path="products" element={<ProductsRoute />} /><Route path="products/:id" element={<ProductDetailPage />} /><Route path="offers" element={<OffersRoute />} /><Route path="matching" element={<MatchingRoute />} /><Route path="shops" element={<ShopsPage />} /><Route path="data-sources" element={<DataSourcesPage />} /><Route path="sync-jobs" element={<SyncJobsRoute />} /><Route path="affiliate-links" element={<SimplePage title="Affiliate Links" description="Tracking, redirect status và affiliate performance." />} /><Route path="price-history" element={<PriceHistoryPage />} /><Route path="price-alerts" element={<PriceAlertsPage />} /><Route path="categories" element={<CategoriesRoute />} /><Route path="files" element={<FilesRoute />} /><Route path="banned-items" element={<BannedItemsAdminRoute />} /><Route path="banned-items/new" element={<BannedItemsAdminRoute />} /><Route path="blog" element={<BlogRoute />} /><Route path="analytics" element={<AnalyticsPage />} /><Route path="seo" element={<SEOPage />} /><Route path="users" element={<UsersRoute />} /><Route path="audit-logs" element={<AuditLogsAdminRoute />} /><Route path="feature-flags" element={<FeatureFlagsPage />} /><Route path="settings" element={<SettingsPage />} /><Route path="studio-components" element={<StudioReferencePage />} /><Route path="*" element={<Navigate to="/" replace />} /></Route></Route></Routes></FeatureFlagsProvider></AuthProvider>; }
-function FeatureFlagsPage() { const { flags, setFlag } = useContext(FeatureFlagsContext); return <><PageHeader eyebrow="SYSTEM" title="Feature Flags" description="Bật hoặc tắt module admin theo nhu cầu vận hành." action={<button className="outline-button" onClick={() => Object.keys(featureDefaults).forEach(key => setFlag(key as FeatureKey, true))}>Enable all</button>} /><section className="panel feature-flags-panel"><div className="feature-flags-intro"><strong>{Object.values(flags).filter(Boolean).length}/{Object.keys(flags).length} features enabled</strong><span>Thay đổi được lưu ở trình duyệt hiện tại.</span></div><div className="feature-flag-list">{(Object.keys(featureDefaults) as FeatureKey[]).map(key => <label className="feature-flag-row" key={key}><span className="feature-flag-icon">{flags[key] ? '✓' : '—'}</span><span><b>{flagLabels[key].label}</b><small>{flagLabels[key].description}</small></span><input type="checkbox" checked={flags[key]} onChange={event => setFlag(key, event.target.checked)} /></label>)}</div></section></>; }
+function FeatureFlagsPage() {
+  const { flags, setFlag } = useContext(FeatureFlagsContext);
+  const keys = Object.keys(featureDefaults) as FeatureKey[];
+  const enabledCount = keys.filter(key => flags[key]).length;
+  return <>
+    <StudioPageHeader eyebrow="SYSTEM" title="Feature Flags" description="Bật hoặc tắt module admin theo nhu cầu vận hành."
+      actions={<Button tone="primary" onClick={() => keys.forEach(key => setFlag(key, true))}>Enable all</Button>} />
+    <Card className="feature-flags-card" aria-label="Feature flag modules">
+      <div className="feature-flags-summary">
+        <strong>{enabledCount}/{keys.length} features enabled</strong>
+        <p>Thay đổi được lưu ở trình duyệt hiện tại.</p>
+      </div>
+      <div className="feature-flags-list">
+        {keys.map(key => <div className="feature-flag-item" key={key}>
+          <span className={`feature-flag-mark${flags[key] ? ' is-enabled' : ''}`} aria-hidden="true">{flags[key] ? '✓' : '—'}</span>
+          <span className="feature-flag-copy"><b>{flagLabels[key].label}</b><small>{flagLabels[key].description}</small></span>
+          <Switch label={`Enable ${flagLabels[key].label}`} checked={flags[key]} onChange={enabled => setFlag(key, enabled)} />
+        </div>)}
+      </div>
+    </Card>
+  </>;
+}

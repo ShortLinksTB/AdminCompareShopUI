@@ -54,6 +54,23 @@ afterEach(() => {
 });
 
 describe('mobile application navigation', () => {
+  it('renders Feature Flags with Studio switches and preserves toggle behavior', () => {
+    auth.permissions = ['feature_flags.read'];
+    renderApp('/feature-flags');
+    expect(screen.getByRole('heading', { name: 'Feature Flags' })).toBeInTheDocument();
+    expect(screen.getByRole('region', { name: 'Feature flag modules' })).toBeInTheDocument();
+    expect(screen.getByText('15/15 features enabled')).toBeInTheDocument();
+    const products = screen.getByRole('switch', { name: 'Enable Products' });
+    expect(products).toBeChecked();
+    fireEvent.click(products);
+    expect(products).not.toBeChecked();
+    expect(screen.getByText('14/15 features enabled')).toBeInTheDocument();
+    expect(JSON.parse(window.localStorage.getItem('giatot-admin-feature-flags') || '{}')).toMatchObject({ products: false });
+    fireEvent.click(screen.getByRole('button', { name: 'Enable all' }));
+    expect(products).toBeChecked();
+    expect(screen.getByText('15/15 features enabled')).toBeInTheDocument();
+  });
+
   it('opens a permission-filtered command palette with Ctrl+K and navigates to selected page', () => {
     auth.permissions = ['dashboard.read', 'products.read', 'matching.read'];
     renderApp('/');
