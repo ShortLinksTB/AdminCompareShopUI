@@ -232,6 +232,12 @@ describe('Banned items routes', () => {
       await user.click(screen.getByRole('button', { name: /Add banned item/ }));
       expect((await screen.findAllByRole('heading', { name: 'Add banned item' })).length).toBeGreaterThan(0);
       expect(screen.queryByRole('dialog', { name: 'Add banned item' })).toBeNull();
+      const reason = screen.getByLabelText(/Ban reason/);
+      const actions = reason.closest('form')?.querySelector('.banned-form-actions');
+      expect(reason).toBeVisible();
+      expect(actions).not.toBeNull();
+      expect(within(actions as HTMLElement).getByRole('button', { name: 'Cancel' })).toBeVisible();
+      expect(within(actions as HTMLElement).getByRole('button', { name: 'Add to banned list' })).toBeVisible();
     } finally {
       Object.defineProperty(window, 'innerWidth', { configurable: true, value: originalWidth });
     }
