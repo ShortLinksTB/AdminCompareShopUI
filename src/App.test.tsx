@@ -145,6 +145,15 @@ describe('mobile application navigation', () => {
     expect(auth.requestAdmin).toHaveBeenCalledWith('/admin/audit-logs?page=1&pageSize=50', expect.any(Object));
   });
 
+  it('loads Analytics at the existing /analytics route for admins with analytics.read', () => {
+    auth.permissions = ['analytics.read'];
+    renderApp('/analytics');
+
+    expect(screen.getByRole('heading', { name: 'Analytics & Revenue' })).toBeInTheDocument();
+    expect(document.querySelector('.admin-breadcrumb')).toHaveTextContent('GiaTot Admin / Analytics');
+    expect(auth.requestAdmin).not.toHaveBeenCalled();
+  });
+
   it('loads the existing Offers route for admins with offers.read', async () => {
     auth.permissions = ['offers.read'];
     auth.requestAdmin.mockResolvedValue(new Response('', { status: 500 }));
