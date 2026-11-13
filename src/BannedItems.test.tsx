@@ -136,6 +136,31 @@ describe('Banned items routes', () => {
     expect(await screen.findByRole('heading', { name: 'Banned items' })).toBeTruthy();
   });
 
+  it('keeps the add drawer open while a ban creation request is submitting', async () => {
+    const user = userEvent.setup();
+    let finishCreate!: () => void;
+    vi.mocked(createBannedItem).mockImplementationOnce(() => new Promise<void>(resolve => { finishCreate = resolve; }));
+    renderApp('/banned-items', ['compliance.read', 'compliance.manage']);
+    await screen.findAllByText('Example Brand');
+    await user.click(screen.getByRole('button', { name: /Add banned item/ }));
+    const dialog = await screen.findByRole('dialog', { name: 'Add banned item' });
+    await user.type(within(dialog).getByRole('combobox', { name: 'Brand *' }), 'Example');
+    await user.click(await screen.findByRole('option', { name: 'Example Brand' }));
+    await user.type(within(dialog).getByLabelText(/Ban reason/), 'Policy violation');
+    await user.click(within(dialog).getByRole('button', { name: 'Add to banned list' }));
+
+    expect(within(dialog).getByRole('button', { name: 'Adding…' }).hasAttribute('disabled')).toBe(true);
+    expect(within(dialog).getByRole('button', { name: 'Cancel' }).hasAttribute('disabled')).toBe(true);
+    expect(within(dialog).getByRole('button', { name: 'Đóng' }).hasAttribute('disabled')).toBe(true);
+    await user.keyboard('{Escape}');
+    expect(screen.getByRole('dialog', { name: 'Add banned item' })).toBeTruthy();
+    await user.click(dialog.parentElement!);
+    expect(screen.getByRole('dialog', { name: 'Add banned item' })).toBeTruthy();
+
+    finishCreate();
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Add banned item' })).toBeNull());
+  });
+
   it('creates a brand ban from the searchable catalog selector with reason', async () => {
     const user = userEvent.setup();
     renderRoute('/banned-items');
