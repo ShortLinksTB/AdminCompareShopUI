@@ -11,6 +11,7 @@
   --studio-brand-text: #b83c00;
   --studio-brand-soft: #ff5a001a;
   --studio-on-brand: #17202a;
+  --studio-focus: #2563eb;
   --studio-shadow: 0 18px 60px #17202a14;
   --studio-display: 'Space Grotesk', Inter, ui-sans-serif, system-ui, sans-serif;
   min-height: 100svh;
@@ -65,7 +66,7 @@
 }
 
 .studio-login .studio-login-action:focus-visible {
-  outline: 3px solid #2563eb;
+  outline: 3px solid var(--studio-focus);
   outline-offset: 3px;
 }
 
@@ -90,6 +91,7 @@
     --studio-faint: #c0cbd3;
     --studio-brand-text: #ff9c6b;
     --studio-brand-soft: #ff5a0022;
+    --studio-focus: #93c5fd;
     --studio-shadow: 0 18px 60px #0006;
   }
 
