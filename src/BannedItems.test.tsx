@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
-import { cleanup, render, screen, waitFor, within } from '@testing-library/react';
+import '@testing-library/jest-dom/vitest';
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
@@ -147,6 +148,34 @@ describe('Banned items routes', () => {
     await user.click(screen.getByRole('button', { name: 'Add to banned list' }));
     await waitFor(() => expect(vi.mocked(createBannedItem).mock.calls.at(-1)?.[1]).toEqual({ targetType: 'Brand', brandName: 'Example Brand', reason: 'Policy violation' }));
     expect(await screen.findByRole('heading', { name: 'Banned items' })).toBeTruthy();
+  });
+
+  it('keeps the add drawer open and disables Cancel while a ban is submitting', async () => {
+    const user = userEvent.setup();
+    let finishCreate!: () => void;
+    vi.mocked(createBannedItem).mockReturnValueOnce(new Promise<void>(resolve => { finishCreate = resolve; }));
+    renderRoute('/banned-items');
+    await screen.findAllByText('Example Brand');
+    await user.click(screen.getByRole('button', { name: /Add banned item/ }));
+    await user.type(await screen.findByRole('combobox', { name: 'Brand *' }), 'Example');
+    await user.click(await screen.findByRole('option', { name: 'Example Brand' }));
+    await user.type(screen.getByLabelText(/Ban reason/), 'Policy violation');
+    await user.click(screen.getByRole('button', { name: 'Add to banned list' }));
+    await waitFor(() => expect(createBannedItem).toHaveBeenCalled());
+
+    const dialog = screen.getByRole('dialog', { name: 'Add banned item' });
+    expect(within(dialog).getByRole('button', { name: 'Cancel' })).toBeDisabled();
+    await user.keyboard('{Escape}');
+    expect(screen.getByRole('dialog', { name: 'Add banned item' })).toBeTruthy();
+
+    await user.click(within(dialog).getByRole('button', { name: 'Đóng' }));
+    expect(screen.getByRole('dialog', { name: 'Add banned item' })).toBeTruthy();
+
+    fireEvent.mouseDown(document.querySelector('.studio-overlay')!);
+    expect(screen.getByRole('dialog', { name: 'Add banned item' })).toBeTruthy();
+
+    finishCreate();
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Add banned item' })).toBeNull());
   });
 
   it('shows a no-match message when the catalog search has no results', async () => {
