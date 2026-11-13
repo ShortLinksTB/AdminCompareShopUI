@@ -55,7 +55,8 @@ describe('Partner Shops page', () => {
   it('uses the shared modal and preserves the existing create fields and actions', async () => {
     const user = userEvent.setup();
     renderShops();
-    await user.click(await screen.findByRole('button', { name: '+ Add shop' }));
+    const addButton = await screen.findByRole('button', { name: '+ Add shop' });
+    await user.click(addButton);
 
     const dialog = screen.getByRole('dialog', { name: 'Add shop' });
     expect(dialog).toHaveClass('studio-modal', 'partner-shop-modal');
@@ -66,9 +67,11 @@ describe('Partner Shops page', () => {
     expect(screen.getByRole('checkbox', { name: 'Active' })).toBeChecked();
     expect(screen.getByRole('button', { name: 'Cancel' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Save shop' })).toHaveAttribute('form', 'partner-shop-form');
+    expect(screen.getByRole('button', { name: 'Close' })).toBeInTheDocument();
 
     await user.keyboard('{Escape}');
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(addButton).toHaveFocus();
   });
 
   it('uses 1-based pagination and allows supported page sizes', async () => {

@@ -79,7 +79,7 @@ export function PartnerShops({ requestAdmin, permissions }: { requestAdmin: Admi
   }
 
   return <div className="partner-shops-page">
-    <PageHeader eyebrow="AFFILIATE & DATA" title="Partner Shops" description="Manage partner shop details and availability." actions={can('shops.create') && <Button tone="primary" onClick={() => setEditing(null)}>+ Add shop</Button>} />
+    <PageHeader eyebrow="Catalog" title="Partner Shops" description="Manage partner shop details and availability." actions={can('shops.create') && <Button tone="primary" onClick={() => setEditing(null)}>+ Add shop</Button>} />
     {error && <div className="partner-shop-alert" role="alert"><span>{error}</span><Button size="sm" onClick={() => void load()}>Retry</Button></div>}
     {loading ? <section className="partner-shop-grid" aria-label="Loading partner shops" role="status">{Array.from({ length: 4 }, (_, i) => <Card as="article" className="partner-shop-skeleton" key={i} aria-hidden="true"><i /><i /><i /></Card>)}</section>
       : !error && result.items.length === 0 ? <Card className="partner-shop-empty"><EmptyState title="No partner shops found." /></Card>
@@ -95,7 +95,7 @@ export function PartnerShops({ requestAdmin, permissions }: { requestAdmin: Admi
     <TableFooter start={result.totalItems === 0 ? 0 : (page - 1) * pageSize + 1} end={Math.min(page * pageSize, result.totalItems)} total={result.totalItems} startContent={<span>Showing {result.totalItems === 0 ? 0 : (page - 1) * pageSize + 1}–{Math.min(page * pageSize, result.totalItems)} of {result.totalItems} shops</span>} center={<label className="partner-shop-page-size">Rows per page <Select size="sm" aria-label="Rows per page" value={pageSize} disabled={loading} onChange={event => { const size = Number(event.target.value); setPage(1); setPageSize(size); void load(1, size); }}>{PAGE_SIZE_OPTIONS.map(size => <option key={size} value={size}>{size}</option>)}</Select></label>}>
       <Pager page={page} pages={totalPages} previousLabel="Previous page" nextLabel="Next page" formatPage={(current, count) => `Page ${current} of ${count}`} disabled={loading} onChange={next => void load(next)} />
     </TableFooter>
-    {editing !== undefined && <Modal open onClose={() => !saving && setEditing(undefined)} title={editing ? 'Edit shop' : 'Add shop'} className="partner-shop-modal" actions={<><Button tone="ghost" type="button" disabled={saving} onClick={() => setEditing(undefined)}>Cancel</Button><Button tone="primary" type="submit" form="partner-shop-form" disabled={saving}>{saving ? 'Saving…' : 'Save shop'}</Button></>}>
+    {editing !== undefined && <Modal open onClose={() => !saving && setEditing(undefined)} closeLabel="Close" closeDisabled={saving} title={editing ? 'Edit shop' : 'Add shop'} className="partner-shop-modal" actions={<><Button tone="ghost" type="button" disabled={saving} onClick={() => setEditing(undefined)}>Cancel</Button><Button tone="primary" type="submit" form="partner-shop-form" disabled={saving}>{saving ? 'Saving…' : 'Save shop'}</Button></>}>
       <form id="partner-shop-form" className="partner-shop-form" onSubmit={event => void submit(event)}>
         <p>Enter the partner shop details.</p>
         <Field label="Slug" name="slug" required defaultValue={editing?.slug ?? ''} />
