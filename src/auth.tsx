@@ -4,6 +4,8 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { adminRequest } from './api-client';
 import { clearPostLogout, consumePostLogout, consumeReturnPath, markPostLogout, safeReturnPath, storeReturnPath } from './auth-utils';
 import { fetchPermissions } from './auth-service';
+import { Button, Card } from './ui';
+import './auth-login.css';
 
 type AuthStatus = 'loading' | 'authenticated' | 'anonymous' | 'logging-out' | 'error';
 type PermissionState = 'loading' | 'ready' | 'error';
@@ -70,14 +72,16 @@ export function LoginPage({ returnTo: routeReturnTo }: { returnTo?: string } = {
     if (auth.status === 'error') setError('Không thể khởi tạo đăng nhập an toàn. Vui lòng thử lại.');
   }, [auth.status, beginLogin]);
 
-  return <main className="auth-canvas"><section className="auth-card">
+  return <main className="auth-canvas studio-login">
+    <Card as="section" className="auth-card studio-login-card">
     <Brand />
     <h1>{auth.postLogout ? 'Bạn đã đăng xuất' : 'Đang chuyển đến trang đăng nhập'}</h1>
     <p>{auth.postLogout ? 'Phiên làm việc đã được đóng. Đăng nhập lại khi bạn sẵn sàng.' : 'Vui lòng chờ trong giây lát để đăng nhập an toàn.'}</p>
     {starting && !error ? <><div className="auth-spinner" role="status" aria-label="Đang chuyển hướng" /><div className="auth-status">Đang kết nối với Keycloak…</div></> : error ? <div className="auth-error" role="alert">{error}</div> : auth.postLogout ? null : <div className="auth-status">Phiên đăng nhập chưa sẵn sàng.</div>}
-    <button className="auth-primary" type="button" onClick={() => void beginLogin()} disabled={starting}>{auth.postLogout ? 'Đăng nhập lại' : 'Thử đăng nhập lại'}</button>
+    <Button className="studio-login-action" tone="primary" type="button" onClick={() => void beginLogin()} disabled={starting}>{auth.postLogout ? 'Đăng nhập lại' : 'Thử đăng nhập lại'}</Button>
     <p className="auth-foot">{auth.postLogout ? 'Bạn có thể đóng trang này hoặc đăng nhập lại.' : 'Nếu trang không tự mở, chọn nút phía trên để tiếp tục.'}</p>
-  </section></main>;
+    </Card>
+  </main>;
 }
 
 export function CallbackPage() {

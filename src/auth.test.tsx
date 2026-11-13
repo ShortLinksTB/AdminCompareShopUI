@@ -96,6 +96,11 @@ describe('OIDC auth flow', () => {
     keycloakMocks.init.mockResolvedValue(false);
     renderWithAuth(<LoginPage />, '/login?returnTo=%2Foffers%3Fsort%3Dprice');
 
+    expect(document.querySelector('.studio-login')).toBeInTheDocument();
+    expect(document.querySelector('.studio-login-card')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Thử đăng nhập lại' })).toHaveClass('studio-button', 'studio-button-primary', 'studio-login-action');
+    expect(screen.getByRole('heading', { name: 'Đang chuyển đến trang đăng nhập' })).toBeInTheDocument();
+
     await waitFor(() => expect(keycloakMocks.login).toHaveBeenCalledOnce());
     expect(keycloakMocks.init).toHaveBeenCalledWith(expect.objectContaining({ pkceMethod: 'S256', onLoad: 'check-sso' }));
     expect(keycloakMocks.login).toHaveBeenCalledWith(expect.objectContaining({ redirectUri: `${window.location.origin}/auth/callback` }));
