@@ -16,7 +16,7 @@
 .categories-hierarchy-toggle.collapsed{transform:rotate(-90deg)}
 .category-indent{display:inline-block;width:33px}
 .categories-table-scroll .category-parent-cell{color:var(--studio-muted)}
-.categories-delete-action,.categories-delete-action:hover{color:var(--studio-bad)!important}
+.category-delete-action,.category-delete-action:hover{color:var(--studio-bad)!important}
 .categories-page-size{display:flex;align-items:center;gap:7px;white-space:nowrap;color:var(--studio-muted)}
 .categories-total{display:inline-flex;gap:4px;padding:4px 10px;border:1px solid var(--studio-border);border-radius:999px;background:var(--studio-bg2);color:var(--studio-text);font-weight:700}
 .categories-total b{color:var(--studio-brand-text)}
