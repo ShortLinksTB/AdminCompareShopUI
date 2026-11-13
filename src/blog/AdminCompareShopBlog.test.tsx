@@ -124,6 +124,54 @@ describe('AdminCompareShopBlog', () => {
     });
   });
 
+  it('renders Markdown headings and inline formatting in preview', async () => {
+    const user = userEvent.setup();
+    setup();
+    await screen.findByText('Cách săn sale');
+    await user.click(screen.getByText('＋ Bài viết mới'));
+    await user.type(screen.getByLabelText('Article title'), 'QC verification article');
+    await user.type(screen.getByLabelText('Article Markdown'), '## QC verification article');
+    await user.click(screen.getByRole('tab', { name: 'Preview' }));
+    const preview = screen.getByRole('article');
+    const markdownContent = preview.querySelector('.blog-markdown-content')!;
+    expect(markdownContent.querySelector('h2')).toHaveTextContent('QC verification article');
+    expect(markdownContent).not.toHaveTextContent('## QC verification article');
+  });
+
+  it('renders Markdown inline styles, links, images, lists, and quotes as elements', async () => {
+    const user = userEvent.setup();
+    setup();
+    await screen.findByText('Cách săn sale');
+    await user.click(screen.getByText('＋ Bài viết mới'));
+    fireEvent.change(screen.getByLabelText('Article Markdown'), { target: { value: '## Heading\n\n**bold** and *italic* with `code` and [link](https://example.com)\n\n- list item\n> quote\n\n![img](https://example.com/img.png)' } });
+    await user.click(screen.getByRole('tab', { name: 'Preview' }));
+    const markdownContent = screen.getByRole('article').querySelector('.blog-markdown-content')!;
+    expect(markdownContent.querySelector('strong')).toHaveTextContent('bold');
+    expect(markdownContent.querySelector('em')).toHaveTextContent('italic');
+    expect(markdownContent.querySelector('code')).toHaveTextContent('code');
+    expect(markdownContent.querySelector('a')).toHaveAttribute('href', 'https://example.com');
+    expect(markdownContent.querySelector('ul li')).toHaveTextContent('list item');
+    expect(markdownContent.querySelector('blockquote')).toHaveTextContent('quote');
+    expect(markdownContent.querySelector('img')).toHaveAttribute('alt', 'img');
+  });
+
+  it('inserts an image from Files into the Markdown body without changing the cover', async () => {
+    const user = userEvent.setup();
+    setup();
+    await screen.findByText('Cách săn sale');
+    await user.click(screen.getByText('＋ Bài viết mới'));
+    await user.type(screen.getByLabelText('Article title'), 'Bài có ảnh');
+    await user.type(screen.getByLabelText('Article Markdown'), 'Body text');
+    await user.click(screen.getByRole('tab', { name: 'Preview' }));
+    await user.click(screen.getByRole('tab', { name: 'Write' }));
+    await user.click(screen.getByText('▧ Image'));
+    expect(await screen.findByRole('dialog', { name: 'Insert image from Files' })).toBeInTheDocument();
+    await user.click(await screen.findByText('pic.png'));
+    const body = screen.getByLabelText('Article Markdown') as HTMLTextAreaElement;
+    expect(body.value).toBe('Body text\n\n![pic.png](https://api-compareshop-dev.giamha.online/files/6f9619ff-8b86-d011-b42d-00cf4fc964ff)\n\n');
+    expect(screen.getByText('Cover image').parentElement).not.toHaveTextContent('Click to zoom');
+  });
+
   it('uses the API page field without ever requesting an undefined page', async () => {
     const request = setup();
     await screen.findByText('Cách săn sale');
