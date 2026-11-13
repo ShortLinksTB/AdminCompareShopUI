@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from 'react';
+import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { BanApiError, createBannedItem, getBannedItems, getProductTargets, revokeBannedItem, type AdminRequest, type BanTargetType, type BannedItem, type ProductTarget } from './bannedItemsApi';
 import { Button, Card, DataTable, Drawer, EmptyState, ErrorState, Loading, Modal, PageHeader, Pager, Pill, SearchField, Select, TableFooter, Toolbar } from './ui';
@@ -41,6 +41,10 @@ function BannedItemsPage({ canManage, requestAdmin }: { canManage: boolean; requ
   const [pendingRevoke, setPendingRevoke] = useState<BannedItem | null>(null);
   const [revoking, setRevoking] = useState(false);
   const [addOpen, setAddOpen] = useState(false);
+  const addSubmitting = useRef(false);
+  const closeAdd = () => {
+    if (!addSubmitting.current) setAddOpen(false);
+  };
   const openAdd = () => {
     if (window.innerWidth <= 680) navigate('/banned-items/new');
     else setAddOpen(true);
@@ -126,7 +130,7 @@ function BannedItemsPage({ canManage, requestAdmin }: { canManage: boolean; requ
     <Modal open={Boolean(pendingRevoke)} onClose={() => { if (!revoking) setPendingRevoke(null); }} title="Revoke this ban?" role="alertdialog" className="banned-confirm-modal" actions={<><Button disabled={revoking} onClick={() => setPendingRevoke(null)}>Cancel</Button><Button tone="danger" disabled={revoking} onClick={revoke}>{revoking ? 'Revoking…' : 'Revoke ban'}</Button></>}>
       <p>{pendingRevoke && `${targetName(pendingRevoke)} will be marked as revoked. Confirm to continue.`}</p>{error && <ErrorState title={error} />}
     </Modal>
-    <Drawer open={addOpen} onClose={() => setAddOpen(false)} title="Add banned item"><BannedItemForm canManage requestAdmin={requestAdmin} fullScreen={false} onCancel={() => setAddOpen(false)} onCreated={() => { setAddOpen(false); setReloadKey(current => current + 1); }} /></Drawer>
+    <Drawer open={addOpen} onClose={closeAdd} title="Add banned item"><BannedItemForm canManage requestAdmin={requestAdmin} fullScreen={false} onCancel={closeAdd} onSubmittingChange={submitting => { addSubmitting.current = submitting; }} onCreated={() => { setAddOpen(false); setReloadKey(current => current + 1); }} /></Drawer>
   </div>;
 }
 
@@ -134,7 +138,7 @@ function BannedItemsLoading() {
   return <Loading label="Loading banned items" />;
 }
 
-function BannedItemForm({ canManage, requestAdmin, fullScreen, onCancel, onCreated }: { canManage: boolean; requestAdmin: AdminRequest; fullScreen: boolean; onCancel: () => void; onCreated: () => void }) {
+function BannedItemForm({ canManage, requestAdmin, fullScreen, onCancel, onCreated, onSubmittingChange }: { canManage: boolean; requestAdmin: AdminRequest; fullScreen: boolean; onCancel: () => void; onCreated: () => void; onSubmittingChange?: (submitting: boolean) => void }) {
   const [targetType, setTargetType] = useState<BanTargetType>('Brand');
   const [targets, setTargets] = useState<ProductTarget[]>([]);
   const [targetsLoading, setTargetsLoading] = useState(true);
@@ -174,6 +178,7 @@ function BannedItemForm({ canManage, requestAdmin, fullScreen, onCancel, onCreat
     event.preventDefault();
     setError('');
     setSubmitting(true);
+    onSubmittingChange?.(true);
     try {
       if (targetType === 'Brand') {
         const brandName = selectedTarget?.brand?.trim();
@@ -190,6 +195,7 @@ function BannedItemForm({ canManage, requestAdmin, fullScreen, onCancel, onCreat
       setError(failure instanceof BanApiError ? failure.message : failure instanceof Error ? failure.message : 'Unable to create this ban.');
     } finally {
       setSubmitting(false);
+      onSubmittingChange?.(false);
     }
   };
 
