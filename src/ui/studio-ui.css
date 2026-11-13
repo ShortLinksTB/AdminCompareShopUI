@@ -82,4 +82,4 @@
 .blog-page .studio-table td{color:var(--studio-text)}
 .blog-page .studio-select{font-weight:500}
 @media(max-width:900px){.blog-editor-layout{grid-template-columns:1fr}.blog-metrics{grid-template-columns:repeat(2,1fr)}}
-@media(max-width:640px){.blog-title-row,.blog-editor-heading,.blog-toolbar,.blog-footer{align-items:stretch;flex-direction:column}.blog-search{max-width:none}.blog-lightbox-box{width:92vw}}
+@media(max-width:640px){.blog-title-row,.blog-editor-heading,.blog-toolbar,.blog-footer{align-items:stretch;flex-direction:column}.blog-page .blog-toolbar .studio-search-field{width:100%;max-width:none;flex:0 0 auto}.blog-search{max-width:none}.blog-lightbox-box{width:92vw}}
