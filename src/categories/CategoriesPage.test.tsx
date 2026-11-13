@@ -39,8 +39,7 @@ describe('Categories page', () => {
     expect(await screen.findByText('Audio')).toBeInTheDocument();
     expect(screen.getByText('SYSTEM').closest('header')).toHaveClass('studio-page-header');
     expect(screen.getByRole('heading', { name: 'Categories', level: 1 })).toBeInTheDocument();
-    expect(document.querySelector('.studio-page-header p')).not.toBeInTheDocument();
-    expect(screen.queryByText(/Taxonomy sản phẩm/)).not.toBeInTheDocument();
+    expect(document.querySelector('.studio-page-header p')).toHaveTextContent('Taxonomy sản phẩm — CRUD qua /admin/categories, theo đúng pattern Partner Shops.');
     expect(screen.queryByText(/Operator trở lên/)).not.toBeInTheDocument();
     expect(screen.getByText('audio')).toBeInTheDocument();
     expect(screen.getByText('7')).toBeInTheDocument();
@@ -188,6 +187,26 @@ describe('Categories page', () => {
     await user.click(screen.getByRole('button', { name: 'Lưu category' }));
     await waitFor(() => expect(api.updateCategory).toHaveBeenCalledWith(requestAdmin, 7, { slug: 'audio', name: 'Audio gear', isActive: true, parentCategoryId: null }));
     expect(api.getCategories).toHaveBeenCalledTimes(2);
+  });
+
+  it('does not dismiss the edit dialog with Escape while an update is pending', async () => {
+    const user = userEvent.setup();
+    let rejectUpdate!: (reason: Error) => void;
+    api.updateCategory.mockReturnValueOnce(new Promise<AdminCategory>((_, reject) => { rejectUpdate = reject; }));
+    renderPage();
+    await user.click(await screen.findByLabelText('Actions for Audio'));
+    await user.click(screen.getByRole('button', { name: 'Sửa' }));
+    await user.clear(screen.getByLabelText('Name'));
+    await user.type(screen.getByLabelText('Name'), 'Audio gear');
+    await user.click(screen.getByRole('button', { name: 'Lưu category' }));
+    expect(await screen.findByRole('button', { name: 'Đang lưu…' })).toBeDisabled();
+    await user.keyboard('{Escape}');
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
+    expect(screen.getByLabelText('Name')).toHaveValue('Audio gear');
+    rejectUpdate(new Error('offline'));
+    expect(await screen.findByRole('alert')).toHaveTextContent('offline');
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
+    expect(screen.getByLabelText('Name')).toHaveValue('Audio gear');
   });
 
   it('deletes after confirmation and returns to the previous page when the final row is removed', async () => {

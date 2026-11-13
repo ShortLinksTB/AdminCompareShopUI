@@ -121,7 +121,7 @@ export function CategoriesPage({ requestAdmin, permissions }: { requestAdmin: Ad
   const rangeEnd = search.trim() ? filteredTotal : Math.min(page * pageSize, result.totalItems);
 
   return <div className="categories-page">
-    <PageHeader eyebrow="SYSTEM" title="Categories" actions={canCreate && <Button tone="primary" onClick={openCreate}>+ Thêm category</Button>} />
+    <PageHeader eyebrow="SYSTEM" title="Categories" description="Taxonomy sản phẩm — CRUD qua /admin/categories, theo đúng pattern Partner Shops." actions={canCreate && <Button tone="primary" onClick={openCreate}>+ Thêm category</Button>} />
 
     {listError && <ErrorState title={listError}><Button size="sm" onClick={() => void load()}>Thử lại</Button></ErrorState>}
     {deleteError && <ErrorState title={deleteError} />}
@@ -150,7 +150,7 @@ export function CategoriesPage({ requestAdmin, permissions }: { requestAdmin: Ad
       </TableFooter>
     </Card>
 
-    <Modal open={editor !== null} onClose={() => setEditor(null)} title={editor?.category ? 'Sửa category' : 'Thêm category'} actions={<><Button type="button" tone="ghost" disabled={saving} onClick={() => setEditor(null)}>Huỷ</Button><Button type="submit" form="categories-form" tone="primary" disabled={saving}>{saving ? 'Đang lưu…' : 'Lưu category'}</Button></>}>
+    <Modal open={editor !== null} onClose={() => !saving && setEditor(null)} title={editor?.category ? 'Sửa category' : 'Thêm category'} actions={<><Button type="button" tone="ghost" disabled={saving} onClick={() => setEditor(null)}>Huỷ</Button><Button type="submit" form="categories-form" tone="primary" disabled={saving}>{saving ? 'Đang lưu…' : 'Lưu category'}</Button></>}>
       <form id="categories-form" className="categories-form" onSubmit={event => void submit(event)}>
         <p>Nhập thông tin taxonomy sản phẩm.</p>
         {formError && <ErrorState title={formError} />}
