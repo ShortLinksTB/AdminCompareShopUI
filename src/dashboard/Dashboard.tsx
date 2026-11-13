@@ -112,11 +112,11 @@ export function Dashboard({ requestAdmin, permissions }: { requestAdmin: (path: 
     </section>
 
     <section className="dashboard-grid dashboard-grid-lower">
-      <Card className="dashboard-panel">
+      <Card className="dashboard-panel dashboard-lower-panel">
         <div className="dashboard-panel-heading"><div><h2>Offers flagged as outlier</h2><p>{outlierCount === undefined ? 'Outlier flag summary from available offers.' : `${outlierCount} offers flagged as outliers.`}</p></div><NavLink to="/offers">Xem tất cả →</NavLink></div>
         {offersLoading ? <div className="dashboard-offers-state" role="status">Loading offers…</div> : offersError ? <div className="dashboard-error" role="alert">{offersError}<Button size="sm" onClick={() => retry('offers')}>Retry</Button></div> : offersData?.totalItems === 0 ? <div className="dashboard-offers-state" role="status"><strong>No offers found</strong><span>Offers will appear here when available.</span></div> : <DashboardOffersTable offers={(offersData?.items ?? []).filter(offer => offer.isOutlier).slice(0, 3)} />}
       </Card>
-      <Card className="dashboard-panel">
+      <Card className="dashboard-panel dashboard-lower-panel">
         <div className="dashboard-panel-heading"><div><h2>Matching queue</h2><p>Listing đang chờ admin review</p></div><NavLink to="/matching">Xem tất cả →</NavLink></div>
         <div className="dashboard-queue-list">{matchingQueue.map(item => <div className="dashboard-queue-item" key={item.id}><span className="dashboard-queue-avatar">{item.shop.slice(0, 1)}</span><span><strong>{item.listing}</strong><small>{item.shop} · Match {item.confidence}%</small></span><DashboardStatusBadge status="Pending" /></div>)}</div>
       </Card>

@@ -58,6 +58,18 @@ describe('Dashboard', () => {
     expect(await screen.findByText('No offers found')).toBeInTheDocument();
   });
 
+  it('keeps the outlier panel heading and empty state inside the same panel in reading order', async () => {
+    vi.mocked(getAdminOffers).mockResolvedValueOnce({ ...offerPage, items: [] });
+    renderDashboard();
+
+    const emptyState = (await screen.findByText('No flagged offers')).closest('.dashboard-offers-state');
+    const panel = emptyState?.closest('.dashboard-lower-panel');
+
+    expect(panel?.firstElementChild).toHaveClass('dashboard-panel-heading');
+    expect(panel?.querySelector('a[href="/offers"]')).toHaveTextContent('Xem tất cả →');
+    expect(panel?.lastElementChild).toBe(emptyState);
+  });
+
   it('does not call APIs for missing permissions and retains matching dashboard content', async () => {
     renderDashboard([]);
     expect(await screen.findByText('You do not have permission to view products.')).toBeInTheDocument();
