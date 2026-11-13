@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import '@testing-library/jest-dom/vitest';
 import { AuditLogsPage } from './AuditLogsPage';
 
@@ -15,14 +16,17 @@ describe('AuditLogsPage', () => {
     const request = vi.fn().mockResolvedValue(new Response(JSON.stringify({ items: [entry], pageNumber: 1, pageSize: 50, totalItems: 1 }), { status: 200 }));
     render(<AuditLogsPage requestAdmin={request} />);
 
-    expect(screen.getByRole('status')).toHaveTextContent('Loading audit logs');
+    expect(screen.getByRole('status', { name: 'Loading audit logs' })).toBeInTheDocument();
     expect(await screen.findByText(entry.actor)).toBeInTheDocument();
     expect(screen.getByText('10:00:00 04/11/2026 UTC')).toBeInTheDocument();
     expect(screen.queryByText('Result')).not.toBeInTheDocument();
     expect(screen.queryByPlaceholderText(/search/i)).not.toBeInTheDocument();
     const details = screen.getByText('View Before/After JSON').closest('details');
     expect(details).not.toHaveAttribute('open');
-    fireEvent.click(screen.getByText('View Before/After JSON'));
+    const disclosure = screen.getByText('View Before/After JSON');
+    await userEvent.tab();
+    expect(disclosure).toHaveFocus();
+    fireEvent.click(disclosure);
     expect(details).toHaveAttribute('open');
     expect(within(details as HTMLElement).getByText('After').parentElement).toHaveTextContent(/roles/);
     expect(within(details as HTMLElement).getByText('Before').parentElement).toHaveTextContent('null');
