@@ -6,6 +6,7 @@ import { clearPostLogout, consumePostLogout, consumeReturnPath, markPostLogout, 
 import { fetchPermissions } from './auth-service';
 import { Button, Card } from './ui';
 import './auth-login.css';
+import './auth-forbidden.css';
 
 type AuthStatus = 'loading' | 'authenticated' | 'anonymous' | 'logging-out' | 'error';
 type PermissionState = 'loading' | 'ready' | 'error';
@@ -103,12 +104,12 @@ export function CallbackPage() {
 
 export function ForbiddenPage() {
   const { logout } = useAuth();
-  return <main className="auth-canvas"><section className="auth-card auth-forbidden">
+  return <main className="auth-canvas studio-forbidden"><Card as="section" aria-labelledby="forbidden-title" className="auth-card auth-forbidden studio-forbidden-card">
     <Brand /><div className="auth-error-icon" role="img" aria-label="Không được phép">!</div>
-    <h1>Bạn không có quyền truy cập</h1>
+    <h1 id="forbidden-title">Bạn không có quyền truy cập</h1>
     <p>Tài khoản hiện tại không được phép xem trang này. Hãy quay lại hoặc đăng xuất để dùng tài khoản khác.</p>
-    <div className="auth-actions"><button className="auth-primary" onClick={() => window.history.length > 1 ? window.history.back() : window.location.assign('/')}>Quay lại</button><button className="auth-secondary" onClick={() => void logout()}>Đăng xuất</button></div>
-  </section></main>;
+    <div className="auth-actions"><Button tone="primary" className="studio-forbidden-primary" onClick={() => window.history.length > 1 ? window.history.back() : window.location.assign('/')}>Quay lại</Button><Button tone="secondary" className="studio-forbidden-secondary" onClick={() => void logout()}>Đăng xuất</Button></div>
+  </Card></main>;
 }
 
 export function PermissionFailure() {

@@ -227,6 +227,10 @@ describe('OIDC auth flow', () => {
     await waitFor(() => expect(screen.getByTestId('state')).toHaveTextContent('authenticated:ready:products.read'));
     fireEvent.click(screen.getByRole('button', { name: 'Request admin' }));
     await screen.findByText('Bạn không có quyền truy cập');
+    expect(screen.getByRole('main')).toHaveClass('studio-forbidden');
+    expect(screen.getByRole('region')).toHaveClass('studio-card', 'studio-forbidden-card');
+    expect(screen.getByRole('button', { name: 'Quay lại' })).toHaveClass('studio-button', 'studio-button-primary');
+    expect(screen.getByRole('button', { name: 'Đăng xuất' })).toHaveClass('studio-button', 'studio-button-secondary');
     const requestedPaths = vi.mocked(fetch).mock.calls.map(([input]) => new URL(String(input)).pathname);
     expect(requestedPaths).toContain('/admin/products');
     expect(keycloakMocks.clearToken).not.toHaveBeenCalled();
