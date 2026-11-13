@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 
 const styles = readFileSync('src/auth-login.css', 'utf8').replace(/\s+/g, ' ');
+const authSource = readFileSync('src/auth.tsx', 'utf8').replace(/\s+/g, ' ');
 
 function luminance(hex: string): number {
   const channels = hex.match(/[0-9a-f]{2}/gi)!.map(channel => parseInt(channel, 16) / 255);
@@ -29,6 +30,11 @@ describe('Login focus ring theme tokens', () => {
 });
 
 describe('Login spinner contrast', () => {
+  it('applies the Login theme scope to callback loading so its spinner receives the contrast token', () => {
+    expect(authSource).toMatch(/export function AuthLoadingScreen[\s\S]*?className="auth-canvas studio-login"[\s\S]*?className="auth-spinner"/);
+    expect(styles).toMatch(/\.studio-login \.auth-spinner\s*\{[^}]*border-top-color:\s*var\(--studio-spinner\);/);
+  });
+
   it('uses theme-specific spinner colors that meet 3:1 contrast on each canvas', () => {
     expect(styles).toMatch(/\.auth-canvas\.studio-login\s*\{[^}]*--studio-spinner:\s*#b83c00;/);
     expect(styles).toMatch(/@media\s*\(prefers-color-scheme:\s*dark\)\s*\{\s*\.auth-canvas\.studio-login\s*\{[^}]*--studio-spinner:\s*#ff5a00;/);
