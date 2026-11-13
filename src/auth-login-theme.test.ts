@@ -27,3 +27,13 @@ describe('Login focus ring theme tokens', () => {
     expect(contrastRatio('#93c5fd', '#101820')).toBeGreaterThanOrEqual(3);
   });
 });
+
+describe('Login spinner theme contrast', () => {
+  it('uses an accessible active arc in light and dark themes', () => {
+    expect(styles).toMatch(/\.studio-login \.auth-spinner\s*\{[^}]*border-top-color:\s*var\(--studio-spinner\);/);
+    expect(styles).toMatch(/\.auth-canvas\.studio-login\s*\{[^}]*--studio-spinner:\s*#e64a00;/);
+    expect(styles).toMatch(/@media\s*\(prefers-color-scheme: dark\)[\s\S]*?\.auth-canvas\.studio-login\s*\{[^}]*--studio-spinner:\s*#ff8a50;/);
+    expect(contrastRatio('#e64a00', '#f7f9fb')).toBeGreaterThanOrEqual(3);
+    expect(contrastRatio('#ff8a50', '#101820')).toBeGreaterThanOrEqual(3);
+  });
+});
