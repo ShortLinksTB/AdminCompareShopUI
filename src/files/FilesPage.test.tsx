@@ -53,7 +53,7 @@ describe('FilesPage list and permissions', () => {
     let resolve!: (response: Response) => void;
     const request = vi.fn<AdminRequest>().mockImplementation(() => new Promise(done => { resolve = done; }));
     render(<FilesPage requestAdmin={request} />);
-    expect(screen.getByRole('status')).toHaveTextContent('Loading files');
+    expect(screen.getByRole('status')).toHaveAttribute('aria-label', 'Loading files');
     resolve(pageResponse([], 1, 10, 0));
     expect(await screen.findByText(/No files found/)).toBeInTheDocument();
     request.mockRejectedValueOnce(new Error('temporary failure')).mockResolvedValueOnce(pageResponse([], 1, 10, 0));
@@ -79,7 +79,7 @@ describe('FilesPage list and permissions', () => {
     render(<FilesPage requestAdmin={requestFor()} permissions={['files.read']} />);
     await screen.findByText('banner');
     expect(screen.queryByRole('button', { name: '⬆ Upload' })).not.toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: 'Actions for banner' }));
+    fireEvent.click(screen.getAllByText('⋮', { selector: 'summary' })[0]);
     expect(screen.queryByRole('button', { name: 'Delete' })).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Details' })).toBeInTheDocument();
   });
@@ -118,9 +118,9 @@ describe('FilesPage details and file actions', () => {
         : Promise.resolve(new Response(null, { status: 204 })));
     render(<FilesPage requestAdmin={request} permissions={['files.read', 'files.write']} />);
     await screen.findByText('guide');
-    fireEvent.click(screen.getByRole('button', { name: 'Actions for guide' }));
+    fireEvent.click(screen.getAllByText('⋮', { selector: 'summary' })[0]);
     fireEvent.click(screen.getByRole('button', { name: 'Delete' }));
-    fireEvent.click(screen.getByRole('alertdialog').querySelector('button.file-delete-button')!);
+    fireEvent.click(within(screen.getByRole('alertdialog', { name: 'Delete file?' })).getByRole('button', { name: 'Delete' }));
     expect(await screen.findByRole('alert')).toHaveTextContent('permission to delete file');
     expect(within(screen.getByRole('alertdialog')).getByRole('button', { name: 'Cancel' })).toBeInTheDocument();
   });
@@ -153,13 +153,13 @@ describe('FilesPage details and file actions', () => {
     render(<FilesPage requestAdmin={requestFor()} permissions={['files.read']} />);
     await user.click(await screen.findByRole('button', { name: 'Preview banner' }));
     const dialog = screen.getByRole('dialog', { name: 'Image preview' });
-    const box = dialog.querySelector('.files-lightbox-box')!;
+    const box = dialog.querySelector('.studio-lightbox-stage')!;
     fireEvent.wheel(box, { deltaY: -100, clientX: 300, clientY: 250 });
     expect(await screen.findByText('115%')).toBeInTheDocument();
     fireEvent.pointerDown(box, { pointerId: 1, clientX: 300, clientY: 250 });
     fireEvent.pointerMove(box, { pointerId: 1, clientX: 320, clientY: 270 });
     fireEvent.pointerUp(box, { pointerId: 1 });
-    expect(dialog.querySelector('img')?.getAttribute('style')).toContain('translate(');
+    expect(dialog.querySelector('.studio-lightbox-content')?.getAttribute('style')).toContain('translate(');
     fireEvent.wheel(box, { deltaY: 1000, clientX: 300, clientY: 250 });
     expect(await screen.findByText('100%')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Close preview' }));

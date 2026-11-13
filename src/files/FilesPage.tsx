@@ -1,7 +1,7 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent, type PointerEvent, type WheelEvent } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent } from 'react';
 import { deleteAdminFile, getAdminFile, getAdminFiles, publicFileUrl, uploadAdminFiles, type AdminFile, type AdminFilePage, type AdminFileTypeFilter } from './files-api';
 import type { AdminRequest } from '../products/products-api';
-import './files.css';
+import { Button, Card, DataTable, EmptyState, ErrorState, Lightbox, Loading, Modal, PageHeader, Pager, Pill, RowMenu, SearchField, Select, Toast, Toolbar } from '../ui';
 
 const PAGE_SIZES = [10, 20, 50];
 const allowed = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'image/svg+xml', 'application/pdf']);
@@ -50,13 +50,8 @@ export function FilesPage({ requestAdmin, permissions = [] }: { requestAdmin: Ad
   const [brokenThumbs, setBrokenThumbs] = useState<Set<string>>(() => new Set());
   const [menuId, setMenuId] = useState<string | null>(null);
   const [lightbox, setLightbox] = useState<AdminFile | null>(null);
-  const [zoom, setZoom] = useState(1);
-  const [pan, setPan] = useState({ x: 0, y: 0 });
-  const [drag, setDrag] = useState<{ x: number; y: number; panX: number; panY: number } | null>(null);
   const [toast, setToast] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
-  const lightboxRef = useRef<HTMLDivElement>(null);
-  const lightboxOpenerRef = useRef<HTMLElement | null>(null);
 
   useEffect(() => { const timer = window.setTimeout(() => setDebouncedQuery(query), 250); return () => window.clearTimeout(timer); }, [query]);
   useEffect(() => {
@@ -82,28 +77,14 @@ export function FilesPage({ requestAdmin, permissions = [] }: { requestAdmin: Ad
   }, [requestAdmin, detail?.id]);
 
   useEffect(() => {
-    if (!detail && !uploadOpen && !deleteTarget && !lightbox && !menuId) return;
+    if (!menuId) return;
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key !== 'Escape') return;
-      if (lightbox) setLightbox(null);
-      else if (deleteTarget) setDeleteTarget(null);
-      else if (uploadOpen) setUploadOpen(false);
-      else if (detail) setDetail(null);
-      else setMenuId(null);
+      setMenuId(null);
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [detail, uploadOpen, deleteTarget, lightbox, menuId]);
-
-  useEffect(() => {
-    if (lightbox) {
-      lightboxOpenerRef.current ??= document.activeElement instanceof HTMLElement ? document.activeElement : null;
-      return;
-    }
-    const opener = lightboxOpenerRef.current;
-    lightboxOpenerRef.current = null;
-    if (opener?.isConnected) opener.focus();
-  }, [lightbox]);
+  }, [menuId]);
 
   useEffect(() => {
     if (!toast) return;
@@ -147,41 +128,37 @@ export function FilesPage({ requestAdmin, permissions = [] }: { requestAdmin: Ad
     catch { setToast('Could not copy link'); }
     setMenuId(null);
   }
-  function changeZoom(event: WheelEvent<HTMLDivElement>) {
-    event.preventDefault();
-    const bounds = event.currentTarget.getBoundingClientRect();
-    const next = Math.min(4, Math.max(1, zoom * (event.deltaY < 0 ? 1.15 : 1 / 1.15)));
-    const x = event.clientX - bounds.left - bounds.width / 2;
-    const y = event.clientY - bounds.top - bounds.height / 2;
-    setPan(next === 1 ? { x: 0, y: 0 } : { x: x - (x - pan.x) * next / zoom, y: y - (y - pan.y) * next / zoom });
-    setZoom(next);
-  }
-  function startPan(event: PointerEvent<HTMLDivElement>) {
-    if (zoom <= 1) return;
-    event.currentTarget.setPointerCapture?.(event.pointerId);
-    setDrag({ x: event.clientX, y: event.clientY, panX: pan.x, panY: pan.y });
-  }
   const visibleDetail = detail;
 
-  return <section className="files-page">
-    <div className="page-header"><div><span className="eyebrow">MEDIA</span><h1>Files</h1><p>Lưu ảnh và tệp dùng chung, mỗi tệp có link công khai để hiển thị.</p></div>{canWrite && <button className="primary-button" onClick={() => { setUploadOpen(true); setUploads([]); }}>⬆ Upload</button>}</div>
-    <div className="toolbar"><label className="toolbar-search" aria-label="Search file name">⌕<input value={query} onChange={event => { setQuery(event.target.value); setPageNumber(1); }} placeholder="Search file name..." /></label><select aria-label="Filter by type" value={type} onChange={event => { setType(event.target.value as AdminFileTypeFilter); setPageNumber(1); }}><option value="all">All types</option><option value="image">Images</option><option value="other">Other files</option></select></div>
-    <section className="panel files-table-panel"><div className="files-table-scroll"><table><thead><tr><th>Preview</th><th>Name</th><th>Type</th><th>Uploaded by</th><th>Uploaded</th><th>Public link</th><th><span className="sr-only">Actions</span></th></tr></thead><tbody>
-      {loading ? <tr><td colSpan={7}><div className="files-state" role="status">Loading files…</div></td></tr> : error ? <tr><td colSpan={7}><div className="files-state files-error" role="alert">{error}<button className="outline-button small" onClick={() => setReload(value => value + 1)}>Retry</button></div></td></tr> : files.length === 0 ? <tr><td colSpan={7}><div className="files-state">No files found. Upload a file or adjust your search.</div></td></tr> : files.map(file => <tr key={file.id}>
-        <td><button className="file-thumb" aria-label={`Preview ${shortName(file.originalFileName)}`} onClick={() => isImage(file) && setLightbox(file)} disabled={!isImage(file)}>{isImage(file) && !brokenThumbs.has(file.id) ? <img src={publicFileUrl(file.id)} alt="" onError={() => setBrokenThumbs(current => new Set(current).add(file.id))} /> : <span>{file.contentType === 'application/pdf' ? 'PDF' : isImage(file) ? 'IMG' : 'FILE'}</span>}</button></td>
-        <td><button className="file-name" onClick={() => showDetails(file)}>{shortName(file.originalFileName)}</button></td><td><span className="file-type">{file.contentType}</span></td><td className="file-meta-cell">{file.uploadedBy || '—'}</td><td className="file-meta-cell">{formatDate(file.uploadedAtUtc)}</td>
-        <td><div className="file-public-link"><code>/files/{file.id}</code><button className="file-link-action" aria-label={`Copy link for ${shortName(file.originalFileName)}`} onClick={() => void copyLink(file)}>⧉</button><a className="file-link-action" href={publicFileUrl(file.id)} target="_blank" rel="noreferrer" aria-label={`Open ${shortName(file.originalFileName)}`}>↗</a></div></td>
-        <td><div className="file-menu-wrap"><button className="file-menu-trigger" aria-label={`Actions for ${shortName(file.originalFileName)}`} aria-expanded={menuId === file.id} onClick={() => setMenuId(menuId === file.id ? null : file.id)}>⋮</button>{menuId === file.id && <div className="file-menu"><button onClick={() => showDetails(file)}>Details</button><button onClick={() => void copyLink(file)}>Copy public link</button><a href={publicFileUrl(file.id)} target="_blank" rel="noreferrer" onClick={() => setMenuId(null)}>Open file</a><a href={publicFileUrl(file.id)} download={file.originalFileName} onClick={() => setMenuId(null)}>Download</a>{canWrite && <button className="file-danger-text" onClick={() => { setMenuId(null); setDeleteTarget(file); }}>Delete</button>}</div>}</div></td>
-      </tr>)}
-    </tbody></table></div><footer className="files-footer"><div className="files-page-size">Rows per page <select aria-label="Rows per page" value={pageSize} onChange={event => { setPageSize(Number(event.target.value)); setPageNumber(1); }}>{PAGE_SIZES.map(size => <option key={size}>{size}</option>)}</select><span className="files-total">Total <b>{page.totalItems}</b> files</span></div><span className="files-range">Showing {rangeStart}–{rangeEnd} of {page.totalItems} files</span><div className="files-pager"><button aria-label="Previous page" disabled={pageNumber <= 1 || loading} onClick={() => setPageNumber(value => value - 1)}>‹</button><span>Page {pageNumber} of {totalPages}</span><button aria-label="Next page" disabled={pageNumber >= totalPages || loading} onClick={() => setPageNumber(value => value + 1)}>›</button></div></footer></section>
+  return <>
+    <PageHeader eyebrow="MEDIA" title="Files" description="Lưu ảnh và tệp dùng chung, mỗi tệp có link công khai để hiển thị." actions={canWrite && <Button tone="primary" onClick={() => { setUploadOpen(true); setUploads([]); }}>⬆ Upload</Button>} />
+    <Toolbar><SearchField label="Search file name" value={query} placeholder="Search file name..." onChange={event => { setQuery(event.target.value); setPageNumber(1); }} /><Select aria-label="Filter by type" value={type} onChange={event => { setType(event.target.value as AdminFileTypeFilter); setPageNumber(1); }}><option value="all">All types</option><option value="image">Images</option><option value="other">Other files</option></Select></Toolbar>
+    <Card aria-label="Files list" style={{ overflow: 'hidden' }}>
+      <DataTable><thead><tr><th>Preview</th><th>Name</th><th>Type</th><th>Uploaded by</th><th>Uploaded</th><th>Public link</th><th><span className="sr-only">Actions</span></th></tr></thead><tbody>
+        {loading ? <tr><td colSpan={7}><Loading label="Loading files" /></td></tr> : error ? <tr><td colSpan={7}><ErrorState title={error} /><Button size="sm" onClick={() => setReload(value => value + 1)}>Retry</Button></td></tr> : files.length === 0 ? <tr><td colSpan={7}><EmptyState title="No files found. Upload a file or adjust your search." /></td></tr> : files.map(file => <tr key={file.id}>
+          <td><Button tone="ghost" aria-label={`Preview ${shortName(file.originalFileName)}`} onClick={() => isImage(file) && setLightbox(file)} disabled={!isImage(file)} style={{ width: 44, height: 44, padding: 0, overflow: 'hidden' }}>{isImage(file) && !brokenThumbs.has(file.id) ? <img style={{ width: '100%', height: '100%', objectFit: 'cover' }} src={publicFileUrl(file.id)} alt="" onError={() => setBrokenThumbs(current => new Set(current).add(file.id))} /> : file.contentType === 'application/pdf' ? 'PDF' : isImage(file) ? 'IMG' : 'FILE'}</Button></td>
+          <td><Button tone="ghost" onClick={() => showDetails(file)} style={{ minHeight: 0, padding: 0, border: 0, color: 'var(--studio-text)', textAlign: 'left' }}>{shortName(file.originalFileName)}</Button></td><td><span style={{ color: 'var(--studio-muted)', fontSize: 12 }}>{file.contentType}</span></td><td>{file.uploadedBy || '—'}</td><td>{formatDate(file.uploadedAtUtc)}</td>
+          <td><div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 175 }}><code style={{ maxWidth: 180, overflow: 'hidden', color: 'var(--studio-muted)', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>/files/{file.id}</code><Button size="sm" tone="ghost" aria-label={`Copy link for ${shortName(file.originalFileName)}`} onClick={() => void copyLink(file)}>⧉</Button><a className="studio-button studio-button-ghost studio-button-sm" style={{ display: 'grid', minWidth: 34, placeItems: 'center', padding: 0, textDecoration: 'none' }} href={publicFileUrl(file.id)} target="_blank" rel="noreferrer" aria-label={`Open ${shortName(file.originalFileName)}`}>↗</a></div></td>
+          <td><RowMenu label={`Actions for ${shortName(file.originalFileName)}`} open={menuId === file.id} onOpenChange={open => setMenuId(open ? file.id : null)}><button onClick={() => showDetails(file)}>Details</button><button onClick={() => void copyLink(file)}>Copy public link</button><a href={publicFileUrl(file.id)} target="_blank" rel="noreferrer" onClick={() => setMenuId(null)}>Open file</a><a href={publicFileUrl(file.id)} download={file.originalFileName} onClick={() => setMenuId(null)}>Download</a>{canWrite && <button onClick={() => { setMenuId(null); setDeleteTarget(file); }}>Delete</button>}</RowMenu></td>
+        </tr>)}
+      </tbody></DataTable>
+      <div className="studio-table-footer"><span>Rows per page <Select size="sm" aria-label="Rows per page" value={pageSize} onChange={event => { setPageSize(Number(event.target.value)); setPageNumber(1); }}>{PAGE_SIZES.map(size => <option key={size}>{size}</option>)}</Select> · Total <b>{page.totalItems}</b> files</span><span>Showing {rangeStart}–{rangeEnd} of {page.totalItems} files</span><Pager page={pageNumber} pages={totalPages} onChange={setPageNumber} previousLabel="Previous page" nextLabel="Next page" formatPage={(current, pages) => `Page ${current} of ${pages}`} disabled={loading} /></div>
+    </Card>
 
-    {uploadOpen && <div className="files-backdrop" role="presentation" onMouseDown={event => { if (event.target === event.currentTarget && !uploading) setUploadOpen(false); }}><section className="files-modal" role="dialog" aria-modal="true" aria-labelledby="files-upload-title"><header><h2 id="files-upload-title">Upload files</h2><button aria-label="Close" disabled={uploading} onClick={() => setUploadOpen(false)}>×</button></header><div className="files-modal-body"><button className="files-drop" onClick={() => inputRef.current?.click()} onDragOver={event => event.preventDefault()} onDrop={onDrop}><b>Drag files here</b><span>or click to choose · JPG, PNG, WebP, GIF, SVG, PDF · max 10 MB per file</span></button><input ref={inputRef} type="file" multiple accept="image/jpeg,image/png,image/webp,image/gif,image/svg+xml,application/pdf" hidden onChange={event => { if (event.target.files) selectFiles(event.target.files); event.target.value = ''; }} />{uploads.map((item, index) => <div className="files-upload-row" key={`${item.file.name}-${index}`}><span className="file-ext">{item.file.name.split('.').pop()?.toUpperCase()}</span><div className="files-upload-info"><b>{shortName(item.file.name)}</b><span>{formatSize(item.file.size)}{item.error ? ` · ${item.error}` : item.status === 'done' ? ' · Uploaded' : item.status === 'uploading' ? ' · Uploading…' : ' · Ready'}</span>{item.status === 'uploading' && <div className="files-progress files-progress-indeterminate" aria-label={`Uploading ${shortName(item.file.name)}`}><i /></div>}</div><span className={item.status === 'failed' ? 'files-failed' : item.status === 'done' ? 'files-done' : ''}>{item.status === 'failed' ? 'Failed' : item.status === 'done' ? 'Done' : item.status === 'uploading' ? 'Uploading' : 'Queued'}</span></div>)}</div><footer><button className="outline-button" disabled={uploading} onClick={() => setUploadOpen(false)}>Close</button><button className="primary-button" disabled={uploading || !uploads.some(item => item.status === 'queued' && !item.error)} onClick={() => void startUpload()}>{uploading ? 'Uploading…' : 'Upload'}</button></footer></section></div>}
+    <Modal open={uploadOpen} onClose={() => { if (!uploading) setUploadOpen(false); }} title="Upload files" actions={<><Button disabled={uploading} onClick={() => setUploadOpen(false)}>Close</Button><Button tone="primary" disabled={uploading || !uploads.some(item => item.status === 'queued' && !item.error)} onClick={() => void startUpload()}>{uploading ? 'Uploading…' : 'Upload'}</Button></>}>
+      <Button tone="secondary" layout="stacked" style={{ padding: '28px 16px', borderStyle: 'dashed', borderWidth: 2, background: 'var(--studio-bg2)', color: 'var(--studio-muted)' }} onClick={() => inputRef.current?.click()} onDragOver={event => event.preventDefault()} onDrop={onDrop}><b style={{ color: 'var(--studio-text)' }}>Drag files here</b><span>or click to choose · JPG, PNG, WebP, GIF, SVG, PDF · max 10 MB per file</span></Button><input ref={inputRef} type="file" multiple accept="image/jpeg,image/png,image/webp,image/gif,image/svg+xml,application/pdf" hidden onChange={event => { if (event.target.files) selectFiles(event.target.files); event.target.value = ''; }} />
+      {uploads.map((item, index) => <div key={`${item.file.name}-${index}`} style={{ display: 'grid', gridTemplateColumns: '36px 1fr auto', alignItems: 'center', gap: 10, padding: 10, border: '1px solid var(--studio-border)', borderRadius: 12 }}><Pill size="sm">{item.file.name.split('.').pop()?.toUpperCase()}</Pill><div style={{ minWidth: 0 }}><b>{shortName(item.file.name)}</b><div style={{ color: 'var(--studio-muted)', fontSize: 12 }}>{formatSize(item.file.size)}{item.error ? ` · ${item.error}` : item.status === 'done' ? ' · Uploaded' : item.status === 'uploading' ? ' · Uploading…' : ' · Ready'}</div>{item.status === 'uploading' && <Loading label={`Uploading ${shortName(item.file.name)}`} />}</div><Pill tone={item.status === 'failed' ? 'bad' : item.status === 'done' ? 'ok' : 'neutral'} size="sm">{item.status === 'failed' ? 'Failed' : item.status === 'done' ? 'Done' : item.status === 'uploading' ? 'Uploading' : 'Queued'}</Pill></div>)}
+    </Modal>
 
-    {visibleDetail && <div className="files-backdrop" role="presentation" onMouseDown={event => { if (event.target === event.currentTarget) setDetail(null); }}><section className="files-modal" role="dialog" aria-modal="true" aria-labelledby="files-detail-title"><header><h2 id="files-detail-title">File details</h2><button aria-label="Close" onClick={() => setDetail(null)}>×</button></header><div className="files-modal-body">{detailLoading ? <div className="files-state">Loading details…</div> : detailError ? <div className="files-error" role="alert">{detailError}</div> : <><div className="files-detail-preview">{isImage(visibleDetail) ? <img src={publicFileUrl(visibleDetail.id)} alt={shortName(visibleDetail.originalFileName)} /> : <span>{visibleDetail.contentType === 'application/pdf' ? 'PDF' : 'FILE'}</span>}</div><dl className="files-detail-grid"><div className="wide"><dt>Name</dt><dd>{shortName(visibleDetail.originalFileName)}</dd></div><div><dt>Type</dt><dd>{visibleDetail.contentType}</dd></div><div><dt>Size</dt><dd>{formatSize(visibleDetail.sizeBytes)}</dd></div><div><dt>Image dimensions</dt><dd>{visibleDetail.width && visibleDetail.height ? `${visibleDetail.width} × ${visibleDetail.height}` : '—'}</dd></div><div><dt>Uploaded by</dt><dd>{visibleDetail.uploadedBy || '—'}</dd></div><div className="wide"><dt>Uploaded at</dt><dd>{formatDate(visibleDetail.uploadedAtUtc, true)}</dd></div><div className="wide"><dt>Public link</dt><dd><div className="file-public-link"><code>/files/{visibleDetail.id}</code><button className="file-link-action" aria-label="Copy link" onClick={() => void copyLink(visibleDetail)}>⧉</button></div></dd></div></dl></>}</div><footer>{canWrite && <button className="file-delete-button" onClick={() => setDeleteTarget(visibleDetail)}>Delete</button>}<a className="outline-button" href={publicFileUrl(visibleDetail.id)} download={visibleDetail.originalFileName}>Download</a><button className="primary-button" onClick={() => setDetail(null)}>Close</button></footer></section></div>}
+    <Modal open={Boolean(visibleDetail)} onClose={() => setDetail(null)} title="File details" actions={visibleDetail && <>{canWrite && <Button tone="danger" onClick={() => setDeleteTarget(visibleDetail)}>Delete</Button>}<a className="studio-button studio-button-secondary studio-button-md" href={publicFileUrl(visibleDetail.id)} download={visibleDetail.originalFileName}>Download</a><Button tone="primary" onClick={() => setDetail(null)}>Close</Button></>}>
+      {visibleDetail && (detailLoading ? <Loading label="Loading details" /> : detailError ? <ErrorState title={detailError} /> : <><div style={{ display: 'grid', minHeight: 160, placeItems: 'center', overflow: 'hidden', borderRadius: 14, background: 'var(--studio-bg2)' }}>{isImage(visibleDetail) ? <Button tone="ghost" aria-label={`Preview ${shortName(visibleDetail.originalFileName)}`} onClick={() => setLightbox(visibleDetail)} style={{ display: 'grid', width: '100%', height: 220, placeItems: 'center', padding: 8, border: 0 }}><img style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }} src={publicFileUrl(visibleDetail.id)} alt="" /></Button> : visibleDetail.contentType === 'application/pdf' ? 'PDF' : 'FILE'}</div><dl style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(180px,1fr))', gap: '14px 18px', margin: 0, overflowWrap: 'anywhere' }}>{[['Name', shortName(visibleDetail.originalFileName)], ['Type', visibleDetail.contentType], ['Size', formatSize(visibleDetail.sizeBytes)], ['Image dimensions', visibleDetail.width && visibleDetail.height ? `${visibleDetail.width} × ${visibleDetail.height}` : '—'], ['Uploaded by', visibleDetail.uploadedBy || '—'], ['Uploaded at', formatDate(visibleDetail.uploadedAtUtc, true)], ['Public link', `/files/${visibleDetail.id}`]].map(([label, value]) => <div key={label}><dt style={{ color: 'var(--studio-muted)', fontSize: 11, fontWeight: 700, textTransform: 'uppercase' }}>{label}</dt><dd style={{ margin: '4px 0 0', fontWeight: 600 }}>{value}</dd></div>)}</dl><Button size="sm" aria-label="Copy link" onClick={() => void copyLink(visibleDetail)}>Copy public link</Button></>)}
+    </Modal>
 
-    {deleteTarget && <div className="files-backdrop" role="presentation"><section className="files-confirm" role="alertdialog" aria-modal="true" aria-labelledby="files-delete-title"><h2 id="files-delete-title">Delete file?</h2><p>This will remove <b>{shortName(deleteTarget.originalFileName)}</b> and its public link.</p>{actionError && <p className="files-error" role="alert">{actionError}</p>}<footer><button className="outline-button" onClick={() => { setDeleteTarget(null); setActionError(''); }}>Cancel</button><button className="file-delete-button" onClick={() => void confirmDelete()}>Delete</button></footer></section></div>}
+    <Modal open={Boolean(deleteTarget)} onClose={() => { setDeleteTarget(null); setActionError(''); }} title="Delete file?" role="alertdialog" actions={<><Button onClick={() => { setDeleteTarget(null); setActionError(''); }}>Cancel</Button><Button tone="danger" onClick={() => void confirmDelete()}>Delete</Button></>}>
+      {deleteTarget && <><p>This will remove <b>{shortName(deleteTarget.originalFileName)}</b> and its public link.</p>{actionError && <ErrorState title={actionError} />}</>}
+    </Modal>
 
-    {lightbox && <div className="files-lightbox" role="dialog" aria-modal="true" aria-label="Image preview"><div ref={lightboxRef} className={`files-lightbox-box${zoom > 1 ? ' zoomed' : ''}`} onWheel={changeZoom} onPointerDown={startPan} onPointerMove={event => { if (drag) setPan({ x: drag.panX + event.clientX - drag.x, y: drag.panY + event.clientY - drag.y }); }} onPointerUp={() => setDrag(null)}><button className="files-lightbox-close" aria-label="Close preview" onClick={() => { setLightbox(null); setZoom(1); setPan({ x: 0, y: 0 }); }}>×</button><div className="files-lightbox-title">{shortName(lightbox.originalFileName)}</div><img src={publicFileUrl(lightbox.id)} alt={shortName(lightbox.originalFileName)} draggable={false} style={{ transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})` }} /><span className="files-lightbox-hint">Scroll to zoom · drag to pan</span><span className="files-lightbox-zoom">{Math.round(zoom * 100)}%</span></div></div>}
-    {toast && <div className="files-toast" role="status">{toast}</div>}
-  </section>;
+    <Lightbox open={Boolean(lightbox)} onClose={() => setLightbox(null)} label="Image preview" closeLabel="Close preview" toolbar={lightbox?.originalFileName} resetKey={lightbox?.id}>{lightbox && <img src={publicFileUrl(lightbox.id)} alt={shortName(lightbox.originalFileName)} draggable={false} />}</Lightbox>
+    {toast && <Toast>{toast}</Toast>}
+  </>;
 }
