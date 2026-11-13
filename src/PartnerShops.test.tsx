@@ -43,8 +43,32 @@ describe('Partner Shops page', () => {
     expect(screen.getByText('#42')).toBeInTheDocument();
     expect(screen.getByText('cellphones')).toBeInTheDocument();
     expect(screen.getByText('Active')).toBeInTheDocument();
+    expect(document.querySelector('.studio-page-header')).toBeInTheDocument();
+    expect(document.querySelector('.studio-card.shop-card')).toBeInTheDocument();
+    expect(document.querySelector('.studio-pill-ok')).toHaveTextContent('Active');
+    expect(screen.getByRole('link', { name: 'https://cellphones.com.vn' })).toHaveAttribute('target', '_blank');
+    expect(screen.getByText('Showing 1–1 of 1 shops')).toBeInTheDocument();
     expect(screen.queryByText(/Sync|Products|Offers/)).not.toBeInTheDocument();
     expect(api.getPartnerShops).toHaveBeenCalledWith(requestAdmin, 1, 20);
+  });
+
+  it('uses the shared modal and preserves the existing create fields and actions', async () => {
+    const user = userEvent.setup();
+    renderShops();
+    await user.click(await screen.findByRole('button', { name: '+ Add shop' }));
+
+    const dialog = screen.getByRole('dialog', { name: 'Add shop' });
+    expect(dialog).toHaveClass('studio-modal', 'partner-shop-modal');
+    expect(screen.getByText('Enter the partner shop details.')).toBeInTheDocument();
+    expect(screen.getByLabelText('Slug')).toBeRequired();
+    expect(screen.getByLabelText('Name')).toBeRequired();
+    expect(screen.getByLabelText('Website URL (optional)')).toHaveAttribute('maxLength', '2048');
+    expect(screen.getByRole('checkbox', { name: 'Active' })).toBeChecked();
+    expect(screen.getByRole('button', { name: 'Cancel' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Save shop' })).toHaveAttribute('form', 'partner-shop-form');
+
+    await user.keyboard('{Escape}');
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
   });
 
   it('uses 1-based pagination and allows supported page sizes', async () => {
