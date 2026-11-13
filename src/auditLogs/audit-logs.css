@@ -1,0 +1,4 @@
+.audit-logs-scroll-hint{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:0;padding:10px 16px;border-bottom:1px solid var(--studio-border);color:var(--studio-muted);font-size:12px}
+.audit-logs-scroll-hint span{color:var(--studio-brand-text);font-size:16px}
+.audit-logs-table-scroll{scrollbar-color:var(--studio-muted) var(--studio-bg2);scrollbar-width:thin}
+.audit-logs-table-scroll:focus-visible{outline:3px solid color-mix(in srgb,var(--studio-brand) 55%,transparent);outline-offset:-3px}

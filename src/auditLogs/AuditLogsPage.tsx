@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import type { AdminRequest } from '../bannedItemsApi';
 import { Button, Card, DataTable, EmptyState, ErrorState, Loading, PageHeader, Pager, TableFooter, Toolbar } from '../ui';
 import { getAuditLogs, type AuditLogEntry, type AuditLogsPageResult } from './audit-logs-api';
+import './audit-logs.css';
 
 const pageSize = 50;
 const emptyPage: AuditLogsPageResult = { items: [], pageNumber: 1, pageSize, totalItems: 0 };
@@ -61,13 +62,16 @@ export function AuditLogsPage({ requestAdmin }: { requestAdmin: AdminRequest }) 
       {loading ? <Loading label="Loading audit logs" />
         : error ? <ErrorState title={error}><Button onClick={() => setReloadKey(value => value + 1)}>Retry</Button></ErrorState>
           : result.items.length === 0 ? <EmptyState title="No audit logs found." />
-            : <DataTable aria-label="Audit log records table"><thead><tr><th>Time (UTC)</th><th>Actor</th><th>Action</th><th>Resource</th></tr></thead>
+            : <>
+              <p id="audit-logs-scroll-help" className="audit-logs-scroll-hint">Scroll horizontally to view all columns <span aria-hidden="true">→</span></p>
+              <DataTable className="audit-logs-table-scroll" role="region" tabIndex={0} aria-label="Audit log records table" aria-describedby="audit-logs-scroll-help"><thead><tr><th>Time (UTC)</th><th>Actor</th><th>Action</th><th>Resource</th></tr></thead>
               <tbody>{result.items.map(entry => <tr key={entry.id}>
                 <td className="studio-nowrap studio-tabular">{formatUtc(entry.createdAtUtc)}</td>
                 <td className="studio-mono studio-muted">{entry.actor}</td>
                 <td><strong>{entry.action}</strong></td>
                 <td><code className="studio-code-chip">{entry.resourceType}{entry.resourceId === null ? '' : ` · ${entry.resourceId}`}</code><AuditLogDetails entry={entry} /></td>
-              </tr>)}</tbody></DataTable>}
+              </tr>)}</tbody></DataTable>
+            </>}
       {!loading && !error && <TableFooter start={firstItem} end={lastItem} total={result.totalItems} summary={`${firstItem}–${lastItem} of ${result.totalItems} records · page ${result.pageNumber}/${pageCount}`} center="ActorSubject is shown in full for audit purposes.">
         <Pager page={result.pageNumber} pages={pageCount} onChange={setPage} previousLabel="Previous" nextLabel="Next" />
       </TableFooter>}

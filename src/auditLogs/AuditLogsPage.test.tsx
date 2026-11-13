@@ -25,12 +25,24 @@ describe('AuditLogsPage', () => {
     expect(details).not.toHaveAttribute('open');
     const disclosure = screen.getByText('View Before/After JSON');
     await userEvent.tab();
+    expect(screen.getByRole('region', { name: 'Audit log records table' })).toHaveFocus();
+    await userEvent.tab();
     expect(disclosure).toHaveFocus();
     fireEvent.click(disclosure);
     expect(details).toHaveAttribute('open');
     expect(within(details as HTMLElement).getByText('After').parentElement).toHaveTextContent(/roles/);
     expect(within(details as HTMLElement).getByText('Before').parentElement).toHaveTextContent('null');
     expect(screen.getByText(/1–1 of 1 records · page 1\/1/)).toBeInTheDocument();
+  });
+
+  it('announces the horizontal table scroll affordance and describes the keyboard-accessible region', async () => {
+    const request = vi.fn().mockResolvedValue(new Response(JSON.stringify({ items: [entry], pageNumber: 1, pageSize: 50, totalItems: 1 }), { status: 200 }));
+    render(<AuditLogsPage requestAdmin={request} />);
+
+    const scroller = await screen.findByRole('region', { name: 'Audit log records table' });
+    expect(scroller).toHaveAttribute('tabindex', '0');
+    expect(scroller).toHaveAttribute('aria-describedby', 'audit-logs-scroll-help');
+    expect(screen.getByText('Scroll horizontally to view all columns')).toBeInTheDocument();
   });
 
   it('shows a successful empty state and uses the returned page for navigation', async () => {
