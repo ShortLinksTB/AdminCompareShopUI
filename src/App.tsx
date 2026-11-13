@@ -195,7 +195,7 @@ function FeatureFlagsPage() {
   const enabledCount = keys.filter(key => flags[key]).length;
   return <>
     <StudioPageHeader eyebrow="SYSTEM" title="Feature Flags" description="Bật hoặc tắt module admin theo nhu cầu vận hành."
-      actions={<Button tone="primary" onClick={() => keys.forEach(key => setFlag(key, true))}>Enable all</Button>} />
+      actions={<Button tone="secondary" onClick={() => keys.forEach(key => setFlag(key, true))}>Enable all</Button>} />
     <Card className="feature-flags-card" aria-label="Feature flag modules">
       <div className="feature-flags-summary">
         <strong>{enabledCount}/{keys.length} features enabled</strong>
