@@ -66,7 +66,9 @@ describe('mobile application navigation', () => {
     expect(products).not.toBeChecked();
     expect(screen.getByText('14/15 features enabled')).toBeInTheDocument();
     expect(JSON.parse(window.localStorage.getItem('giatot-admin-feature-flags') || '{}')).toMatchObject({ products: false });
-    fireEvent.click(screen.getByRole('button', { name: 'Enable all' }));
+    const enableAll = screen.getByRole('button', { name: 'Enable all' });
+    expect(enableAll).toHaveClass('studio-button-secondary');
+    fireEvent.click(enableAll);
     expect(products).toBeChecked();
     expect(screen.getByText('15/15 features enabled')).toBeInTheDocument();
   });
