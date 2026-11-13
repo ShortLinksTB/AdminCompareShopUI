@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { getAdminUsers, replaceUserRoles, seededRoles, type AdminRequest, type AdminUser } from './users-api';
-import './users.css';
+import { Button, Card, DataTable, EmptyState, ErrorState, Loading, PageHeader, Pager, Pill, Select, Toast } from '../ui';
 
 const PAGE_SIZE = 20;
 
@@ -72,34 +72,32 @@ export function UsersPage({ requestAdmin, canManage }: { requestAdmin: AdminRequ
 
   const pageCount = Math.max(1, Math.ceil(totalItems / pageSize));
 
-  return <div className="users-page">
-    <div className="page-header">
-      <div><span className="eyebrow">SYSTEM</span><h1>Users &amp; Roles</h1><p>Quản lý tài khoản admin và quyền truy cập theo role.</p></div>
-    </div>
+  return <>
+    <PageHeader eyebrow="SYSTEM" title="Users & Roles" description="Quản lý tài khoản admin và quyền truy cập theo role." />
 
-    {error && <div className="users-alert" role="alert">{error}<button className="outline-button small" type="button" onClick={() => setReloadKey(value => value + 1)}>Thử lại</button></div>}
-    {saveError && <div className="users-alert" role="alert">{saveError}</div>}
-    {saveSuccess && <div className="users-success" role="status">{saveSuccess}</div>}
+    {error && <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: 14 }}><ErrorState title={error} /><Button size="sm" type="button" onClick={() => setReloadKey(value => value + 1)}>Thử lại</Button></div>}
+    {saveError && <ErrorState title={saveError} />}
+    {saveSuccess && <Toast>{saveSuccess}</Toast>}
 
-    <section className="panel table-panel users-table-panel" aria-label="Users list">
-      {loading ? <div className="users-state" role="status">Đang tải danh sách user…</div>
-        : !error && users.length === 0 ? <div className="users-state" role="status">Chưa có user admin nào trong trang này.</div>
+    <Card aria-label="Users list" style={{ overflow: 'hidden' }}>
+      {loading ? <div aria-live="polite" style={{ display: 'grid', justifyItems: 'center', gap: 8, padding: 28, color: 'var(--studio-muted)' }}><Loading label="Đang tải danh sách user" /><span>Đang tải danh sách user…</span></div>
+        : !error && users.length === 0 ? <EmptyState title="Chưa có user admin nào trong trang này." />
           : !error && <>
-            <div className="users-table-scroll"><table><thead><tr><th>User</th><th>Role</th><th>Tạo lúc</th>{canManage && <th>Thao tác</th>}</tr></thead><tbody>
+            <DataTable><thead><tr><th>User</th><th>Role</th><th>Tạo lúc</th>{canManage && <th>Thao tác</th>}</tr></thead><tbody>
               {users.map(user => <tr key={user.id}>
                 <td><strong>UserId {user.id}</strong></td>
-                <td>{editingId === user.id ? <div className="users-role-editor">
-                  <select aria-label={`Roles for user ${user.id}`} multiple value={selectedRoleIds.map(String)} onChange={event => setSelectedRoleIds(Array.from(event.currentTarget.selectedOptions, option => Number(option.value)))}>
+                <td>{editingId === user.id ? <div style={{ display: 'grid', minWidth: 170, gap: 8 }}>
+                  <Select aria-label={`Roles for user ${user.id}`} multiple value={selectedRoleIds.map(String)} onChange={event => setSelectedRoleIds(Array.from(event.currentTarget.selectedOptions, option => Number(option.value)))} style={{ minHeight: 112, padding: 6 }}>
                     {seededRoles.map(role => <option key={role.id} value={role.id}>{role.name}</option>)}
-                  </select>
-                  <div className="users-edit-actions"><button className="primary-button" type="button" disabled={savingId === user.id || selectedRoleIds.length === 0} onClick={() => void saveRoles(user)}>{savingId === user.id ? 'Đang lưu…' : 'Lưu'}</button><button className="outline-button" type="button" disabled={savingId === user.id} onClick={() => { setEditingId(null); setSaveError(''); }}>Hủy</button></div>
-                </div> : user.roles.length ? <div className="users-role-list">{user.roles.map(role => <span className="users-role-pill" key={role}>{role}</span>)}</div> : <span className="users-no-role">Chưa gán role</span>}</td>
+                  </Select>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 7 }}><Button tone="primary" type="button" disabled={savingId === user.id || selectedRoleIds.length === 0} onClick={() => void saveRoles(user)}>{savingId === user.id ? 'Đang lưu…' : 'Lưu'}</Button><Button type="button" disabled={savingId === user.id} onClick={() => { setEditingId(null); setSaveError(''); }}>Hủy</Button></div>
+                </div> : user.roles.length ? <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>{user.roles.map(role => <Pill key={role} tone="neutral" size="sm">{role}</Pill>)}</div> : <span style={{ color: 'var(--studio-muted)' }}>Chưa gán role</span>}</td>
                 <td><time dateTime={user.createdAtUtc}>{new Date(user.createdAtUtc).toLocaleDateString('vi-VN')}</time></td>
-                {canManage && <td>{editingId === user.id ? null : <button className="outline-button small" type="button" onClick={() => startEditing(user)}>Đổi role</button>}</td>}
+                {canManage && <td>{editingId === user.id ? null : <Button size="sm" type="button" onClick={() => startEditing(user)}>Đổi role</Button>}</td>}
               </tr>)}
-            </tbody></table></div>
-            <div className="table-footer users-table-footer"><span>{totalItems === 0 ? 0 : (pageNumber - 1) * pageSize + 1}–{Math.min(pageNumber * pageSize, totalItems)} / {totalItems} user</span><div><button type="button" aria-label="Trang trước" disabled={pageNumber <= 1} onClick={() => setPageNumber(value => value - 1)}>‹</button><span>Trang {pageNumber}/{pageCount}</span><button type="button" aria-label="Trang sau" disabled={pageNumber >= pageCount} onClick={() => setPageNumber(value => value + 1)}>›</button></div></div>
+            </tbody></DataTable>
+            <div className="studio-table-footer"><span>{totalItems === 0 ? 0 : (pageNumber - 1) * pageSize + 1}–{Math.min(pageNumber * pageSize, totalItems)} / {totalItems} user</span><Pager page={pageNumber} pages={pageCount} onChange={setPageNumber} /></div>
           </>}
-    </section>
-  </div>;
+    </Card>
+  </>;
 }

@@ -25,7 +25,8 @@ describe('UsersPage', () => {
     let resolve!: (response: Response) => void;
     const requestAdmin = vi.fn<AdminRequest>().mockReturnValue(new Promise(done => { resolve = done; }));
     render(<UsersPage requestAdmin={requestAdmin} canManage />);
-    expect(screen.getByRole('status')).toHaveTextContent('Đang tải danh sách user');
+    expect(screen.getByRole('status', { name: 'Đang tải danh sách user' })).toBeInTheDocument();
+    expect(screen.getByText('Đang tải danh sách user…')).toBeInTheDocument();
     resolve(page([], 1, 20, 0));
     expect(await screen.findByText('Chưa có user admin nào trong trang này.')).toBeInTheDocument();
   });
