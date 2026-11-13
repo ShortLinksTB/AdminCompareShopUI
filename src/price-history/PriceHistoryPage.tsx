@@ -1,4 +1,4 @@
-import { Button, Card, DataTable, PageHeader, SearchField, Select, Toolbar } from '../ui';
+import { Button, Card, DataTable, PageHeader, SearchField, Toolbar } from '../ui';
 import './price-history.css';
 
 const records = [
@@ -13,9 +13,6 @@ export function PriceHistory() {
       actions={<Button>⇩ Export report</Button>} />
     <Toolbar className="price-history-toolbar">
       <SearchField label="Search product" placeholder="Search product..." />
-      <Select aria-label="Status" defaultValue="All status"><option>All status</option><option>Active</option><option>Stale</option><option>Outlier</option></Select>
-      <Button>☷ Filters</Button>
-      <Button>⇩ Export</Button>
     </Toolbar>
     <Card className="price-history-chart-card">
       <div className="price-history-heading">

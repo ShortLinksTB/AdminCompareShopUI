@@ -12,9 +12,10 @@ describe('PriceHistory', () => {
     expect(screen.getByRole('heading', { name: 'Price History' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: '⇩ Export report' })).toBeInTheDocument();
     expect(screen.getByRole('textbox', { name: 'Search product' })).toHaveAttribute('placeholder', 'Search product...');
-    expect(screen.getByRole('combobox', { name: 'Status' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: '☷ Filters' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: '⇩ Export' })).toBeInTheDocument();
+    const toolbar = document.querySelector('.price-history-toolbar') as HTMLElement;
+    expect(within(toolbar).getByRole('textbox', { name: 'Search product' })).toBeInTheDocument();
+    expect(within(toolbar).queryByRole('combobox')).not.toBeInTheDocument();
+    expect(within(toolbar).queryByRole('button')).not.toBeInTheDocument();
     expect(screen.getByRole('img', { name: 'Price trend over six months' })).toBeInTheDocument();
 
     const records = screen.getByRole('region', { name: 'Price history records' });

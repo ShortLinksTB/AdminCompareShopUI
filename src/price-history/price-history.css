@@ -1,8 +1,7 @@
 .price-history-page{min-width:0}
 .price-history-page .studio-page-header{margin-bottom:20px}
 .price-history-page .studio-toolbar{align-items:center;margin-bottom:16px;border-bottom:1px solid var(--studio-border);border-radius:16px}
-.price-history-page .studio-search-field{flex:1 1 250px}
-.price-history-page .studio-select{flex:0 1 170px}
+.price-history-page .studio-search-field{flex:1 1 250px;max-width:420px}
 .price-history-chart-card{overflow:hidden;margin-bottom:16px}
 .price-history-heading{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:20px 22px 0}
 .price-history-heading h2{margin:0;color:var(--studio-text);font:600 20px/1.3 var(--studio-display)}
@@ -21,7 +20,6 @@
   .price-history-page .studio-toolbar{align-items:stretch}
   .price-history-page .studio-toolbar>*{width:100%;min-height:46px}
   .price-history-page .studio-toolbar .studio-search-field{flex:1 1 100%}
-  .price-history-page .studio-select{flex:1 1 auto}
   .price-history-heading{align-items:flex-start;flex-direction:column;padding:17px 16px 0}
   .price-history-heading strong{font-size:21px}
   .price-history-chart{height:170px;margin-inline:12px}
