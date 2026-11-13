@@ -81,7 +81,7 @@ describe('Banned items routes', () => {
     expect(screen.getAllByText('Active').length).toBeGreaterThan(0);
     expect(vi.mocked(getBannedItems).mock.calls[0][1]).toMatchObject({ active: true, page: 1, pageSize: 20 });
 
-    await user.type(screen.getByRole('textbox', { name: 'Search banned items' }), 'Example');
+    await user.type(screen.getByRole('searchbox', { name: 'Search banned items' }), 'Example');
     await waitFor(() => expect(vi.mocked(getBannedItems).mock.calls.at(-1)?.[1]).toMatchObject({ search: 'Example', page: 1 }));
     await user.selectOptions(screen.getByLabelText('Filter by target type'), 'Product');
     await waitFor(() => expect(vi.mocked(getBannedItems).mock.calls.at(-1)?.[1]).toMatchObject({ targetType: 'Product', active: true }));
