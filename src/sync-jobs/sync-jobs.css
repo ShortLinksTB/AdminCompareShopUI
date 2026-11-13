@@ -1,36 +1,21 @@
-.sync-jobs-page .page-header{margin-bottom:20px}
-.sync-jobs-page .page-header h1{font-size:26px}
-.sync-jobs-page .page-header p{font-size:13px}
-.sync-jobs-panel{overflow:hidden}
+.sync-jobs-page{min-width:0;color:var(--studio-text)}
+.sync-jobs-panel{overflow:hidden;padding:0}
 .sync-jobs-table-wrap{overflow-x:auto}
-.sync-jobs-table-wrap table{width:100%;min-width:620px;border-collapse:collapse}
-.sync-jobs-table-wrap th{width:20%;padding:14px 20px;border-bottom:1px solid var(--border);color:var(--muted);font-size:11px;font-weight:800;letter-spacing:.04em;text-align:left;text-transform:uppercase;white-space:nowrap}
-.sync-jobs-page .sync-jobs-table-wrap th{color:#586773}
-.admin-shell[data-theme="dark"] .sync-jobs-page .sync-jobs-table-wrap th{color:var(--muted)}
-.sync-jobs-table-wrap th:nth-child(2),.sync-jobs-table-wrap th:nth-child(3),.sync-jobs-table-wrap th:nth-child(4){width:16%}
-.sync-jobs-table-wrap th:last-child{width:12%}
-.sync-jobs-table-wrap td{padding:14px 20px;border-bottom:1px solid var(--border);color:var(--text);font-size:13px;white-space:nowrap}
-.sync-jobs-table-wrap tr:last-child td{border-bottom:0}
-.sync-job-name{font-weight:650}
-.sync-job-status{display:inline-flex;align-items:center;padding:3px 10px;border-radius:999px;font-size:11px;font-weight:800}
-.sync-job-status-success{background:#e6f4ea;color:#1a7f37}
-.sync-job-status-failed{background:#fdecea;color:#9c2a1f}
-.sync-job-status-running{background:#fff4e5;color:#b45400}
-.sync-job-status-partial{background:#fff4e5;color:#9a5700}
-.admin-shell[data-theme="dark"] .sync-job-status-success{background:#163a22;color:#7fe3a0}
-.admin-shell[data-theme="dark"] .sync-job-status-failed{background:#3a1d1a;color:#ffb4ab}
-.admin-shell[data-theme="dark"] .sync-job-status-running,.admin-shell[data-theme="dark"] .sync-job-status-partial{background:#3a2a12;color:#ffbf69}
-.sync-job-action{text-align:right}
-.sync-job-button{min-height:32px;padding:0 12px;border:1px solid var(--border);border-radius:7px;background:var(--surface);color:var(--text);font-size:12px;font-weight:700}
-.sync-job-button:disabled{opacity:.45;cursor:not-allowed}
-.sync-job-button:focus-visible{outline:3px solid #2563eb;outline-offset:2px}
-.admin-shell[data-theme="dark"] .sync-job-button:focus-visible{outline-color:#93c5fd}
-.sync-jobs-footer{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 20px;border-top:1px solid var(--border);color:var(--muted);font-size:12px}
-.sync-jobs-state{display:grid;justify-items:center;gap:8px;padding:48px 20px;color:var(--muted);font-size:12px}
-.sync-jobs-state strong{color:var(--text);font-size:14px}
-.sync-jobs-alert,.sync-jobs-notice{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:0 0 14px;padding:12px 14px;border-radius:8px;font-size:12px}
-.sync-jobs-alert{border:1px solid #f1c3bd;background:#fff0f0;color:#8f241a}
-.sync-jobs-notice{border:1px solid #b8dfc1;background:#eaf8ef;color:#166534}
-.admin-shell[data-theme="dark"] .sync-jobs-alert{border-color:#69342f;background:#3a1d1a;color:#ffb4ab}
-.admin-shell[data-theme="dark"] .sync-jobs-notice{border-color:#2d6640;background:#163a22;color:#7fe3a0}
-@media(max-width:767px){.sync-jobs-page .page-header{align-items:flex-start}.sync-jobs-footer{align-items:flex-start;flex-direction:column}.sync-jobs-table-wrap th,.sync-jobs-table-wrap td{padding:12px 14px}}
+.sync-jobs-table-wrap .studio-table{min-width:650px}
+.sync-jobs-table-wrap th{white-space:nowrap}
+.sync-jobs-table-wrap td{vertical-align:middle}
+.sync-jobs-table-wrap .sync-job-name{min-width:180px;max-width:360px;font-weight:650;overflow-wrap:anywhere;white-space:normal}
+.sync-jobs-table-wrap td:nth-child(2),.sync-jobs-table-wrap td:nth-child(3){white-space:nowrap;font-variant-numeric:tabular-nums}
+.sync-jobs-table-wrap .sync-job-action{text-align:right}
+.sync-jobs-footer{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 20px;border-top:1px solid var(--studio-border);color:var(--studio-muted);font-size:12px}
+.sync-jobs-footer span:first-child{color:var(--studio-text);font-weight:700}
+.sync-jobs-feedback{margin-bottom:14px;border:1px solid var(--studio-bad-soft);border-radius:14px;background:var(--studio-surface)}
+.sync-jobs-feedback .studio-state{min-height:0;justify-items:start;padding:14px 16px 4px;text-align:left}
+.sync-jobs-feedback .studio-state>b{overflow-wrap:anywhere;color:var(--studio-bad);font:600 13px/1.5 Inter,system-ui,sans-serif}
+.sync-jobs-feedback-action{padding:0 16px 14px}
+.sync-jobs-notice{margin:0 0 14px;padding:12px 14px;border:1px solid var(--studio-ok);border-radius:12px;background:var(--studio-ok-soft);color:var(--studio-ok);font-size:13px;overflow-wrap:anywhere}
+.sync-jobs-panel>.studio-loading,.sync-jobs-panel>.studio-state{min-height:190px}
+.sync-jobs-panel>.studio-loading{flex-direction:column;gap:10px;color:var(--studio-muted);font-size:13px}
+.sync-jobs-panel>.studio-state p{color:var(--studio-muted)}
+.sync-jobs-page :is(button,a):focus-visible{outline:3px solid var(--studio-cool);outline-offset:3px}
+@media(max-width:680px){.sync-jobs-footer{align-items:flex-start;flex-direction:column;padding:13px 16px}.sync-jobs-table-wrap .studio-table{min-width:620px}}
