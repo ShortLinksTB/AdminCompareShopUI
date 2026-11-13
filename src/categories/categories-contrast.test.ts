@@ -5,6 +5,8 @@ import { readFileSync } from 'node:fs';
 
 const globalStyles = readFileSync('src/styles.css', 'utf8').replace(/\s+/g, ' ');
 const categoryStyles = readFileSync('src/categories/categories.css', 'utf8').replace(/\s+/g, ' ');
+const categoryPage = readFileSync('src/categories/CategoriesPage.tsx', 'utf8').replace(/\s+/g, ' ');
+const studioStyles = readFileSync('src/ui/studio-ui.css', 'utf8').replace(/\s+/g, ' ');
 
 function luminance(hex: string) {
   const [red, green, blue] = hex.match(/[0-9a-f]{2}/gi)!.map(channel => {
@@ -26,8 +28,12 @@ describe('Categories accessible accent pairings', () => {
     expect(globalStyles).toContain('.dark{--accent-readable:#ff7b38;--on-accent:#17202a}');
     expect(globalStyles).toContain('.eyebrow{color:var(--accent-readable)}');
     expect(globalStyles).toContain('.primary-button{color:var(--on-accent)}');
-    expect(categoryStyles).toContain('.categories-button-primary{border-color:var(--categories-primary);background:var(--categories-primary);color:var(--on-accent,#17202a)}');
-    expect(categoryStyles).toContain('--categories-primary:#ff5a00');
+    expect(categoryPage).toContain('Button tone="primary"');
+    expect(categoryPage).toContain('Pill tone="info"');
+    expect(categoryPage).toContain('<Card className="categories-card" aria-label="Categories">');
+    expect(categoryPage).toContain('<Modal open={!!editor}');
+    expect(categoryStyles).not.toContain('categories-button-primary');
+    expect(studioStyles).toContain('.studio-button-primary');
 
     expect(contrast('#c24100', '#f7f9fb')).toBeGreaterThanOrEqual(4.5);
     expect(contrast('#ff7b38', '#101820')).toBeGreaterThanOrEqual(4.5);
