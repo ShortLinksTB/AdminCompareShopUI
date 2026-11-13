@@ -82,6 +82,20 @@ describe('Studio shared components', () => {
     const Demo = () => { const [open, setOpen] = useState(false); return <><button onClick={() => setOpen(true)}>Open</button><Modal open={open} onClose={() => setOpen(false)} title="Edit"><button>First</button><button>Last</button></Modal></>; };
     render(<Demo />); const trigger = screen.getByRole('button', { name: 'Open' }); trigger.focus(); fireEvent.click(trigger); const first = screen.getByRole('button', { name: 'Đóng' }); const last = screen.getByRole('button', { name: 'Last' }); last.focus(); fireEvent.keyDown(window, { key: 'Tab' }); expect(first).toHaveFocus(); fireEvent.keyDown(window, { key: 'Escape' }); expect(screen.queryByRole('dialog')).not.toBeInTheDocument(); await waitFor(() => expect(trigger).toHaveFocus());
   });
+  it('places modal overlays beside the app main region so mobile navigation cannot cover them', () => {
+    const shell = document.createElement('div'); shell.className = 'studio-shell';
+    shell.innerHTML = '<aside class="admin-sidebar mobile-nav-open"></aside><main class="admin-main"></main>';
+    document.body.append(shell);
+    const { unmount } = render(<Modal open onClose={() => undefined} title="Category editor" className="categories-modal">Form</Modal>, { container: shell.querySelector('main')! });
+    const overlay = shell.querySelector('.studio-overlay');
+    const sidebar = shell.querySelector('.admin-sidebar');
+    expect(overlay?.parentElement).toBe(shell);
+    expect(sidebar).not.toBeNull();
+    expect(overlay).not.toBeNull();
+    expect(sidebar!.compareDocumentPosition(overlay!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(screen.getByRole('dialog', { name: 'Category editor' })).toHaveClass('studio-modal', 'categories-modal');
+    unmount(); shell.remove();
+  });
   it('returns focus to the opener after closing the shared lightbox with its close button', async () => {
     const Demo = () => { const [open, setOpen] = useState(false); return <><button onClick={() => setOpen(true)}>Open preview</button><Lightbox open={open} onClose={() => setOpen(false)}><img alt="Preview" src="/image.png" /></Lightbox></>; };
     render(<Demo />);
