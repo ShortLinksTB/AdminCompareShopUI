@@ -261,7 +261,7 @@ export function DerivativeModal({ file, requestAdmin, existingFiles, onClose, on
         <h3>Xem trước</h3>
         <div className="derivative-variant-tabs" role="group" aria-label="Chọn kích thước xem trước">{sizes.map(size => { const key = `${size.width}x${size.height}`; return <Button key={key} size="sm" aria-pressed={key === (currentSize ? `${currentSize.width}x${currentSize.height}` : '')} onClick={() => setActive(key)}>{key}</Button>; })}</div>
         {imageError && <div className="derivative-warning" role="status">{imageError}</div>}
-        <DerivativePreview image={image} size={currentSize} fit={fit} background={background} focal={activeFocal} onFocalChange={setFocal} />
+        <DerivativePreview key={currentSize ? `${currentSize.width}x${currentSize.height}` : 'empty'} image={image} size={currentSize} fit={fit} background={background} focal={activeFocal} onFocalChange={setFocal} />
         {currentResult?.status === 'success' && currentOutput?.id && <div className="derivative-result-success" role="status">Đã tạo {currentOutput.originalFileName}. {successWarnings.join(' ')} <a href={currentOutput.publicUrl || publicFileUrl(currentOutput.id)} target="_blank" rel="noreferrer">Mở file mới</a></div>}
       </div>
     </div>

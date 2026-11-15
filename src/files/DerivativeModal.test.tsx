@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import '@testing-library/jest-dom/vitest';
 import { DerivativeModal } from './DerivativeModal';
 import type { AdminFile } from './files-api';
@@ -8,17 +8,26 @@ import type { AdminRequest } from '../products/products-api';
 const source: AdminFile = { id: 'source', originalFileName: 'wide-banner.jpg', contentType: 'image/jpeg', sizeBytes: 1200, width: 1600, height: 900, uploadedBy: 'Andy', uploadedAtUtc: '2026-11-10T10:00:00Z' };
 const rect = (width = 400, height = 320) => ({ x: 0, y: 0, left: 0, top: 0, right: width, bottom: height, width, height, toJSON: () => ({}) }) as DOMRect;
 let drawImage: ReturnType<typeof vi.fn>;
+let stageRect = rect();
+let resizeCallbacks: Array<() => void> = [];
 
 afterEach(() => { cleanup(); vi.restoreAllMocks(); vi.unstubAllGlobals(); Reflect.deleteProperty(HTMLElement.prototype, 'setPointerCapture'); });
 
-function renderEditor(request = vi.fn<AdminRequest>().mockResolvedValue(Response.json({ results: [{ success: true, file: { ...source, id: 'result', originalFileName: 'wide-banner-600x600.webp', warnings: ['GIF first frame'] } }] }))) {
+function renderEditor(request = vi.fn<AdminRequest>().mockResolvedValue(Response.json({ results: [{ success: true, file: { ...source, id: 'result', originalFileName: 'wide-banner-600x600.webp', warnings: ['GIF first frame'] } }] })), dimensions = { width: 800, height: 500 }) {
   drawImage = vi.fn();
+  stageRect = rect(); resizeCallbacks = [];
   vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue({ clearRect: vi.fn(), fillRect: vi.fn(), drawImage, imageSmoothingQuality: '' } as unknown as CanvasRenderingContext2D);
-  vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (this: HTMLElement) { return this.classList?.contains('derivative-stage') ? rect() : rect(0, 0); });
+  vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (this: HTMLElement) { return this.classList?.contains('derivative-stage') ? stageRect : rect(0, 0); });
   Object.defineProperty(HTMLElement.prototype, 'setPointerCapture', { configurable: true, value: vi.fn() });
+  class FakeResizeObserver {
+    constructor(private callback: ResizeObserverCallback) {}
+    observe() { resizeCallbacks.push(() => this.callback([], this as unknown as ResizeObserver)); }
+    disconnect() {}
+  }
+  vi.stubGlobal('ResizeObserver', FakeResizeObserver);
   class FakeImage {
-    naturalWidth = 800;
-    naturalHeight = 500;
+    naturalWidth = dimensions.width;
+    naturalHeight = dimensions.height;
     onload: (() => void) | null = null;
     onerror: (() => void) | null = null;
     set src(_value: string) { queueMicrotask(() => this.onload?.()); }
@@ -92,5 +101,36 @@ describe('DerivativeModal', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Thử lại' }));
     expect(await screen.findByText('600x600: Kích thước phải từ 16 đến 4000 px.')).toBeInTheDocument();
     expect(request).toHaveBeenCalledTimes(2);
+  });
+
+  it('separates fit from 100%, anchors zoom at the cursor, resets on output switch, and preserves zoom on resize', async () => {
+    renderEditor(undefined, { width: 1000, height: 1000 });
+    let badge = document.querySelector('.derivative-zoom-badge')!;
+    expect(screen.getByRole('button', { name: '✥ Vùng cắt' })).toBeDisabled();
+    fireEvent.click(screen.getByRole('checkbox', { name: /1000 × 1000 px/ }));
+    await waitFor(() => expect(resizeCallbacks.length).toBeGreaterThan(0));
+    fireEvent.click(screen.getByRole('button', { name: '1000x1000' }));
+    const stage = screen.getByLabelText(/Cuộn để zoom tại con trỏ/);
+    badge = document.querySelector('.derivative-zoom-badge')!;
+    fireEvent.click(screen.getByRole('button', { name: '100%' }));
+    expect(badge).toHaveTextContent('100%');
+    fireEvent.click(screen.getByRole('button', { name: 'Vừa khung' }));
+    expect(Number.parseInt(badge.textContent || '0', 10)).toBeLessThan(100);
+    fireEvent.click(screen.getByRole('button', { name: '100%' }));
+
+    fireEvent.wheel(stage, { deltaY: -100, clientX: 170, clientY: 140 });
+    const transform = (document.querySelector('canvas') as HTMLCanvasElement).style.transform;
+    const [, xValue, scaleValue] = transform.match(/calc\(-50% \+ ([\d.-]+)px\).*scale\(([\d.]+)\)/) ?? [];
+    const scale = Number(scaleValue), offsetX = Number(xValue);
+    expect((-30 - offsetX) / scale).toBeCloseTo(-30, 2);
+
+    const zoomBeforeResize = badge.textContent;
+    stageRect = rect(500, 400);
+    act(() => resizeCallbacks.at(-1)?.());
+    expect(badge.textContent).toBe(zoomBeforeResize);
+
+    fireEvent.click(screen.getByRole('button', { name: '600x600' }));
+    badge = document.querySelector('.derivative-zoom-badge')!;
+    await waitFor(() => expect(Number.parseInt(badge.textContent || '0', 10)).toBeLessThan(100));
   });
 });
