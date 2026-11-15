@@ -87,7 +87,10 @@ describe('SyncJobsPage', () => {
     const dialog = await screen.findByRole('dialog', { name: /Log đồng bộ/ });
 
     fireEvent.click(screen.getByRole('button', { name: 'Retry job này' }));
-    expect(await screen.findByRole('alert')).toHaveTextContent(message);
+    const retryAlert = await screen.findByRole('alert');
+    expect(retryAlert).toHaveTextContent(message);
+    expect(dialog).toContainElement(retryAlert);
+    expect(retryAlert).toBeVisible();
     expect(screen.getByRole('dialog', { name: /Log đồng bộ/ })).toBe(dialog);
     expect(screen.getByRole('row', { name: /QC-SL1815 Shop A/ })).toBeInTheDocument();
 
