@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { getAdminCategories, getAdminProducts, type AdminCategory, type AdminProduct, type AdminRequest } from '../products/products-api';
 import { Button, Loading } from '../ui';
-import { getHomeShowcase, issueHomeShowcasePreviewToken, publishHomeShowcase, resetHomeShowcaseDraft, saveHomeShowcaseDraft, type HomeShowcaseResponse, type ShowcaseProduct, type ShowcaseSection, type ShowcaseSelection } from './home-showcase-api';
+import { getHomeShowcase, getHomeShowcaseFallbacks, issueHomeShowcasePreviewToken, publishHomeShowcase, resetHomeShowcaseDraft, saveHomeShowcaseDraft, type HomeShowcaseResponse, type ShowcaseFallbacks, type ShowcaseProduct, type ShowcaseSection, type ShowcaseSelection } from './home-showcase-api';
 import './home-showcase.css';
 
 const SLOT_COUNT = 15;
@@ -59,6 +59,7 @@ export function HomeShowcasePage({ requestAdmin, permissions }: { requestAdmin: 
   const [savedDraft, setSavedDraft] = useState<ShowcaseSelection>(emptySelection);
   const [published, setPublished] = useState<ShowcaseSelection>(emptySelection);
   const [products, setProducts] = useState<ShowcaseProduct[]>([]);
+  const [fallbacks, setFallbacks] = useState<ShowcaseFallbacks>({ featured: [], interestedComputers: [] });
   const [catalog, setCatalog] = useState<AdminProduct[]>([]);
   const [categories, setCategories] = useState<AdminCategory[]>([]);
   const [catalogPage, setCatalogPage] = useState(0);
@@ -104,8 +105,12 @@ export function HomeShowcasePage({ requestAdmin, permissions }: { requestAdmin: 
     setLoading(true);
     setError('');
     try {
-      const response = await getHomeShowcase(requestAdmin, signal);
-      if (!signal?.aborted) applyResponse(response);
+      const [response, fallbackProducts] = await Promise.all([getHomeShowcase(requestAdmin, signal), getHomeShowcaseFallbacks(signal)]);
+      if (!signal?.aborted) {
+        applyResponse(response);
+        setFallbacks(fallbackProducts);
+        setProducts(current => [...new Map([...current, ...fallbackProducts.featured, ...fallbackProducts.interestedComputers].map(product => [product.id, product])).values()]);
+      }
     } catch (reason) {
       if (!signal?.aborted) setError(errorMessage(reason));
     } finally {
@@ -252,8 +257,10 @@ export function HomeShowcasePage({ requestAdmin, permissions }: { requestAdmin: 
       const product = id == null ? undefined : productById.get(id);
       return product && productVisible(product) ? [product] : [];
     });
-    const featured = visible('featured');
-    const computers = visible('interestedComputers');
+    const selectedFeatured = visible('featured');
+    const selectedComputers = visible('interestedComputers');
+    const featured = selectedFeatured.length ? selectedFeatured : fallbacks.featured;
+    const computers = selectedComputers.length ? selectedComputers : fallbacks.interestedComputers;
     return <div className={`showcase-site showcase-site--${size}`}>
       <div className="showcase-site__nav"><b>G</b><strong>GiaTot</strong>{size === 'desktop' && <span>Danh mục　·　Sản phẩm nổi bật　·　Blog</span>}</div>
       <div className="showcase-site__hero"><div><small>MUA THÔNG MINH HƠN</small><h3>So sánh giá thông minh,<br /><em>tiết kiệm hơn mỗi ngày.</em></h3><div className="showcase-site__search">Tìm sản phẩm, thương hiệu…</div></div>
