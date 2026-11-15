@@ -1,6 +1,7 @@
 .partner-shops-page{display:grid;gap:16px;min-width:0}
 .partner-shop-alert,.partner-shop-toast{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:13px 15px;border:1px solid var(--studio-bad);border-radius:13px;background:var(--studio-bad-soft);color:var(--studio-bad)}
-.partner-shop-toast{border-color:var(--studio-ok);background:var(--studio-ok-soft);color:var(--studio-ok)}
+.partner-shop-toast--success{border-color:var(--studio-ok);background:var(--studio-ok-soft);color:var(--studio-ok)}
+.partner-shop-toast--error{border-color:var(--studio-bad);background:var(--studio-bad-soft);color:var(--studio-bad)}
 .partner-shop-table-card{min-width:0;overflow:hidden;padding:0}
 .partner-shop-table-wrap{min-width:0}
 .partner-shop-table-wrap .studio-table{min-width:980px}
