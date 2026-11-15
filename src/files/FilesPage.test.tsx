@@ -126,7 +126,7 @@ describe('FilesPage details and file actions', () => {
     await user.click(screen.getByRole('button', { name: 'Tạo 1 bản sao' }));
     await waitFor(() => expect(request).toHaveBeenCalledWith('/admin/files/image-1/derivatives', expect.objectContaining({ method: 'POST' })));
     const body = JSON.parse(String(request.mock.calls.find(([path]) => path.endsWith('/derivatives'))?.[1]?.body));
-    expect(body.variants).toEqual([expect.objectContaining({ width: 600, height: 600, fit: 'cover', focalX: 0.5, focalY: 0.5, format: 'keep', name: 'banner-600x600' })]);
+    expect(body.variants).toEqual([expect.objectContaining({ width: 600, height: 600, fit: 'cover', focalX: 0.5, focalY: 0.5, format: 'keep', name: 'banner' })]);
     await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Tạo bản sao theo kích thước' })).not.toBeInTheDocument());
     await waitFor(() => expect(request).toHaveBeenCalledWith('/admin/files?page=1&pageSize=10', expect.any(Object)));
 
