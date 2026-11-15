@@ -15,6 +15,17 @@ describe('Sync Jobs API adapter', () => {
     const requestAdmin = vi.fn().mockResolvedValue(Response.json(page([{ id: 310, dataSource: 'Phones', startedAtUtc: null, finishedAtUtc: null, state: 4 }])));
     await expect(getSyncJobs(requestAdmin, { page: 1, pageSize: 25 })).resolves.toMatchObject({ items: [{ id: '310', state: 'Failed' }] });
   });
+  it('keeps the legacy array request for Data Sources callers', async () => {
+    const requestAdmin = vi.fn().mockResolvedValue(Response.json([
+      { id: 91, dataSourceId: 1006, dataSource: 'Phones', queuedAtUtc: '2026-11-14T12:00:00Z', startedAtUtc: null, finishedAtUtc: null, state: 0 },
+    ]));
+    const signal = new AbortController().signal;
+
+    await expect(getSyncJobs(requestAdmin, signal)).resolves.toMatchObject([
+      { id: '91', dataSourceId: 1006, dataSource: 'Phones', state: 'Queued' },
+    ]);
+    expect(requestAdmin).toHaveBeenCalledWith('/admin/sync-jobs', { signal });
+  });
   it.each([401, 403, 500])('surfaces GET status %i', async status => {
     const requestAdmin = vi.fn().mockResolvedValue(new Response('', { status }));
     await expect(getSyncJobs(requestAdmin, { page: 1, pageSize: 25 })).rejects.toMatchObject({ name: 'SyncJobsApiError', status });
