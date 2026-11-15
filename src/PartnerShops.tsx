@@ -8,6 +8,7 @@ const PAGE_SIZE_OPTIONS = [10, 20, 50, 100];
 const API_PAGE_SIZE = 100;
 const emptyPage: Page<PartnerShop> = { items: [], pageNumber: 1, pageSize: 20, totalItems: 0 };
 type VisibilityFilter = 'all' | 'shown' | 'hidden';
+type PartnerShopToast = { message: string; variant: 'success' | 'error' };
 
 export function PartnerShops({ requestAdmin, permissions }: { requestAdmin: AdminRequest; permissions: string[] }) {
   const [result, setResult] = useState(emptyPage);
@@ -22,7 +23,7 @@ export function PartnerShops({ requestAdmin, permissions }: { requestAdmin: Admi
   const [deletingId, setDeletingId] = useState<number | null>(null);
   const [updatingIds, setUpdatingIds] = useState<number[]>([]);
   const [filter, setFilter] = useState<VisibilityFilter>('all');
-  const [toast, setToast] = useState<string | null>(null);
+  const [toast, setToast] = useState<PartnerShopToast | null>(null);
 
   const load = useCallback(async (requestedPage = page, requestedSize = pageSize) => {
     setLoading(true);
@@ -71,10 +72,10 @@ export function PartnerShops({ requestAdmin, permissions }: { requestAdmin: Admi
     setResult(current => ({ ...current, items: current.items.map(item => item.id === shop.id ? { ...item, showOnHome } : item) }));
     try {
       await updatePartnerShop(requestAdmin, shop.id, { slug: shop.slug, name: shop.name, websiteUrl: shop.websiteUrl ?? undefined, isActive: shop.isActive, showOnHome, homeDisplayOrder: shop.homeDisplayOrder ?? undefined });
-      setToast(showOnHome ? `${shop.name} sẽ hiển thị ở trang chủ.` : `${shop.name} đã được ẩn khỏi trang chủ.`);
+      setToast({ message: showOnHome ? `${shop.name} sẽ hiển thị ở trang chủ.` : `${shop.name} đã được ẩn khỏi trang chủ.`, variant: 'success' });
     } catch (reason) {
       setResult(current => ({ ...current, items: current.items.map(item => item.id === shop.id ? { ...item, showOnHome: previous } : item) }));
-      setToast(reason instanceof Error ? `Không thể cập nhật hiển thị: ${reason.message}` : 'Không thể cập nhật hiển thị. Đã khôi phục trạng thái trước đó.');
+      setToast({ message: reason instanceof Error ? `Không thể cập nhật hiển thị: ${reason.message}` : 'Không thể cập nhật hiển thị. Đã khôi phục trạng thái trước đó.', variant: 'error' });
     } finally {
       setUpdatingIds(ids => ids.filter(id => id !== shop.id));
     }
@@ -100,7 +101,7 @@ export function PartnerShops({ requestAdmin, permissions }: { requestAdmin: Admi
       if (editing) await updatePartnerShop(requestAdmin, editing.id, input);
       else await createPartnerShop(requestAdmin, input);
       setEditing(undefined);
-      setToast(editing ? 'Đã lưu thay đổi shop.' : 'Đã thêm shop.');
+      setToast({ message: editing ? 'Đã lưu thay đổi shop.' : 'Đã thêm shop.', variant: 'success' });
       await load(page, pageSize);
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : 'Could not save this shop. Your values are still here; please try again.');
@@ -129,7 +130,7 @@ export function PartnerShops({ requestAdmin, permissions }: { requestAdmin: Admi
   return <div className="partner-shops-page">
     <PageHeader eyebrow="AFFILIATE & DATA" title="Partner Shops" description="Active xác định shop còn hoạt động. Hiển thị ở trang chủ là cài đặt riêng cho mục Đối tác." actions={can('shops.create') && <Button tone="primary" onClick={() => { setShowOnHomeDraft(false); setIsActiveDraft(true); setEditing(null); }}>+ Add shop</Button>} />
     {error && <div className="partner-shop-alert" role="alert"><span>{error}</span><Button size="sm" onClick={() => void load()}>Retry</Button></div>}
-    {toast && <div className="partner-shop-toast" role="status"><span>{toast}</span><Button size="sm" tone="ghost" aria-label="Đóng thông báo" onClick={() => setToast(null)}>×</Button></div>}
+    {toast && <div className={`partner-shop-toast partner-shop-toast--${toast.variant}`} role={toast.variant === 'error' ? 'alert' : 'status'}><span>{toast.message}</span><Button size="sm" tone="ghost" aria-label="Đóng thông báo" onClick={() => setToast(null)}>×</Button></div>}
     <FilterChips label="Lọc theo hiển thị trang chủ" value={filter} onChange={value => { setFilter(value as VisibilityFilter); setPage(1); }} items={[
       { value: 'all', label: 'Tất cả', count: result.items.length },
       { value: 'shown', label: 'Đang hiển thị', count: shownCount },

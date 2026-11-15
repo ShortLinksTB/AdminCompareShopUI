@@ -63,6 +63,7 @@ describe('Partner Shops page', () => {
     expect(toggle).toBeChecked();
     await waitFor(() => expect(api.updatePartnerShop).toHaveBeenCalledWith(requestAdmin, 42, expect.objectContaining({ showOnHome: true, isActive: true })));
     expect(await screen.findByRole('status')).toHaveTextContent('CellphoneS sẽ hiển thị ở trang chủ.');
+    expect(screen.getByRole('status')).toHaveClass('partner-shop-toast--success');
   });
 
   it('rolls back an optimistic visibility change after API failure', async () => {
@@ -75,7 +76,9 @@ describe('Partner Shops page', () => {
     expect(screen.getByRole('switch', { name: 'Hiển thị CellphoneS ở trang chủ' })).toBeChecked();
     rejectUpdate(new Error('offline'));
     await waitFor(() => expect(screen.getByRole('switch', { name: 'Hiển thị CellphoneS ở trang chủ' })).not.toBeChecked());
-    expect(await screen.findByRole('status')).toHaveTextContent('Không thể cập nhật hiển thị: offline');
+    const errorToast = await screen.findByRole('alert');
+    expect(errorToast).toHaveTextContent('Không thể cập nhật hiển thị: offline');
+    expect(errorToast).toHaveClass('partner-shop-toast--error');
   });
 
   it('filters visibility and prevents enabling homepage display for inactive shops', async () => {
