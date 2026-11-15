@@ -129,8 +129,12 @@ describe('DerivativeModal', () => {
     act(() => resizeCallbacks.at(-1)?.());
     expect(badge.textContent).toBe(zoomBeforeResize);
 
+    expect(Number.parseInt(badge.textContent || '0', 10)).toBeGreaterThan(100);
+    const observersBeforeSwitch = resizeCallbacks.length;
     fireEvent.click(screen.getByRole('button', { name: '600x600' }));
     badge = document.querySelector('.derivative-zoom-badge')!;
-    await waitFor(() => expect(Number.parseInt(badge.textContent || '0', 10)).toBeLessThan(100));
+    await waitFor(() => expect(resizeCallbacks.length).toBeGreaterThan(observersBeforeSwitch));
+    act(() => resizeCallbacks.at(-1)?.());
+    await waitFor(() => expect(Number.parseInt(badge.textContent || '0', 10)).toBe(63));
   });
 });
