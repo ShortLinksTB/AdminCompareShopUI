@@ -29,6 +29,26 @@ describe('Sync Jobs API adapter', () => {
     await expect(getSyncJobLogs(requestAdmin, job.id)).resolves.toMatchObject({ items: [{ id: '1', step: 'shop_check' }] });
     expect(requestAdmin).toHaveBeenCalledWith('/admin/sync-jobs/job%2F42/logs?page=1&pageSize=500', { signal: undefined });
   });
+  it('fetches and combines every log page so entries beyond 500 are retained', async () => {
+    const makeLogs = (start: number, count: number) => Array.from({ length: count }, (_, index) => ({
+      id: start + index + 1, occurredAtUtc: `2026-11-01T00:${String((start + index) % 60).padStart(2, '0')}:00Z`,
+      level: 'Info', step: 'page_read', message: `entry-${start + index + 1}`,
+    }));
+    const requestAdmin = vi.fn()
+      .mockResolvedValueOnce(Response.json({ items: makeLogs(0, 500), page: 1, pageSize: 500, totalItems: 1001 }))
+      .mockResolvedValueOnce(Response.json({ items: makeLogs(500, 500), page: 2, pageSize: 500, totalItems: 1001 }))
+      .mockResolvedValueOnce(Response.json({ items: makeLogs(1000, 1), page: 3, pageSize: 500, totalItems: 1001 }));
+
+    const result = await getSyncJobLogs(requestAdmin, job.id);
+    expect(result.items).toHaveLength(1001);
+    expect(result.items[0].message).toBe('entry-1');
+    expect(result.items.at(-1)?.message).toBe('entry-1001');
+    expect(requestAdmin.mock.calls.map(([path]) => path)).toEqual([
+      '/admin/sync-jobs/job%2F42/logs?page=1&pageSize=500',
+      '/admin/sync-jobs/job%2F42/logs?page=2&pageSize=500',
+      '/admin/sync-jobs/job%2F42/logs?page=3&pageSize=500',
+    ]);
+  });
   it('accepts 202 retry and encodes the ID', async () => {
     const requestAdmin = vi.fn().mockResolvedValue(new Response(null, { status: 202 }));
     await expect(retrySyncJob(requestAdmin, job.id)).resolves.toBeUndefined();

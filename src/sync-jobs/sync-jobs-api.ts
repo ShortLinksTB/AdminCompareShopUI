@@ -55,15 +55,26 @@ export async function getSyncJobs(request: AdminRequest, filters: SyncJobFilters
 }
 async function requestAdminGet(request: AdminRequest, path: string, signal?: AbortSignal) { return request(path, { signal }); }
 export async function getSyncJobLogs(request: AdminRequest, id: string, signal?: AbortSignal): Promise<SyncJobLogPage> {
-  const response = await request(`/admin/sync-jobs/${encodeURIComponent(id)}/logs?page=1&pageSize=500`, { signal });
-  if (!response.ok) throw apiError(response, 'load logs for');
-  return normalizePage(await response.json(), value => {
+  const path = `/admin/sync-jobs/${encodeURIComponent(id)}/logs`;
+  const parseLogs = (body: unknown) => normalizePage(body, value => {
     if (!value || typeof value !== 'object') return null;
     const item = value as Record<string, unknown>;
     if (typeof item.id !== 'string' && typeof item.id !== 'number') return null;
     if (typeof item.occurredAtUtc !== 'string' || typeof item.step !== 'string' || typeof item.message !== 'string' || !levels.includes(item.level as SyncJobLevel)) return null;
     return { ...item, id: String(item.id) } as SyncJobLog;
   });
+  const fetchPage = async (page: number) => {
+    const response = await request(`${path}?page=${page}&pageSize=500`, { signal });
+    if (!response.ok) throw apiError(response, 'load logs for');
+    return parseLogs(await response.json());
+  };
+  const first = await fetchPage(1);
+  const pageCount = Math.ceil(first.totalItems / first.pageSize);
+  const pages: SyncJobLog[][] = [first.items];
+  for (let page = 2; page <= pageCount; page += 1) {
+    pages.push((await fetchPage(page)).items);
+  }
+  return { ...first, items: pages.flat() };
 }
 export async function retrySyncJob(request: AdminRequest, id: string): Promise<void> {
   const response = await request(`/admin/sync-jobs/${encodeURIComponent(id)}/retry`, { method: 'POST' });
