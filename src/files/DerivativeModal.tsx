@@ -139,7 +139,7 @@ function DerivativePreview({ image, size, fit, background, focal, onFocalChange 
   }
   function onWheel(event: WheelEvent<HTMLDivElement>) { event.preventDefault(); zoomAt(viewRef.current.scale * Math.exp(-event.deltaY * 0.0016), event.clientX, event.clientY); }
   function onPointerDown(event: ReactPointerEvent<HTMLDivElement>) {
-    if (event.button !== 0) return;
+    if (event.button !== undefined && event.button !== 0) return;
     const current = viewRef.current;
     const mode = current.tool === 'crop' && fit === 'cover' ? 'crop' : current.tool === 'move' && current.scale > current.fit + 0.001 ? 'move' : null;
     if (!mode) return;
@@ -224,7 +224,9 @@ export function DerivativeModal({ file, requestAdmin, existingFiles, onClose, on
   function setFocal(value: { x: number; y: number }) { if (currentSize) setFocals(current => ({ ...current, [currentSize.id]: value })); }
   function makeVariant(size: Size): DerivativeVariantRequest {
     const focal = focals[size.id] ?? { x: 0.5, y: 0.5 };
-    const variant: DerivativeVariantRequest = { width: size.width, height: size.height, fit, background, format, quality, name: plannedName(size).name };
+    // The API appends the requested dimensions and resolves collisions itself.
+    // Send only the editable basename so dimensions are not duplicated.
+    const variant: DerivativeVariantRequest = { width: size.width, height: size.height, fit, background, format, quality, name: name.trim() };
     if (fit === 'cover') { variant.focalX = focal.x; variant.focalY = focal.y; }
     return variant;
   }
@@ -239,13 +241,13 @@ export function DerivativeModal({ file, requestAdmin, existingFiles, onClose, on
       let hasSuccess = false;
       outcomes.forEach((result, index) => {
         const size = selected[index]; if (!size) return;
-        const succeeded = result.success && Boolean(result.file?.id);
+        const succeeded = (result.succeeded ?? result.success) && Boolean(result.file?.id);
         if (succeeded) hasSuccess = true;
         setResults(current => ({ ...current, [size.id]: succeeded ? { status: 'success', result } : { status: 'error', result, error: errorText[result.errorCode ?? ''] || result.error || 'Không tạo được bản sao.' } }));
       });
       selected.slice(outcomes.length).forEach(size => setResults(current => ({ ...current, [size.id]: { status: 'error', error: 'Máy chủ không trả kết quả cho biến thể này.' } })));
       if (hasSuccess) { onCreated(); }
-      if (outcomes.length === selected.length && outcomes.every(result => result.success)) onClose();
+      if (outcomes.length === selected.length && outcomes.every(result => (result.succeeded ?? result.success) && Boolean(result.file?.id))) onClose();
     } catch (reason) { setGlobalError(reason instanceof Error ? reason.message : 'Không tạo được các bản sao.'); selected.forEach(size => setResults(current => ({ ...current, [size.id]: { status: 'error', error: reason instanceof Error ? reason.message : 'Request failed.' } }))); }
     finally { setSubmitting(false); }
   }

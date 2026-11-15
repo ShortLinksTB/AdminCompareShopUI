@@ -27,7 +27,8 @@ export interface DerivativeVariantRequest {
 }
 
 export interface DerivativeVariantResult {
-  success: boolean;
+  success?: boolean;
+  succeeded?: boolean;
   file?: AdminFile & { publicUrl?: string; warnings?: string[] };
   errorCode?: string;
   error?: string;

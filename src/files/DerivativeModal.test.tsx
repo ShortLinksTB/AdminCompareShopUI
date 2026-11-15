@@ -87,7 +87,7 @@ describe('DerivativeModal', () => {
     await waitFor(() => expect(request).toHaveBeenCalledWith('/admin/files/source/derivatives', expect.objectContaining({ method: 'POST' })));
     const payload = JSON.parse(String(request.mock.calls[0][1]?.body));
     expect(payload.variants).toHaveLength(3);
-    expect(payload.variants[0]).toMatchObject({ fit: 'contain', background: 'transparent', format: 'webp', quality: 80, name: 'custom-name-600x600' });
+    expect(payload.variants[0]).toMatchObject({ fit: 'contain', background: 'transparent', format: 'webp', quality: 80, name: 'custom-name' });
     expect(payload.variants[0]).not.toHaveProperty('focalX');
     await waitFor(() => expect(onCreated).toHaveBeenCalledOnce());
     expect(onClose).toHaveBeenCalledOnce();
@@ -105,6 +105,26 @@ describe('DerivativeModal', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Thử lại Trang chủ' }));
     expect(await screen.findByText('Trang chủ · 600x600: Kích thước phải từ 16 đến 4000 px.')).toBeInTheDocument();
     expect(request).toHaveBeenCalledTimes(2);
+  });
+
+  it('submits the dragged crop focal point, accepts succeeded responses, and sends a basename without duplicate dimensions', async () => {
+    const request = vi.fn<AdminRequest>().mockResolvedValue(Response.json({ results: [
+      { succeeded: true, file: { ...source, id: 'created', originalFileName: 'wide-banner-600x600.webp' } },
+    ] }));
+    const { onCreated, onClose } = renderEditor(request);
+    await waitFor(() => expect(drawImage).toHaveBeenCalled());
+    const stage = screen.getByLabelText(/Cuộn để zoom tại con trỏ/);
+    fireEvent.pointerDown(stage, { pointerId: 9, button: 0, clientX: 180, clientY: 150 });
+    fireEvent.pointerMove(stage, { pointerId: 9, clientX: 220, clientY: 150 });
+    fireEvent.pointerUp(stage, { pointerId: 9 });
+    fireEvent.click(screen.getByRole('button', { name: 'Tạo 1 bản sao' }));
+
+    await waitFor(() => expect(onCreated).toHaveBeenCalledOnce());
+    const variant = JSON.parse(String(request.mock.calls[0][1]?.body)).variants[0];
+    expect(variant.name).toBe('wide-banner');
+    expect(variant.focalX).not.toBe(0.5);
+    expect(variant.focalY).toBe(0.5);
+    expect(onClose).toHaveBeenCalledOnce();
   });
 
   it('separates fit from 100%, anchors zoom at the cursor, resets on output switch, and preserves zoom on resize', async () => {
@@ -176,7 +196,7 @@ describe('DerivativeModal', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Thử lại Tuỳ chọn' }));
     await waitFor(() => expect(request).toHaveBeenCalledTimes(2));
     expect(JSON.parse(String(request.mock.calls[1][1]?.body)).variants).toHaveLength(1);
-    expect(JSON.parse(String(request.mock.calls[1][1]?.body)).variants[0].name).toBe('wide-banner-600x600-2');
+    expect(JSON.parse(String(request.mock.calls[1][1]?.body)).variants[0].name).toBe('wide-banner');
     expect(await screen.findByRole('link', { name: 'Mở file mới' })).toHaveAttribute('href', 'https://files.test/custom');
   });
 
@@ -202,7 +222,7 @@ describe('DerivativeModal', () => {
     await waitFor(() => expect(request).toHaveBeenCalledOnce());
     const variants = JSON.parse(String(request.mock.calls[0][1]?.body)).variants;
     expect(variants.map((variant: { name: string }) => variant.name)).toEqual([
-      'wide-banner-600x600-2', 'wide-banner-600x600-3',
+      'wide-banner', 'wide-banner',
     ]);
   });
 });
