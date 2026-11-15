@@ -41,6 +41,10 @@ function clampViewportOffset(offset: number, contentSize: number, stageSize: num
   return clamp(offset, (stageSize - contentSize) / 2, (contentSize - stageSize) / 2);
 }
 
+function fitScaleFor(size: Size, stage: DOMRect) {
+  return Math.min((stage.width - 24) / size.width, (stage.height - 24) / size.height, 1);
+}
+
 function DerivativePreview({ image, size, fit, background, focal, onFocalChange }: {
   image: HTMLImageElement | null; size: Size | undefined; fit: 'cover' | 'contain'; background: string;
   focal: { x: number; y: number }; onFocalChange: (value: { x: number; y: number }) => void;
@@ -81,11 +85,18 @@ function DerivativePreview({ image, size, fit, background, focal, onFocalChange 
 
   useEffect(() => { paint(); }, [paint, focal.x, focal.y]);
   useEffect(() => {
+    const stage = stageRef.current;
+    if (!stage || !size) return;
+    const nextFit = fitScaleFor(size, stage.getBoundingClientRect());
+    if (!Number.isFinite(nextFit) || nextFit <= 0) return;
+    setView(current => ({ ...current, fit: nextFit, scale: nextFit, x: 0, y: 0, tool: 'crop' }));
+  }, [size?.width, size?.height]);
+  useEffect(() => {
     const stage = stageRef.current; if (!stage || typeof ResizeObserver === 'undefined') return;
     const observer = new ResizeObserver(() => {
       if (!size) return;
       const rect = stage.getBoundingClientRect();
-      const nextFit = Math.min((rect.width - 24) / size.width, (rect.height - 24) / size.height, 1);
+      const nextFit = fitScaleFor(size, rect);
       setView(current => {
         const wasFit = current.scale <= current.fit + 0.001;
         const nextScale = wasFit ? nextFit : Math.max(current.scale, nextFit);
