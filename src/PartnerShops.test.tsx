@@ -15,7 +15,7 @@ vi.mock('./shopsApi', async () => {
   return { ...actual, ...api };
 });
 
-const shop: PartnerShop = { id: 42, slug: 'cellphones', name: 'CellphoneS', websiteUrl: 'https://cellphones.com.vn', isActive: true };
+const shop: PartnerShop = { id: 42, slug: 'cellphones', name: 'CellphoneS', websiteUrl: 'https://cellphones.com.vn', isActive: true, showOnHome: false, homeDisplayOrder: null };
 const page = (items = [shop], pageNumber = 1, totalItems = items.length, pageSize = 20) => ({ items, pageNumber, pageSize, totalItems });
 const requestAdmin: AdminRequest = vi.fn();
 
@@ -33,23 +33,86 @@ describe('Partner Shops page', () => {
   });
   afterEach(() => cleanup());
 
-  it('shows loading before the API resolves, then renders only API fields and active state', async () => {
+  it('shows loading before the API resolves, then renders the real shop table and independent status controls', async () => {
     let resolve!: (value: ReturnType<typeof page>) => void;
     api.getPartnerShops.mockReturnValueOnce(new Promise<ReturnType<typeof page>>(done => { resolve = done; }));
     renderShops();
     expect(screen.getByRole('status', { name: 'Loading partner shops' })).toBeInTheDocument();
     resolve(page());
     expect(await screen.findByText('CellphoneS')).toBeInTheDocument();
-    expect(screen.getByText('#42')).toBeInTheDocument();
-    expect(screen.getByText('cellphones')).toBeInTheDocument();
+    expect(screen.getByText(/#42/)).toBeInTheDocument();
+    expect(document.querySelector('.partner-shop-name small')).toHaveTextContent('cellphones');
     expect(screen.getByText('Active')).toBeInTheDocument();
     expect(document.querySelector('.studio-page-header')).toBeInTheDocument();
-    expect(document.querySelector('.studio-card.shop-card')).toBeInTheDocument();
+    expect(document.querySelector('.studio-table')).toBeInTheDocument();
     expect(document.querySelector('.studio-pill-ok')).toHaveTextContent('Active');
     expect(screen.getByRole('link', { name: 'https://cellphones.com.vn' })).toHaveAttribute('target', '_blank');
     expect(screen.getByText('Showing 1–1 of 1 shops')).toBeInTheDocument();
+    expect(screen.getByRole('switch', { name: 'Hiển thị CellphoneS ở trang chủ' })).not.toBeChecked();
+    expect(screen.getByText(/Active xác định shop còn hoạt động/)).toBeInTheDocument();
     expect(screen.queryByText(/Sync|Products|Offers/)).not.toBeInTheDocument();
     expect(api.getPartnerShops).toHaveBeenCalledWith(requestAdmin, 1, 20);
+  });
+
+  it('saves visibility immediately and reports success', async () => {
+    const user = userEvent.setup();
+    api.updatePartnerShop.mockResolvedValueOnce({ ...shop, showOnHome: true });
+    renderShops();
+    const toggle = await screen.findByRole('switch', { name: 'Hiển thị CellphoneS ở trang chủ' });
+    await user.click(toggle);
+    expect(toggle).toBeChecked();
+    await waitFor(() => expect(api.updatePartnerShop).toHaveBeenCalledWith(requestAdmin, 42, expect.objectContaining({ showOnHome: true, isActive: true })));
+    expect(await screen.findByRole('status')).toHaveTextContent('CellphoneS sẽ hiển thị ở trang chủ.');
+  });
+
+  it('rolls back an optimistic visibility change after API failure', async () => {
+    const user = userEvent.setup();
+    let rejectUpdate!: (reason: Error) => void;
+    api.updatePartnerShop.mockReturnValueOnce(new Promise((_, reject) => { rejectUpdate = reject; }));
+    renderShops();
+    const toggle = await screen.findByRole('switch', { name: 'Hiển thị CellphoneS ở trang chủ' });
+    await user.click(toggle);
+    expect(screen.getByRole('switch', { name: 'Hiển thị CellphoneS ở trang chủ' })).toBeChecked();
+    rejectUpdate(new Error('offline'));
+    await waitFor(() => expect(screen.getByRole('switch', { name: 'Hiển thị CellphoneS ở trang chủ' })).not.toBeChecked());
+    expect(await screen.findByRole('status')).toHaveTextContent('Không thể cập nhật hiển thị: offline');
+  });
+
+  it('filters visibility and prevents enabling homepage display for inactive shops', async () => {
+    const inactive = { ...shop, id: 43, name: 'Inactive shop', isActive: false };
+    api.getPartnerShops.mockResolvedValueOnce(page([shop, inactive]));
+    const user = userEvent.setup();
+    renderShops();
+    expect(await screen.findByText('Inactive shop')).toBeInTheDocument();
+    expect(screen.getByRole('switch', { name: 'Hiển thị Inactive shop ở trang chủ' })).toBeDisabled();
+    await user.click(screen.getByRole('button', { name: /Đang ẩn/ }));
+    expect(screen.getByText('CellphoneS')).toBeInTheDocument();
+    expect(screen.getByText('Inactive shop')).toBeInTheDocument();
+  });
+
+  it('saves visibility and display order through the edit modal', async () => {
+    const user = userEvent.setup();
+    renderShops();
+    await user.click(await screen.findByRole('button', { name: 'Sửa' }));
+    expect(screen.getByRole('dialog', { name: 'Sửa shop · CellphoneS' })).toBeInTheDocument();
+    await user.click(screen.getByRole('switch', { name: 'Hiển thị ở trang chủ' }));
+    await user.type(screen.getByLabelText('Thứ tự hiển thị'), '4');
+    await user.click(screen.getByRole('button', { name: 'Save shop' }));
+    await waitFor(() => expect(api.updatePartnerShop).toHaveBeenCalledWith(requestAdmin, 42, expect.objectContaining({ showOnHome: true, homeDisplayOrder: 4 })));
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+  });
+
+  it('disables homepage visibility immediately when Active is unchecked in the edit modal', async () => {
+    const user = userEvent.setup();
+    renderShops();
+    await user.click(await screen.findByRole('button', { name: 'Sửa' }));
+    const visibilitySwitch = screen.getByRole('switch', { name: 'Hiển thị ở trang chủ' });
+    expect(visibilitySwitch).toBeEnabled();
+    await user.click(screen.getByRole('checkbox', { name: 'Active' }));
+    expect(visibilitySwitch).toBeDisabled();
+    expect(screen.getByText('Shop không hoạt động nên không thể hiển thị ở trang chủ.')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Save shop' }));
+    await waitFor(() => expect(api.updatePartnerShop).toHaveBeenCalledWith(requestAdmin, 42, expect.objectContaining({ isActive: false, showOnHome: false })));
   });
 
   it('uses the shared modal and preserves the existing create fields and actions', async () => {
@@ -87,8 +150,8 @@ describe('Partner Shops page', () => {
     renderShops(['shops.read', 'shops.update']);
     expect(await screen.findByText('CellphoneS')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /Add shop/ })).not.toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Edit' })).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Delete' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Sửa' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Xoá' })).not.toBeInTheDocument();
   });
 
   it('preserves entered form values after validation failure', async () => {
@@ -124,7 +187,7 @@ describe('Partner Shops page', () => {
     const user = userEvent.setup();
     api.updatePartnerShop.mockRejectedValueOnce(new Error('You do not have permission to manage partner shops.'));
     renderShops();
-    await user.click(await screen.findByRole('button', { name: 'Edit' }));
+    await user.click(await screen.findByRole('button', { name: 'Sửa' }));
     await user.clear(screen.getByLabelText('Name'));
     await user.type(screen.getByLabelText('Name'), 'Updated CellphoneS');
     await user.click(screen.getByRole('button', { name: 'Save shop' }));
@@ -141,9 +204,9 @@ describe('Partner Shops page', () => {
     api.deletePartnerShop.mockRejectedValueOnce(new Error('Delete restricted.'));
     renderShops();
     await screen.findByText('CellphoneS');
-    await user.click(screen.getByRole('button', { name: 'Delete' }));
+    await user.click(screen.getByRole('button', { name: 'Xoá' }));
     expect(api.deletePartnerShop).not.toHaveBeenCalled();
-    await user.click(screen.getByRole('button', { name: 'Delete' }));
+    await user.click(screen.getByRole('button', { name: 'Xoá' }));
     expect(await screen.findByRole('alert')).toHaveTextContent('Delete restricted.');
     expect(screen.getByText('CellphoneS')).toBeInTheDocument();
     expect(confirm).toHaveBeenCalledTimes(2);
@@ -152,7 +215,7 @@ describe('Partner Shops page', () => {
   it('shows API empty state and retryable list errors without mock fallback', async () => {
     api.getPartnerShops.mockResolvedValueOnce(page([]));
     const { rerender } = renderShops();
-    expect(await screen.findByText('No partner shops found.')).toBeInTheDocument();
+    expect(await screen.findByText('Chưa có partner shop.')).toBeInTheDocument();
     api.getPartnerShops.mockRejectedValueOnce(new Error('offline'));
     const retryRequest = vi.fn();
     rerender(<PartnerShops requestAdmin={retryRequest} permissions={['shops.read']} />);
