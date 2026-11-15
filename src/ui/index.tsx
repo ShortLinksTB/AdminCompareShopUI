@@ -23,7 +23,16 @@ export function RowMenu({ children, open, onOpenChange, label = 'Thao tác' }: {
   const [uncontrolledOpen, setUncontrolledOpen] = useState(false);
   const isOpen = open ?? uncontrolledOpen;
   const [position, setPosition] = useState<CSSProperties>({ visibility: 'hidden' });
+  const focusOnOpen = useRef<'first' | 'last' | null>(null);
   const setOpen = (next: boolean) => { if (open === undefined) setUncontrolledOpen(next); onOpenChange?.(next); };
+
+  useLayoutEffect(() => {
+    if (!isOpen || !focusOnOpen.current || !menu.current) return;
+    const items = [...menu.current.querySelectorAll<HTMLElement>('button:not([disabled]),a[href],[role="menuitem"]:not([aria-disabled="true"])')];
+    const target = focusOnOpen.current === 'last' ? items.at(-1) : items[0];
+    focusOnOpen.current = null;
+    target?.focus();
+  }, [isOpen]);
 
   useLayoutEffect(() => {
     const triggerElement = trigger.current;
@@ -88,7 +97,18 @@ export function RowMenu({ children, open, onOpenChange, label = 'Thao tác' }: {
   };
 
   return <details className="studio-row-menu" open={isOpen} onKeyDown={event => { if (event.key === 'Escape' && isOpen) { event.preventDefault(); event.stopPropagation(); closeAndRestoreFocus(); } }}>
-    <summary ref={trigger} aria-label={label} aria-expanded={isOpen} onClick={event => { event.preventDefault(); setOpen(!isOpen); }}>⋮</summary>
+    <summary ref={trigger} aria-label={label} aria-expanded={isOpen} onClick={event => { event.preventDefault(); if (!isOpen) focusOnOpen.current = 'first'; setOpen(!isOpen); }} onKeyDown={event => {
+      if (event.key === 'ArrowDown' || event.key === 'ArrowUp' || event.key === 'Enter' || event.key === ' ') {
+        event.preventDefault();
+        const direction = event.key === 'ArrowUp' ? 'last' : 'first';
+        if (!isOpen) focusOnOpen.current = direction;
+        else {
+          const items = [...(menu.current?.querySelectorAll<HTMLElement>('button:not([disabled]),a[href],[role="menuitem"]:not([aria-disabled="true"])') ?? [])];
+          (direction === 'last' ? items.at(-1) : items[0])?.focus();
+        }
+        setOpen(true);
+      }
+    }}>⋮</summary>
     {isOpen && createPortal(<div ref={menu} className="studio-row-menu studio-row-menu-portal" style={position} onKeyDown={onMenuKeyDown} onClick={event => { const target = event.target; if (target instanceof Element && target.closest('button,a')) closeAndRestoreFocus(); }}>{children}</div>, document.body)}
   </details>;
 }

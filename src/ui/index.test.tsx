@@ -77,17 +77,29 @@ describe('Studio shared components', () => {
     expect(Number.parseFloat((portal as HTMLElement).style.left) + 150).toBeLessThanOrEqual(window.innerWidth - 8);
   });
 
-  it('supports arrow navigation and Escape focus restoration for RowMenu', () => {
+  it('opens RowMenu into its first item with ArrowDown and wraps through items before Escape restores focus', () => {
     render(<RowMenu label="Row actions"><button>First</button><button>Second</button></RowMenu>);
     const trigger = screen.getByText('⋮', { selector: 'summary' });
-    fireEvent.click(trigger);
+    trigger.focus();
+    fireEvent.keyDown(trigger, { key: 'ArrowDown' });
     const first = screen.getByRole('button', { name: 'First' });
-    first.focus();
+    expect(first).toHaveFocus();
     fireEvent.keyDown(first, { key: 'ArrowDown' });
-    expect(screen.getByRole('button', { name: 'Second' })).toHaveFocus();
-    fireEvent.keyDown(screen.getByRole('button', { name: 'Second' }), { key: 'Escape' });
+    const second = screen.getByRole('button', { name: 'Second' });
+    expect(second).toHaveFocus();
+    fireEvent.keyDown(second, { key: 'ArrowDown' });
+    expect(first).toHaveFocus();
+    fireEvent.keyDown(first, { key: 'Escape' });
     expect(trigger).toHaveFocus();
     expect(screen.queryByRole('button', { name: 'First' })).not.toBeInTheDocument();
+  });
+
+  it('opens RowMenu into its last item with ArrowUp', () => {
+    render(<RowMenu label="Row actions"><button>First</button><button>Second</button></RowMenu>);
+    const trigger = screen.getByText('⋮', { selector: 'summary' });
+    trigger.focus();
+    fireEvent.keyDown(trigger, { key: 'ArrowUp' });
+    expect(screen.getByRole('button', { name: 'Second' })).toHaveFocus();
   });
 
   it('closes on outside click and restores trigger focus after selecting an action', () => {
