@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type CSSProperties } from 'react';
 import { cleanup, createEvent, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import '@testing-library/jest-dom/vitest';
@@ -41,47 +41,6 @@ describe('Studio shared components', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Hidden' })); fireEvent.click(screen.getByRole('switch', { name: 'Visible' }));
     expect(change).toHaveBeenCalledWith('hidden'); expect(toggle).toHaveBeenCalledWith(false);
   });
-
-  it('portals RowMenu outside overflowing tables and flips above the trigger near the viewport bottom', async () => {
-    const bounds = vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (this: HTMLElement) {
-      if (this.matches('summary[aria-label="Row actions"]')) return { x: 20, y: 710, top: 710, right: 54, bottom: 744, left: 20, width: 34, height: 34, toJSON: () => ({}) } as DOMRect;
-      if (this.classList.contains('studio-row-menu-portal')) return { x: 0, y: 0, top: 0, right: 180, bottom: 180, left: 0, width: 180, height: 180, toJSON: () => ({}) } as DOMRect;
-      return { x: 0, y: 0, top: 0, right: 100, bottom: 100, left: 0, width: 100, height: 100, toJSON: () => ({}) } as DOMRect;
-    });
-    render(<div style={{ overflow: 'hidden' }}><table><tbody><tr><td><RowMenu label="Row actions"><button>Delete row</button></RowMenu></td></tr></tbody></table></div>);
-    fireEvent.click(screen.getByText('⋮', { selector: 'summary' }));
-    const popup = await screen.findByRole('button', { name: 'Delete row' });
-    const portal = popup.closest('.studio-row-menu-portal');
-    expect(portal?.parentElement).toBe(document.body);
-    expect(portal).toHaveStyle({ position: 'fixed', top: '526px' });
-    expect(portal).not.toHaveStyle({ overflow: 'auto' });
-    bounds.mockRestore();
-  });
-
-  it('supports arrow navigation and Escape focus restoration for RowMenu', () => {
-    render(<RowMenu label="Row actions"><button>First</button><button>Second</button></RowMenu>);
-    const trigger = screen.getByText('⋮', { selector: 'summary' });
-    fireEvent.click(trigger);
-    const first = screen.getByRole('button', { name: 'First' });
-    first.focus();
-    fireEvent.keyDown(first, { key: 'ArrowDown' });
-    expect(screen.getByRole('button', { name: 'Second' })).toHaveFocus();
-    fireEvent.keyDown(screen.getByRole('button', { name: 'Second' }), { key: 'Escape' });
-    expect(trigger).toHaveFocus();
-    expect(screen.queryByRole('button', { name: 'First' })).not.toBeInTheDocument();
-  });
-
-  it('closes on outside click and restores trigger focus after selecting an action', () => {
-    render(<><RowMenu label="Row actions"><button onClick={() => {}}>Delete</button></RowMenu><button>Outside</button></>);
-    const trigger = screen.getByText('⋮', { selector: 'summary' });
-    fireEvent.click(trigger);
-    fireEvent.mouseDown(screen.getByRole('button', { name: 'Outside' }));
-    expect(screen.queryByRole('button', { name: 'Delete' })).not.toBeInTheDocument();
-    fireEvent.click(trigger);
-    fireEvent.click(screen.getByRole('button', { name: 'Delete' }));
-    expect(screen.queryByRole('button', { name: 'Delete' })).not.toBeInTheDocument();
-    expect(trigger).toHaveFocus();
-  });
   it('renders searchable toolbar, data table and three-part footer pager', () => {
     const change = vi.fn(); render(<><Toolbar><Field label="Search" placeholder="Name" /></Toolbar><DataTable><thead><tr><th>Name</th></tr></thead><tbody><tr><td>One</td></tr></tbody></DataTable><TableFooter start={1} end={10} total={20}><Pager page={1} pages={2} onChange={change} /></TableFooter></>);
     expect(screen.getByLabelText('Search')).toBeInTheDocument(); expect(screen.getByText('One')).toBeInTheDocument(); fireEvent.click(screen.getByRole('button', { name: 'Trang sau' })); expect(change).toHaveBeenCalledWith(2);
@@ -104,6 +63,48 @@ describe('Studio shared components', () => {
   it('opens row menu and renders empty, error, loading, page header and toast states', () => {
     render(<><RowMenu><button>Archive</button></RowMenu><EmptyState title="Empty" /><ErrorState title="Error" /><Loading /><PageHeader title="Products" eyebrow="CATALOG" description="Manage products" /><Toast>Saved</Toast></>);
     fireEvent.click(screen.getByLabelText('Thao tác')); expect(screen.getByText('Archive')).toBeVisible(); expect(screen.getByRole('alert')).toHaveTextContent('Error'); expect(screen.getByRole('status', { name: 'Đang tải' })).toBeInTheDocument(); expect(screen.getByText('Products')).toBeInTheDocument(); expect(screen.getByText('Saved')).toBeInTheDocument();
+  });
+  it('portals the row menu out of table overflow and flips it above the trigger near the viewport bottom', () => {
+    Object.defineProperty(window, 'innerHeight', { configurable: true, value: 768 });
+    Object.defineProperty(window, 'innerWidth', { configurable: true, value: 1366 });
+    const rect = (top: number, right: number, width: number, height: number) => ({ x: right - width, y: top, top, right, bottom: top + height, left: right - width, width, height, toJSON: () => ({}) });
+    const bounds = vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (this: HTMLElement) {
+      if (this.tagName === 'SUMMARY') return rect(700, 400, 34, 34) as DOMRect;
+      if (this.classList.contains('studio-row-menu-popover')) return rect(0, 0, 220, 180) as DOMRect;
+      return rect(0, 0, 0, 0) as DOMRect;
+    });
+    const { container } = render(<div className="studio-table-scroll"><table><tbody><tr><td><RowMenu><button>Details</button><button>Delete</button></RowMenu></td></tr></tbody></table></div>);
+    const opener = screen.getByLabelText('Thao tác');
+    fireEvent.click(opener);
+    const menu = screen.getByRole('menu');
+    expect(menu.parentElement).toBe(document.body);
+    expect(container.querySelector('.studio-table-scroll')?.contains(menu)).toBe(false);
+    expect(menu).toHaveStyle({ position: 'fixed', top: '516px', left: '180px' });
+    expect(menu).not.toHaveStyle({ overflowY: 'auto' });
+    bounds.mockRestore();
+  });
+  it.each([['light', '#ffffff'], ['dark', '#101b26']] as const)('carries the %s Studio theme into the body portal', (theme, surface) => {
+    const { container } = render(<div className="studio-shell" data-theme={theme} style={{ '--studio-surface': surface } as CSSProperties}><RowMenu><button>Action</button></RowMenu></div>);
+    fireEvent.click(screen.getByLabelText('Thao tác'));
+    expect(screen.getByRole('menu')).toHaveStyle({ '--studio-surface': surface, maxWidth: 'calc(100vw - 16px)' });
+    container.remove();
+  });
+  it('supports arrow-key navigation and closes on outside pointer while preserving controlled state', () => {
+    const onOpenChange = vi.fn();
+    render(<><RowMenu open onOpenChange={onOpenChange}><button>First</button><button>Second</button></RowMenu><button>Outside</button></>);
+    const first = screen.getByRole('button', { name: 'First' });
+    const second = screen.getByRole('button', { name: 'Second' });
+    first.focus(); fireEvent.keyDown(first, { key: 'ArrowDown' }); expect(second).toHaveFocus();
+    fireEvent.pointerDown(screen.getByRole('button', { name: 'Outside' }));
+    expect(onOpenChange).toHaveBeenCalledWith(false);
+  });
+  it('closes after selecting an action and restores focus to the trigger', () => {
+    render(<><RowMenu><button onClick={() => undefined}>Delete</button></RowMenu><button>Outside</button></>);
+    const opener = screen.getByLabelText('Thao tác');
+    fireEvent.click(opener);
+    fireEvent.click(screen.getByRole('button', { name: 'Delete' }));
+    expect(screen.queryByRole('button', { name: 'Delete' })).not.toBeInTheDocument();
+    expect(opener).toHaveFocus();
   });
   it('dismisses a row menu on Escape and returns focus to its opener', () => {
     render(<RowMenu><button>Archive</button></RowMenu>);

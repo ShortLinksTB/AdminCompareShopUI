@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState, type ButtonHTMLAttributes, type CSSProperties, type HTMLAttributes, type InputHTMLAttributes, type ReactNode, type SelectHTMLAttributes } from 'react';
+import { useEffect, useId, useLayoutEffect, useRef, useState, type ButtonHTMLAttributes, type CSSProperties, type HTMLAttributes, type InputHTMLAttributes, type ReactNode, type SelectHTMLAttributes } from 'react';
 import { createPortal } from 'react-dom';
 import './studio-ui.css';
 
@@ -18,72 +18,79 @@ export function Checkbox({ checked, indeterminate = false, onChange, ...props }:
 export function TableFooter({ start, end, total, center, summary, startContent, children }: { start: number; end: number; total: number; center?: ReactNode; summary?: ReactNode; startContent?: ReactNode; children?: ReactNode }) { return <footer className="studio-table-footer"><span>{startContent ?? summary ?? <>Hiển thị <b>{start}–{end}</b> trong <b>{total}</b></>}</span><span className="studio-footer-range">{center}</span><div>{children}</div></footer>; }
 export function Pager({ page, pages, onChange, previousLabel = 'Trang trước', nextLabel = 'Trang sau', formatPage = (current, count) => `${current} / ${count}`, disabled = false }: { page: number; pages: number; onChange: (page: number) => void; previousLabel?: string; nextLabel?: string; formatPage?: (page: number, pages: number) => string; disabled?: boolean }) { return <div className="studio-pager"><Button size="sm" aria-label={previousLabel} disabled={disabled || page <= 1} onClick={() => onChange(page - 1)}>←</Button><span>{formatPage(page, pages)}</span><Button size="sm" aria-label={nextLabel} disabled={disabled || page >= pages} onClick={() => onChange(page + 1)}>→</Button></div>; }
 export function RowMenu({ children, open, onOpenChange, label = 'Thao tác' }: { children: ReactNode; open?: boolean; onOpenChange?: (open: boolean) => void; label?: string }) {
-  const trigger = useRef<HTMLElement>(null);
-  const menu = useRef<HTMLDivElement>(null);
   const [uncontrolledOpen, setUncontrolledOpen] = useState(false);
   const isOpen = open ?? uncontrolledOpen;
-  const [position, setPosition] = useState<CSSProperties>({ visibility: 'hidden' });
-  const setOpen = (next: boolean) => { if (open === undefined) setUncontrolledOpen(next); onOpenChange?.(next); };
-
+  const trigger = useRef<HTMLElement>(null);
+  const menu = useRef<HTMLDivElement>(null);
+  const id = useId();
+  const [position, setPosition] = useState<CSSProperties>({ position: 'fixed', top: 0, left: 0, visibility: 'hidden' });
+  const updateOpen = (nextOpen: boolean) => {
+    if (open === undefined) setUncontrolledOpen(nextOpen);
+    onOpenChange?.(nextOpen);
+  };
+  const positionMenu = () => {
+    const anchor = trigger.current;
+    const popover = menu.current;
+    if (!anchor?.isConnected || !popover) return;
+    const anchorRect = anchor.getBoundingClientRect();
+    const menuRect = popover.getBoundingClientRect();
+    const gap = 4;
+    const edge = 8;
+    const below = window.innerHeight - anchorRect.bottom - gap;
+    const above = anchorRect.top - gap;
+    const flip = menuRect.height > below && above > below;
+    const top = flip ? anchorRect.top - menuRect.height - gap : anchorRect.bottom + gap;
+    const left = Math.min(Math.max(edge, anchorRect.right - menuRect.width), Math.max(edge, window.innerWidth - menuRect.width - edge));
+    setPosition({ position: 'fixed', top: Math.max(edge, Math.min(top, window.innerHeight - menuRect.height - edge)), left, visibility: 'visible' });
+  };
   useLayoutEffect(() => {
-    const triggerElement = trigger.current;
-    const menuElement = menu.current;
-    if (!isOpen || !triggerElement || !menuElement) return;
-    const placeMenu = () => {
-      const triggerRect = triggerElement.getBoundingClientRect();
-      const menuRect = menuElement.getBoundingClientRect();
-      const margin = 8;
-      const gap = 4;
-      const below = window.innerHeight - triggerRect.bottom - gap;
-      const above = triggerRect.top - gap;
-      const placeAbove = below < menuRect.height && above > below;
-      const top = placeAbove
-        ? Math.max(margin, triggerRect.top - menuRect.height - gap)
-        : Math.min(window.innerHeight - menuRect.height - margin, triggerRect.bottom + gap);
-      const left = Math.max(margin, Math.min(triggerRect.right - menuRect.width, window.innerWidth - menuRect.width - margin));
-      const shell = triggerElement.closest<HTMLElement>('.studio-shell');
-      const computed = shell ? getComputedStyle(shell) : null;
-      const theme = computed ? Object.fromEntries(Array.from({ length: computed.length }, (_, index) => computed.item(index)).filter(property => property.startsWith('--studio-')).map(property => [property, computed.getPropertyValue(property)])) : {};
-      setPosition({ ...theme, position: 'fixed', top, left, minWidth: triggerElement.closest('.offers-actions') ? 245 : 150, visibility: 'visible' } as CSSProperties);
-    };
-    placeMenu();
-    // The fixed popup cannot be clipped by table overflow. Close it on any scroll
-    // so it never appears detached from its trigger.
-    const closeOnScroll = () => setOpen(false);
-    window.addEventListener('resize', placeMenu);
-    window.addEventListener('scroll', closeOnScroll, true);
+    if (!isOpen) return;
+    positionMenu();
+    const handleViewportChange = () => positionMenu();
+    window.addEventListener('resize', handleViewportChange);
+    window.addEventListener('scroll', handleViewportChange, true);
     return () => {
-      window.removeEventListener('resize', placeMenu);
-      window.removeEventListener('scroll', closeOnScroll, true);
+      window.removeEventListener('resize', handleViewportChange);
+      window.removeEventListener('scroll', handleViewportChange, true);
     };
   }, [isOpen]);
-
   useEffect(() => {
     if (!isOpen) return;
-    const closeOutside = (event: MouseEvent) => {
+    const handleOutsidePointer = (event: PointerEvent) => {
       const target = event.target;
-      if (target instanceof Node && (trigger.current?.parentElement?.contains(target) || menu.current?.contains(target))) return;
-      setOpen(false);
+      if (target instanceof Node && (trigger.current?.contains(target) || menu.current?.contains(target))) return;
+      updateOpen(false);
     };
-    document.addEventListener('mousedown', closeOutside);
-    return () => document.removeEventListener('mousedown', closeOutside);
+    document.addEventListener('pointerdown', handleOutsidePointer);
+    return () => document.removeEventListener('pointerdown', handleOutsidePointer);
   }, [isOpen]);
-
-  const closeAndRestoreFocus = () => { setOpen(false); trigger.current?.focus(); };
-  const onMenuKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
-    const items = [...(menu.current?.querySelectorAll<HTMLElement>('button:not([disabled]),a[href],[role="menuitem"]:not([aria-disabled="true"])') ?? [])];
-    if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); closeAndRestoreFocus(); return; }
-    if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
-      event.preventDefault();
-      const current = items.indexOf(document.activeElement as HTMLElement);
-      const next = event.key === 'ArrowDown' ? (current + 1) % items.length : (current <= 0 ? items.length - 1 : current - 1);
-      items[next]?.focus();
-    }
+  const closeAndRestoreFocus = () => {
+    updateOpen(false);
+    trigger.current?.focus();
   };
-
-  return <details className="studio-row-menu" open={isOpen} onKeyDown={event => { if (event.key === 'Escape' && isOpen) { event.preventDefault(); event.stopPropagation(); closeAndRestoreFocus(); } }}>
-    <summary ref={trigger} aria-label={label} aria-expanded={isOpen} onClick={event => { event.preventDefault(); setOpen(!isOpen); }}>⋮</summary>
-    {isOpen && createPortal(<div ref={menu} className="studio-row-menu studio-row-menu-portal" style={position} onKeyDown={onMenuKeyDown} onClick={event => { const target = event.target; if (target instanceof Element && target.closest('button,a')) closeAndRestoreFocus(); }}>{children}</div>, document.body)}
+  const focusMenuItem = (direction: 1 | -1, current?: EventTarget | null) => {
+    const items = [...(menu.current?.querySelectorAll<HTMLElement>('button:not([disabled]),a[href],[role="menuitem"]') ?? [])];
+    if (!items.length) return;
+    const index = items.indexOf(current as HTMLElement);
+    const nextIndex = index < 0 ? (direction > 0 ? 0 : items.length - 1) : (index + direction + items.length) % items.length;
+    items[nextIndex].focus();
+  };
+  const shell = trigger.current?.closest('.studio-shell');
+  const computedShell = shell ? getComputedStyle(shell) : null;
+  const themeStyle = computedShell ? Object.fromEntries(Array.from({ length: computedShell.length }, (_, index) => computedShell.item(index)).filter(property => property.startsWith('--')).map(property => [property, computedShell.getPropertyValue(property)])) as CSSProperties : undefined;
+  const wideMenu = trigger.current?.closest('.offers-actions') ? { minWidth: 245 } : undefined;
+  const popover = isOpen ? createPortal(<div id={`${id}-menu`} ref={menu} role="menu" className="studio-row-menu-popover" style={{ ...themeStyle, ...wideMenu, maxWidth: 'calc(100vw - 16px)', ...position }} onClick={event => {
+    if ((event.target as Element).closest('button:not([disabled]),a[href],[role="menuitem"]')) closeAndRestoreFocus();
+  }} onKeyDown={event => {
+    if (event.key === 'ArrowDown' || event.key === 'ArrowUp') { event.preventDefault(); focusMenuItem(event.key === 'ArrowDown' ? 1 : -1, event.target); }
+    else if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); closeAndRestoreFocus(); }
+  }}>{children}</div>, document.body) : null;
+  return <details className="studio-row-menu" open={isOpen} onKeyDown={event => {
+    if (event.key === 'Escape' && isOpen) { event.preventDefault(); event.stopPropagation(); closeAndRestoreFocus(); }
+    else if ((event.key === 'ArrowDown' || event.key === 'ArrowUp') && event.target === trigger.current) { event.preventDefault(); focusMenuItem(event.key === 'ArrowDown' ? 1 : -1); }
+  }}>
+    <summary ref={element => { trigger.current = element; }} aria-label={label} aria-haspopup="menu" aria-expanded={isOpen} aria-controls={`${id}-menu`} onClick={event => { event.preventDefault(); updateOpen(!isOpen); }}>⋮</summary>
+    {popover}
   </details>;
 }
 export function SearchField({ label, ...props }: InputHTMLAttributes<HTMLInputElement> & { label: string }) { return <label className="studio-search-field"><span aria-hidden="true">⌕</span><input {...props} aria-label={props['aria-label'] ?? label} /></label>; }
