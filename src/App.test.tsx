@@ -425,9 +425,9 @@ describe('dashboard API integration', () => {
     expect(within(productsCard).getByText('5')).toBeInTheDocument();
     expect(within(offersCard).getByText('2')).toBeInTheDocument();
     expect(within(offersCard).getByText('of 3 offers')).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: 'Offers flagged as outlier' })).toBeInTheDocument();
-    expect(screen.getByText('101')).toBeInTheDocument();
-    expect(screen.getByText('103')).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Offers flagged as outlier' })).not.toBeInTheDocument();
+    expect(screen.queryByText('101')).not.toBeInTheDocument();
+    expect(screen.queryByText('103')).not.toBeInTheDocument();
     expect(screen.queryByText('Laptop Zenbook Pro')).not.toBeInTheDocument();
     expect(auth.requestAdmin).toHaveBeenCalledWith('/admin/products?page=1&pageSize=20', expect.objectContaining({ signal: expect.any(AbortSignal) }));
     expect(auth.requestAdmin).toHaveBeenCalledWith('/admin/offers?page=1&pageSize=100&sort=attention&staleHours=72', expect.objectContaining({ signal: expect.any(AbortSignal) }));
@@ -445,11 +445,10 @@ describe('dashboard API integration', () => {
     renderApp('/');
 
     expect(screen.getAllByText('Loading…')).toHaveLength(2);
-    expect(screen.getByText('Loading offers…')).toBeInTheDocument();
     resolveProducts(productPage(4));
     expect(await screen.findByText('All catalog products')).toBeInTheDocument();
     expect(within(screen.getByText('Products total').closest('article')!).getByText('4')).toBeInTheDocument();
-    expect(screen.getByText('Loading offers…')).toBeInTheDocument();
+    expect(screen.getAllByText('Loading…')).toHaveLength(1);
     resolveOffers(offersPage([offer(201, true, false)]));
     expect(await screen.findByText('of 1 offers')).toBeInTheDocument();
   });
