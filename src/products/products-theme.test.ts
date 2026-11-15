@@ -42,6 +42,12 @@ describe('Products Studio theme styles', () => {
     expect(studioStyles).toContain('.studio-lightbox{');
   });
 
+  it('centers the shared lightbox inside its viewport-fixed overlay', () => {
+    expect(studioStyles).toContain('.studio-overlay{position:fixed;inset:0;z-index:1000;display:grid;place-items:center;');
+    expect(studioStyles).toContain('.studio-lightbox{position:relative;z-index:1100;');
+    expect(studioStyles).not.toContain('.studio-lightbox{position:fixed;inset:0;');
+  });
+
   it('keeps Products table overflow inside its card on narrow screens', () => {
     expect(productStyles).toContain('.products-table-scroll .studio-table{min-width:820px}');
     expect(studioStyles).toContain('.studio-table-scroll{width:100%;overflow-x:auto}');

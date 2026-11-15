@@ -96,6 +96,21 @@ describe('Studio shared components', () => {
     expect(screen.getByRole('dialog', { name: 'Category editor' })).toHaveClass('studio-modal', 'categories-modal');
     unmount(); shell.remove();
   });
+  it.each([
+    ['light', '#ffffff'],
+    ['dark', '#101b26'],
+  ])('portals lightbox to the viewport body and carries the %s theme tokens', (theme, surface) => {
+    const shell = document.createElement('div'); shell.className = 'studio-shell'; shell.dataset.theme = theme;
+    shell.style.setProperty('--studio-surface', surface);
+    const main = document.createElement('main'); shell.append(main); document.body.append(shell);
+    const { unmount } = render(<Lightbox open onClose={() => undefined}><img alt="Viewport preview" src="/image.png" /></Lightbox>, { container: main });
+    const overlay = document.querySelector('.studio-overlay');
+    const dialog = screen.getByRole('dialog', { name: 'Xem ảnh' });
+    expect(overlay?.parentElement).toBe(document.body);
+    expect(dialog.closest('.studio-shell')).toBeNull();
+    expect(overlay).toHaveStyle({ '--studio-surface': surface });
+    unmount(); shell.remove();
+  });
   it('returns focus to the opener after closing the shared lightbox with its close button', async () => {
     const Demo = () => { const [open, setOpen] = useState(false); return <><button onClick={() => setOpen(true)}>Open preview</button><Lightbox open={open} onClose={() => setOpen(false)}><img alt="Preview" src="/image.png" /></Lightbox></>; };
     render(<Demo />);
