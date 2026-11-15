@@ -6,6 +6,8 @@ export interface PartnerShop {
   name: string;
   websiteUrl?: string | null;
   isActive: boolean;
+  showOnHome: boolean;
+  homeDisplayOrder?: number | null;
 }
 
 export interface ShopInput {
@@ -13,6 +15,8 @@ export interface ShopInput {
   name: string;
   websiteUrl?: string;
   isActive: boolean;
+  showOnHome: boolean;
+  homeDisplayOrder?: number | null;
 }
 
 export class ShopApiError extends Error {
