@@ -1,12 +1,12 @@
 import { useEffect, useState } from 'react';
-import { cleanup, createEvent, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, createEvent, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import '@testing-library/jest-dom/vitest';
 import { Button, Card, Checkbox, DataTable, Drawer, EmptyState, ErrorState, Field, FilterChips, Kbd, Lightbox, Loading, Modal, PageHeader, Pager, Pill, RowMenu, Select, Switch, TableFooter, Toast, Toolbar } from './index';
 
 describe('Studio shared components', () => {
-  afterEach(() => { cleanup(); vi.restoreAllMocks(); vi.unstubAllGlobals(); });
+  afterEach(() => { cleanup(); vi.useRealTimers(); vi.restoreAllMocks(); vi.unstubAllGlobals(); });
   it('renders button variants, status pills, semantic card and keyboard hint', () => {
     render(<><Button tone="primary">Save</Button><Button tone="danger" size="sm">Delete</Button><Pill tone="ok" size="sm">Ready</Pill><Card aria-label="Card"><Kbd>⌘K</Kbd></Card></>);
     expect(screen.getByRole('button', { name: 'Save' })).toHaveClass('studio-button-primary');
@@ -237,6 +237,25 @@ describe('Studio shared components', () => {
     expect(dialog.closest('.studio-shell')).toBeNull();
     expect(overlay).toHaveStyle({ '--studio-surface': surface });
     unmount(); shell.remove();
+  });
+  it('auto-hides the hint after idle and restarts the delay on pointer or wheel activity', () => {
+    vi.useFakeTimers();
+    const { unmount } = render(<Lightbox open onClose={() => undefined}><img alt="Idle preview" src="/image.png" /></Lightbox>);
+    const hint = document.querySelector('.studio-lightbox-hint')!;
+    const stage = document.querySelector('.studio-lightbox-stage')!;
+    expect(hint).not.toHaveClass('is-hidden');
+    act(() => { vi.advanceTimersByTime(2999); });
+    expect(hint).not.toHaveClass('is-hidden');
+    fireEvent.pointerMove(stage, { pointerId: 1 });
+    act(() => { vi.advanceTimersByTime(2999); });
+    expect(hint).not.toHaveClass('is-hidden');
+    act(() => { vi.advanceTimersByTime(1); });
+    expect(hint).toHaveClass('is-hidden');
+    fireEvent.wheel(stage);
+    expect(hint).not.toHaveClass('is-hidden');
+    act(() => { vi.advanceTimersByTime(3000); });
+    expect(hint).toHaveClass('is-hidden');
+    unmount();
   });
   it('returns focus to the opener after closing the shared lightbox with its close button', async () => {
     const Demo = () => { const [open, setOpen] = useState(false); return <><button onClick={() => setOpen(true)}>Open preview</button><Lightbox open={open} onClose={() => setOpen(false)}><img alt="Preview" src="/image.png" /></Lightbox></>; };
