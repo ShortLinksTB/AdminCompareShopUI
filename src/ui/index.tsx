@@ -23,16 +23,17 @@ export function RowMenu({ children, open, onOpenChange, label = 'Thao tác' }: {
   const [uncontrolledOpen, setUncontrolledOpen] = useState(false);
   const isOpen = open ?? uncontrolledOpen;
   const [position, setPosition] = useState<CSSProperties>({ visibility: 'hidden' });
-  const focusOnOpen = useRef<'first' | 'last' | null>(null);
+  const pendingFocus = useRef<'first' | 'last' | null>(null);
   const setOpen = (next: boolean) => { if (open === undefined) setUncontrolledOpen(next); onOpenChange?.(next); };
+  const getMenuItems = () => [...(menu.current?.querySelectorAll<HTMLElement>('button:not([disabled]),a[href]:not([aria-disabled="true"]),[role="menuitem"]:not([aria-disabled="true"]):not([disabled])') ?? [])];
 
-  useLayoutEffect(() => {
-    if (!isOpen || !focusOnOpen.current || !menu.current) return;
-    const items = [...menu.current.querySelectorAll<HTMLElement>('button:not([disabled]),a[href],[role="menuitem"]:not([aria-disabled="true"])')];
-    const target = focusOnOpen.current === 'last' ? items.at(-1) : items[0];
-    focusOnOpen.current = null;
-    target?.focus();
-  }, [isOpen]);
+  useEffect(() => {
+    if (!isOpen || position.visibility !== 'visible' || !pendingFocus.current) return;
+    const focus = pendingFocus.current;
+    pendingFocus.current = null;
+    const items = getMenuItems();
+    (focus === 'first' ? items[0] : items.at(-1))?.focus();
+  }, [isOpen, position.visibility]);
 
   useLayoutEffect(() => {
     const triggerElement = trigger.current;
@@ -85,30 +86,59 @@ export function RowMenu({ children, open, onOpenChange, label = 'Thao tác' }: {
   }, [isOpen]);
 
   const closeAndRestoreFocus = () => { setOpen(false); trigger.current?.focus(); };
+  const focusOutsideMenu = (direction: -1 | 1) => {
+    const triggerElement = trigger.current;
+    if (!triggerElement) return;
+    const focusable = [...document.querySelectorAll<HTMLElement>('summary,button:not([disabled]),a[href]:not([aria-disabled="true"]),input:not([disabled]),select:not([disabled]),textarea:not([disabled]),[tabindex]:not([tabindex="-1"])')]
+      .filter(element => !menu.current?.contains(element) && !element.closest('[hidden],[inert]') && getComputedStyle(element).display !== 'none' && getComputedStyle(element).visibility !== 'hidden');
+    const triggerIndex = focusable.indexOf(triggerElement);
+    setOpen(false);
+    (triggerIndex < 0 ? triggerElement : focusable[triggerIndex + direction])?.focus();
+  };
+  const onTriggerKeyDown = (event: React.KeyboardEvent<HTMLElement>) => {
+    if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+      event.preventDefault();
+      if (isOpen) {
+        const items = getMenuItems();
+        (event.key === 'ArrowDown' ? items[0] : items.at(-1))?.focus();
+      } else {
+        pendingFocus.current = event.key === 'ArrowDown' ? 'first' : 'last';
+        setOpen(true);
+      }
+    } else if (event.key === 'Tab' && isOpen) {
+      event.preventDefault();
+      const items = getMenuItems();
+      (event.shiftKey ? items.at(-1) : items[0])?.focus();
+    }
+  };
   const onMenuKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
-    const items = [...(menu.current?.querySelectorAll<HTMLElement>('button:not([disabled]),a[href],[role="menuitem"]:not([aria-disabled="true"])') ?? [])];
+    const items = getMenuItems();
     if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); closeAndRestoreFocus(); return; }
+    if (event.key === 'Tab') {
+      const current = items.indexOf(document.activeElement as HTMLElement);
+      const next = current + (event.shiftKey ? -1 : 1);
+      event.preventDefault();
+      if (next >= 0 && next < items.length) items[next]?.focus();
+      else focusOutsideMenu(event.shiftKey ? -1 : 1);
+      return;
+    }
+    if (event.key === 'Home' || event.key === 'End') {
+      event.preventDefault();
+      (event.key === 'Home' ? items[0] : items.at(-1))?.focus();
+      return;
+    }
     if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
       event.preventDefault();
       const current = items.indexOf(document.activeElement as HTMLElement);
-      const next = event.key === 'ArrowDown' ? (current + 1) % items.length : (current <= 0 ? items.length - 1 : current - 1);
+      const next = event.key === 'ArrowDown'
+        ? (current < 0 || current === items.length - 1 ? 0 : current + 1)
+        : (current <= 0 ? items.length - 1 : current - 1);
       items[next]?.focus();
     }
   };
 
   return <details className="studio-row-menu" open={isOpen} onKeyDown={event => { if (event.key === 'Escape' && isOpen) { event.preventDefault(); event.stopPropagation(); closeAndRestoreFocus(); } }}>
-    <summary ref={trigger} aria-label={label} aria-expanded={isOpen} onClick={event => { event.preventDefault(); if (!isOpen) focusOnOpen.current = 'first'; setOpen(!isOpen); }} onKeyDown={event => {
-      if (event.key === 'ArrowDown' || event.key === 'ArrowUp' || event.key === 'Enter' || event.key === ' ') {
-        event.preventDefault();
-        const direction = event.key === 'ArrowUp' ? 'last' : 'first';
-        if (!isOpen) focusOnOpen.current = direction;
-        else {
-          const items = [...(menu.current?.querySelectorAll<HTMLElement>('button:not([disabled]),a[href],[role="menuitem"]:not([aria-disabled="true"])') ?? [])];
-          (direction === 'last' ? items.at(-1) : items[0])?.focus();
-        }
-        setOpen(true);
-      }
-    }}>⋮</summary>
+    <summary ref={trigger} aria-label={label} aria-expanded={isOpen} onKeyDown={onTriggerKeyDown} onClick={event => { event.preventDefault(); const next = !isOpen; pendingFocus.current = next ? 'first' : null; setOpen(next); }}>⋮</summary>
     {isOpen && createPortal(<div ref={menu} className="studio-row-menu studio-row-menu-portal" style={position} onKeyDown={onMenuKeyDown} onClick={event => { const target = event.target; if (target instanceof Element && target.closest('button,a')) closeAndRestoreFocus(); }}>{children}</div>, document.body)}
   </details>;
 }

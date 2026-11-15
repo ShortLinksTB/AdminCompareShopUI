@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { cleanup, createEvent, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import '@testing-library/jest-dom/vitest';
 import { Button, Card, Checkbox, DataTable, Drawer, EmptyState, ErrorState, Field, FilterChips, Kbd, Lightbox, Loading, Modal, PageHeader, Pager, Pill, RowMenu, Select, Switch, TableFooter, Toast, Toolbar } from './index';
@@ -75,6 +76,60 @@ describe('Studio shared components', () => {
     const portal = (await screen.findByRole('button', { name: 'Edit' })).closest('.studio-row-menu-portal');
     expect(portal).toHaveStyle({ left: '1135px', minWidth: '150px' });
     expect(Number.parseFloat((portal as HTMLElement).style.left) + 150).toBeLessThanOrEqual(window.innerWidth - 8);
+  });
+
+  it.each([
+    { screen: 'Products', wrapperClass: '', minWidth: 150, expectedLeft: 802, initialWidth: 120 },
+    { screen: 'Offers & Prices', wrapperClass: 'offers-actions', minWidth: 245, expectedLeft: 707, initialWidth: 220 },
+  ])('clamps the final $minWidth px $screen menu within a 960px viewport', async ({ screen: screenName, wrapperClass, minWidth, expectedLeft, initialWidth }) => {
+    vi.stubGlobal('innerWidth', 960);
+    const bounds = vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (this: HTMLElement) {
+      if (this.tagName === 'SUMMARY') return { x: 956, y: 100, top: 100, right: 990, bottom: 134, left: 956, width: 34, height: 34, toJSON: () => ({}) } as DOMRect;
+      if (this.classList.contains('studio-row-menu-portal')) {
+        const width = this.style.minWidth ? Number.parseFloat(this.style.minWidth) : initialWidth;
+        return { x: 0, y: 0, top: 0, right: width, bottom: 90, left: 0, width, height: 90, toJSON: () => ({}) } as DOMRect;
+      }
+      return { x: 0, y: 0, top: 0, right: 100, bottom: 100, left: 0, width: 100, height: 100, toJSON: () => ({}) } as DOMRect;
+    });
+    render(<div className={wrapperClass}><RowMenu label={`${screenName} actions`}><button>Edit</button><button>Delete</button></RowMenu></div>);
+    fireEvent.click(screen.getByText('⋮', { selector: 'summary' }));
+    const portal = (await screen.findByRole('button', { name: 'Edit' })).closest('.studio-row-menu-portal') as HTMLElement;
+    expect(portal).toHaveStyle({ left: `${expectedLeft}px`, minWidth: `${minWidth}px` });
+    expect(Number.parseFloat(portal.style.left) + minWidth).toBeLessThanOrEqual(952);
+    bounds.mockRestore();
+  });
+
+  it('opens into the menu with arrow keys and activates the focused action with Enter', async () => {
+    const user = userEvent.setup();
+    const select = vi.fn();
+    render(<RowMenu label="Row actions"><button onClick={select}>Edit</button><button>Delete</button></RowMenu>);
+    const trigger = screen.getByText('⋮', { selector: 'summary' });
+    trigger.focus();
+    await user.keyboard('{ArrowDown}');
+    const edit = screen.getByRole('button', { name: 'Edit' });
+    const deleteAction = screen.getByRole('button', { name: 'Delete' });
+    await waitFor(() => expect(edit).toHaveFocus());
+    await user.keyboard('{ArrowDown}');
+    expect(deleteAction).toHaveFocus();
+    await user.keyboard('{ArrowUp}');
+    expect(edit).toHaveFocus();
+    await user.keyboard('{Enter}');
+    expect(select).toHaveBeenCalledOnce();
+    expect(trigger).toHaveFocus();
+    expect(screen.queryByRole('button', { name: 'Edit' })).not.toBeInTheDocument();
+  });
+
+  it('tabs through menu actions and leaves the menu at its trigger tab position', async () => {
+    const user = userEvent.setup();
+    render(<><button>Before</button><RowMenu label="Row actions"><button>First</button><button>Second</button></RowMenu><button>After</button></>);
+    const trigger = screen.getByText('⋮', { selector: 'summary' });
+    await user.click(trigger);
+    expect(screen.getByRole('button', { name: 'First' })).toHaveFocus();
+    await user.tab();
+    expect(screen.getByRole('button', { name: 'Second' })).toHaveFocus();
+    await user.tab();
+    expect(screen.getByRole('button', { name: 'After' })).toHaveFocus();
+    expect(screen.queryByRole('button', { name: 'First' })).not.toBeInTheDocument();
   });
 
   it('opens RowMenu into its first item with ArrowDown and wraps through items before Escape restores focus', () => {
