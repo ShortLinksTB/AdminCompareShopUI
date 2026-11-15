@@ -6,10 +6,11 @@ import type { AdminRequest, SyncJob } from './sync-jobs-api';
 
 const job: SyncJob = { id: '210', dataSource: 'QC-SL1815 Shop A', startedAtUtc: '2026-11-15T03:12:00Z', finishedAtUtc: '2026-11-15T03:15:02Z', queuedAtUtc: '2026-11-15T03:11:00Z', state: 'Failed', seenCount: 0, importedCount: 0, pendingCount: 0, errorCode: 'source_failure', errorSummary: 'Catalog source could not be read or imported.' };
 const log = { id: '1', occurredAtUtc: '2026-11-15T03:12:01Z', level: 'Error', step: 'shop_check', message: 'Shop is unavailable', exceptionType: 'TimeoutException', httpStatusCode: 503 };
-function requestMock(withLogs = true, rows: SyncJob[] = [job]): ReturnType<typeof vi.fn<AdminRequest>> {
+function requestMock(withLogs = true, rows: SyncJob[] = [job], retryStatuses: number[] = []): ReturnType<typeof vi.fn<AdminRequest>> {
+  let retryCount = 0;
   return vi.fn<AdminRequest>().mockImplementation(async path => {
     if (path.includes('/logs')) return Response.json({ items: withLogs ? [log] : [], page: 1, pageSize: 500, totalItems: withLogs ? 1 : 0 });
-    if (path.includes('/retry')) return new Response(null, { status: 202 });
+    if (path.includes('/retry')) return new Response(null, { status: retryStatuses[retryCount++] ?? 202 });
     const params = new URL(`http://localhost${path}`).searchParams;
     const pageSize = Number(params.get('pageSize') || 25);
     if (pageSize === 1) return Response.json({ items: [], page: 1, pageSize, totalItems: params.get('status') === 'Failed' ? 2 : 4 });
@@ -72,5 +73,47 @@ describe('SyncJobsPage', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Retry' }));
     await waitFor(() => expect(requestAdmin.mock.calls.some(([path, init]) => String(path).includes('/210/retry') && init?.method === 'POST')).toBe(true));
     expect(await screen.findByText(/Đã xếp lịch retry/)).toBeInTheDocument();
+  });
+  it.each([
+    [403, 'You do not have permission to retry this job.'],
+    [404, 'This job can no longer be retried. The list has been kept unchanged.'],
+    [500, 'Could not retry this job (request failed with status 500).'],
+  ])('keeps modal and job list available after retry returns %s', async (status, message) => {
+    const requestAdmin = requestMock(true, [job], [status, 202]);
+    render(<SyncJobsPage requestAdmin={requestAdmin} permissions={['sync_jobs.read', 'sync_jobs.execute']} />);
+    await screen.findByText('QC-SL1815 Shop A');
+    fireEvent.click(screen.getByLabelText('Thao tác job 210'));
+    fireEvent.click(screen.getByRole('button', { name: 'Xem log' }));
+    const dialog = await screen.findByRole('dialog', { name: /Log đồng bộ/ });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Retry job này' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent(message);
+    expect(screen.getByRole('dialog', { name: /Log đồng bộ/ })).toBe(dialog);
+    expect(screen.getByRole('row', { name: /QC-SL1815 Shop A/ })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Retry job này' }));
+    expect(await screen.findByText(/Đã xếp lịch retry/)).toBeInTheDocument();
+    expect(screen.getByRole('dialog', { name: /Log đồng bộ/ })).toBeInTheDocument();
+    fireEvent.click(screen.getAllByRole('button', { name: 'Đóng' }).at(-1)!);
+    expect(screen.queryByRole('dialog', { name: /Log đồng bộ/ })).not.toBeInTheDocument();
+    expect(screen.getByRole('row', { name: /QC-SL1815 Shop A/ })).toBeInTheDocument();
+  });
+  it('clears a failed retry message when closing job A and opening job B', async () => {
+    const jobB: SyncJob = { ...job, id: '211', dataSource: 'QC-SL1815 Shop B' };
+    render(<SyncJobsPage requestAdmin={requestMock(true, [job, jobB], [403])} permissions={['sync_jobs.read', 'sync_jobs.execute']} />);
+    await screen.findByText('QC-SL1815 Shop A');
+
+    fireEvent.click(screen.getByLabelText('Thao tác job 210'));
+    fireEvent.click(screen.getByRole('button', { name: 'Xem log' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Retry job này' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent('You do not have permission to retry this job.');
+
+    fireEvent.click(screen.getAllByRole('button', { name: 'Đóng' }).at(-1)!);
+    fireEvent.click(screen.getByLabelText('Thao tác job 211'));
+    fireEvent.click(screen.getByRole('button', { name: 'Xem log' }));
+    expect(await screen.findByRole('dialog', { name: /QC-SL1815 Shop B/ })).toBeInTheDocument();
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    expect(screen.getByRole('row', { name: /QC-SL1815 Shop A/ })).toBeInTheDocument();
+    expect(screen.getByRole('row', { name: /QC-SL1815 Shop B/ })).toBeInTheDocument();
   });
 });

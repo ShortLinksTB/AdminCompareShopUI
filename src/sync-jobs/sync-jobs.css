@@ -47,6 +47,8 @@
 .sync-log-info .sync-log-level{color:var(--studio-cool)}
 .sync-log-warning .sync-log-level{color:var(--studio-warn)}
 .sync-log-error{color:var(--studio-bad)}
+.sync-log-retry-error{padding:12px 14px;border:1px solid var(--studio-bad);border-radius:12px;background:var(--studio-bad-soft);color:var(--studio-bad)}
+.sync-log-retry-error .studio-state{min-height:0;justify-items:start;padding:0;text-align:left}
 .sync-log-timeline p{margin:0;overflow-wrap:anywhere;line-height:1.55}
 .sync-log-timeline p code{display:block;margin-top:4px}
 .sync-log-timeline small{grid-column:4;color:var(--studio-muted)}
