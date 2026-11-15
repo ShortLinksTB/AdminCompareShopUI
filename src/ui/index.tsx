@@ -174,8 +174,29 @@ export function ErrorState({ title, children }: { title: string; children?: Reac
 export function Loading({ label = 'Đang tải', children }: { label?: string; children?: ReactNode }) { return <div className="studio-loading" role="status" aria-label={label}><i /><i /><i />{children}</div>; }
 export function PageHeader({ eyebrow, title, description, actions }: { eyebrow?: string; title: string; description?: string; actions?: ReactNode }) { return <header className="studio-page-header">{eyebrow && <span>{eyebrow}</span>}<div><section><h1>{title}</h1>{description && <p>{description}</p>}</section>{actions}</div></header>; }
 export function Lightbox({ open, onClose, children, toolbar, label = 'Xem ảnh', closeLabel = 'Đóng ảnh', className = '', clickZoom = true, resetKey }: { open: boolean; onClose: () => void; children: ReactNode; toolbar?: ReactNode; label?: string; closeLabel?: string; className?: string; clickZoom?: boolean; resetKey?: string }) {
-  const [zoom, setZoom] = useState(1); const [pan, setPan] = useState({ x: 0, y: 0 }); const drag = useRef<{ id: number; x: number; y: number; panX: number; panY: number } | null>(null); const suppressStageClick = useRef(false); const pointerDownOnContent = useRef(false); const stage = useRef<HTMLDivElement>(null);
+  const [zoom, setZoom] = useState(1); const [pan, setPan] = useState({ x: 0, y: 0 }); const [hintVisible, setHintVisible] = useState(true); const drag = useRef<{ id: number; x: number; y: number; panX: number; panY: number } | null>(null); const suppressStageClick = useRef(false); const pointerDownOnContent = useRef(false); const stage = useRef<HTMLDivElement>(null);
   useEffect(() => { if (open) { setZoom(1); setPan({ x: 0, y: 0 }); drag.current = null; } }, [open, resetKey]);
+  useEffect(() => {
+    const element = stage.current;
+    if (!open || !element) return;
+    let timer = 0;
+    const hide = () => { setHintVisible(false); };
+    const showAndRestartTimer = () => {
+      setHintVisible(true);
+      window.clearTimeout(timer);
+      timer = window.setTimeout(hide, 3000);
+    };
+    showAndRestartTimer();
+    element.addEventListener('pointermove', showAndRestartTimer);
+    element.addEventListener('pointerdown', showAndRestartTimer);
+    element.addEventListener('wheel', showAndRestartTimer);
+    return () => {
+      window.clearTimeout(timer);
+      element.removeEventListener('pointermove', showAndRestartTimer);
+      element.removeEventListener('pointerdown', showAndRestartTimer);
+      element.removeEventListener('wheel', showAndRestartTimer);
+    };
+  }, [open]);
   useEffect(() => {
     const element = stage.current;
     if (!open || !element) return;
@@ -191,5 +212,5 @@ export function Lightbox({ open, onClose, children, toolbar, label = 'Xem ảnh'
     element.addEventListener('wheel', handleWheel, { passive: false });
     return () => element.removeEventListener('wheel', handleWheel);
   }, [open, zoom, pan]);
-  return open ? <FocusLayer portalToBody captureEscape deferFocusRestore onClose={onClose} label={label} className={`studio-lightbox ${className}`.trim()}><Button tone="ghost" aria-label={closeLabel} onClick={onClose}>×</Button>{toolbar && <div className="studio-lightbox-toolbar">{toolbar}</div>}<div ref={stage} className={`studio-lightbox-stage${zoom > 1 ? ' is-zoomed' : ''}`} onClick={event => { const target = event.target; const clickedContent = pointerDownOnContent.current || (target instanceof Element && Boolean(target.closest('.studio-lightbox-content'))); pointerDownOnContent.current = false; if (suppressStageClick.current) { suppressStageClick.current = false; return; } if (clickZoom && clickedContent) { const next = zoom > 1 ? 1 : 2; setZoom(next); if (next === 1) setPan({ x: 0, y: 0 }); } }} onPointerDown={event => { suppressStageClick.current = false; pointerDownOnContent.current = event.target instanceof Element && Boolean(event.target.closest('.studio-lightbox-content')); if (zoom <= 1) return; if (typeof event.currentTarget.setPointerCapture === 'function') event.currentTarget.setPointerCapture(event.pointerId); drag.current = { id: event.pointerId, x: event.clientX, y: event.clientY, panX: pan.x, panY: pan.y }; }} onPointerMove={event => { const activeDrag = drag.current; if (activeDrag?.id === event.pointerId) { const dx = event.clientX - activeDrag.x; const dy = event.clientY - activeDrag.y; if (dx !== 0 || dy !== 0) suppressStageClick.current = true; setPan({ x: activeDrag.panX + dx, y: activeDrag.panY + dy }); } }} onPointerUp={() => { drag.current = null; }} onPointerCancel={() => { drag.current = null; suppressStageClick.current = false; pointerDownOnContent.current = false; }}><div className="studio-lightbox-content" style={{ transform: `translate(${pan.x}px,${pan.y}px) scale(${zoom})` }}>{children}</div><span className="studio-lightbox-hint">Scroll để zoom · kéo để di chuyển</span><span className="studio-lightbox-zoom">{Math.round(zoom * 100)}%</span></div></FocusLayer> : null;
+  return open ? <FocusLayer portalToBody captureEscape deferFocusRestore onClose={onClose} label={label} className={`studio-lightbox ${className}`.trim()}><Button tone="ghost" aria-label={closeLabel} onClick={onClose}>×</Button>{toolbar && <div className="studio-lightbox-toolbar">{toolbar}</div>}<div ref={stage} className={`studio-lightbox-stage${zoom > 1 ? ' is-zoomed' : ''}`} onClick={event => { const target = event.target; const clickedContent = pointerDownOnContent.current || (target instanceof Element && Boolean(target.closest('.studio-lightbox-content'))); pointerDownOnContent.current = false; if (suppressStageClick.current) { suppressStageClick.current = false; return; } if (clickZoom && clickedContent) { const next = zoom > 1 ? 1 : 2; setZoom(next); if (next === 1) setPan({ x: 0, y: 0 }); } }} onPointerDown={event => { suppressStageClick.current = false; pointerDownOnContent.current = event.target instanceof Element && Boolean(event.target.closest('.studio-lightbox-content')); if (zoom <= 1) return; if (typeof event.currentTarget.setPointerCapture === 'function') event.currentTarget.setPointerCapture(event.pointerId); drag.current = { id: event.pointerId, x: event.clientX, y: event.clientY, panX: pan.x, panY: pan.y }; }} onPointerMove={event => { const activeDrag = drag.current; if (activeDrag && activeDrag.id === event.pointerId) { const dx = event.clientX - activeDrag.x; const dy = event.clientY - activeDrag.y; if (dx !== 0 || dy !== 0) suppressStageClick.current = true; setPan({ x: activeDrag.panX + dx, y: activeDrag.panY + dy }); } }} onPointerUp={() => { drag.current = null; }} onPointerCancel={() => { drag.current = null; suppressStageClick.current = false; pointerDownOnContent.current = false; }}><div className="studio-lightbox-content" style={{ transform: `translate(${pan.x}px,${pan.y}px) scale(${zoom})` }}>{children}</div><span className={`studio-lightbox-hint${hintVisible ? '' : ' is-hidden'}`}>Scroll để zoom · kéo để di chuyển</span><span className="studio-lightbox-zoom">{Math.round(zoom * 100)}%</span></div></FocusLayer> : null;
 }
