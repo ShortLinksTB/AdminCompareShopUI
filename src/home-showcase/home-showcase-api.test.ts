@@ -4,23 +4,17 @@ import { getHomeShowcase, getHomeShowcaseFallbacks, issueHomeShowcasePreviewToke
 const selection: ShowcaseSelection = { featured: Array(15).fill(null), interestedComputers: Array(15).fill(null) };
 
 describe('home showcase API contract', () => {
-  it('loads the same public catalog fallback lists used by the storefront', async () => {
+  it('loads published fallback lists from the public showcase endpoint without requiring a Computers category lookup', async () => {
     const product = { id: 9, slug: 'fallback-product', name: 'Fallback product', imageUrl: '/image.png', brand: 'Brand', category: { id: 3, slug: 'computers', name: 'Computers' } };
-    const fetchMock = vi.fn()
-      .mockResolvedValueOnce(Response.json({ items: [{ id: 3, slug: 'computers', name: 'Computers' }] }))
-      .mockResolvedValueOnce(Response.json({ items: [product] }))
-      .mockResolvedValueOnce(Response.json({ items: [product] }));
+    const fetchMock = vi.fn().mockResolvedValueOnce(Response.json({ featured: [product], interestedComputers: [product] }));
     vi.stubGlobal('fetch', fetchMock);
 
     await expect(getHomeShowcaseFallbacks()).resolves.toEqual({
       featured: [{ id: 9, slug: 'fallback-product', name: 'Fallback product', imageUrl: '/image.png', brand: 'Brand', categoryName: 'Computers', categorySlug: 'computers', isVisible: true }],
       interestedComputers: [{ id: 9, slug: 'fallback-product', name: 'Fallback product', imageUrl: '/image.png', brand: 'Brand', categoryName: 'Computers', categorySlug: 'computers', isVisible: true }],
     });
-    expect(fetchMock.mock.calls.map(([url]) => url)).toEqual([
-      'https://api-compareshop-dev.giamha.online/api/v1/categories',
-      'https://api-compareshop-dev.giamha.online/api/v1/products?page=1&pageSize=15',
-      'https://api-compareshop-dev.giamha.online/api/v1/products?categoryId=3&page=1&pageSize=15',
-    ]);
+    expect(fetchMock).toHaveBeenCalledOnce();
+    expect(fetchMock).toHaveBeenCalledWith('https://api-compareshop-dev.giamha.online/api/v1/home/showcase', { signal: undefined });
     vi.unstubAllGlobals();
   });
 

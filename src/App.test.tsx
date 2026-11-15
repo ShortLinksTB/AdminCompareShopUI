@@ -217,7 +217,7 @@ describe('mobile application navigation', () => {
     auth.permissions = ['home_showcase.read'];
     vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL) => {
       const url = String(input);
-      if (url.endsWith('/categories')) return Response.json({ items: [{ id: 7, slug: 'computers', name: 'Computers' }] });
+      if (url.endsWith('/home/showcase')) return Response.json({ featured: [], interestedComputers: [] });
       return Response.json({ items: [] });
     }));
     const emptySlots = Array.from({ length: 15 }, (_, index) => ({ slotIndex: index + 1, product: null }));
