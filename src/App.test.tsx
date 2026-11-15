@@ -401,21 +401,11 @@ describe('dashboard API integration', () => {
     items: [{ id: 7, slug: 'catalog-phone', name: 'Catalog Phone', brand: null, description: null, seoTitle: null, seoDescription: null, categoryId: 3, isActive: true }],
     pageNumber: 1, pageSize: 20, totalItems,
   });
-  const offer = (id: number, isActive: boolean, isOutlier: boolean) => ({
-    id, productId: 7, partnerShopId: 12, priceVnd: 320000, url: null, isActive, isOutlier, updatedAtUtc: '2026-11-03T08:00:00Z',
-    productName: 'Catalog Phone', productImageUrl: null, partnerShopName: 'Shop 12', externalSku: null, imageUrl: null,
-    originalPriceVnd: null, stockStatus: 'in_stock' as const, lowestPriceVnd: 320000, deltaVnd: 0, deltaPercent: 0, outlierReason: null,
-  });
-  const offersPage = (items: ReturnType<typeof offer>[], totalItems = items.length) => Response.json({
-    items, pageNumber: 1, pageSize: 100, totalItems,
-    counts: { all: totalItems, outlier: items.filter(item => item.isOutlier).length, stale: 0, outOfStock: 0, inactive: items.filter(item => !item.isActive).length },
-  });
-
-  it('uses the dedicated API sources and renders only contract-backed product and offer values', async () => {
+  it('renders the four KPIs and never requests data for the removed Dashboard blocks', async () => {
     auth.permissions = ['products.read', 'offers.read'];
     auth.requestAdmin.mockImplementation(async path => path.startsWith('/admin/products')
       ? productPage(5)
-      : offersPage([offer(101, true, true), offer(102, false, false), offer(103, true, true)]));
+      : Response.json({ items: [], pageNumber: 1, pageSize: 1, totalItems: 3, counts: { all: 3, outlier: 1, stale: 0, outOfStock: 0, inactive: 1 } }));
 
     renderApp('/');
 
@@ -425,68 +415,14 @@ describe('dashboard API integration', () => {
     expect(within(productsCard).getByText('5')).toBeInTheDocument();
     expect(within(offersCard).getByText('2')).toBeInTheDocument();
     expect(within(offersCard).getByText('of 3 offers')).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: 'Offers flagged as outlier' })).toBeInTheDocument();
-    expect(screen.getByText('101')).toBeInTheDocument();
-    expect(screen.getByText('103')).toBeInTheDocument();
-    expect(screen.queryByText('Laptop Zenbook Pro')).not.toBeInTheDocument();
+    expect(screen.getAllByRole('article')).toHaveLength(4);
+    expect(screen.queryByRole('heading', { name: 'Traffic & affiliate clicks' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Data health' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Offers flagged as outlier' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Matching queue' })).not.toBeInTheDocument();
     expect(auth.requestAdmin).toHaveBeenCalledWith('/admin/products?page=1&pageSize=20', expect.objectContaining({ signal: expect.any(AbortSignal) }));
-    expect(auth.requestAdmin).toHaveBeenCalledWith('/admin/offers?page=1&pageSize=100&sort=attention&staleHours=72', expect.objectContaining({ signal: expect.any(AbortSignal) }));
-  });
-
-  it('keeps each dataset loading until its own request resolves', async () => {
-    auth.permissions = ['products.read', 'offers.read'];
-    let resolveProducts!: (response: Response) => void;
-    let resolveOffers!: (response: Response) => void;
-    auth.requestAdmin.mockImplementation(path => new Promise(resolve => {
-      if (path.startsWith('/admin/products')) resolveProducts = resolve;
-      else resolveOffers = resolve;
-    }));
-
-    renderApp('/');
-
-    expect(screen.getAllByText('Loading…')).toHaveLength(2);
-    expect(screen.getByText('Loading offers…')).toBeInTheDocument();
-    resolveProducts(productPage(4));
-    expect(await screen.findByText('All catalog products')).toBeInTheDocument();
-    expect(within(screen.getByText('Products total').closest('article')!).getByText('4')).toBeInTheDocument();
-    expect(screen.getByText('Loading offers…')).toBeInTheDocument();
-    resolveOffers(offersPage([offer(201, true, false)]));
-    expect(await screen.findByText('of 1 offers')).toBeInTheDocument();
-  });
-
-  it('shows empty states and zero counts from successful empty API responses', async () => {
-    auth.permissions = ['products.read', 'offers.read'];
-    auth.requestAdmin.mockImplementation(path => path.startsWith('/admin/products')
-      ? Promise.resolve(Response.json({ items: [], pageNumber: 1, pageSize: 20, totalItems: 0 }))
-      : Promise.resolve(offersPage([])));
-
-    renderApp('/');
-
-    expect(await screen.findByText('No products found')).toBeInTheDocument();
-    expect(screen.getByText('No offers found')).toBeInTheDocument();
-    expect(within(screen.getByText('Products total').closest('article')!).getByText('0')).toBeInTheDocument();
-    expect(within(screen.getByText('Offers active').closest('article')!).getByText('0')).toBeInTheDocument();
-  });
-
-  it('keeps authorization and request failures out of successful mock states and supports independent retries', async () => {
-    auth.permissions = ['products.read', 'offers.read'];
-    auth.requestAdmin.mockImplementation(async path => {
-      const productRequest = path.startsWith('/admin/products');
-      const calls = auth.requestAdmin.mock.calls.filter(([calledPath]) => calledPath.startsWith('/admin/products') === productRequest).length;
-      if (calls === 1) return new Response('', { status: productRequest ? 403 : 500 });
-      return productRequest ? productPage(2) : offersPage([offer(301, true, false)]);
-    });
-
-    renderApp('/');
-
-    expect(await screen.findByText('You do not have permission to view products.')).toBeInTheDocument();
-    expect(screen.getByText(/Could not load offers/)).toBeInTheDocument();
-    expect(screen.queryByText('Laptop Zenbook Pro')).not.toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: 'Retry products' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Retry' }));
-    expect(await screen.findByText('of 1 offers')).toBeInTheDocument();
-    expect(await screen.findByText('All catalog products')).toBeInTheDocument();
-    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    expect(auth.requestAdmin).toHaveBeenCalledWith('/admin/offers?page=1&pageSize=1&sort=attention&staleHours=72', expect.objectContaining({ signal: expect.any(AbortSignal) }));
+    expect(auth.requestAdmin.mock.calls.some(([path]) => path.includes('pageSize=100'))).toBe(false);
   });
 
   it('shows denied states without requesting datasets when their read permissions are absent', async () => {
@@ -494,11 +430,10 @@ describe('dashboard API integration', () => {
     renderApp('/');
 
     expect(await screen.findByText('You do not have permission to view products.')).toBeInTheDocument();
-    expect(screen.getByText('You do not have permission to view offers.')).toBeInTheDocument();
     expect(auth.requestAdmin).not.toHaveBeenCalled();
   });
 
-  it('aborts both in-flight reads on unmount and ignores late responses', async () => {
+  it('aborts the remaining KPI reads on unmount and ignores late responses', async () => {
     auth.permissions = ['products.read', 'offers.read'];
     const signals: AbortSignal[] = [];
     const resolvers: Array<(response: Response) => void> = [];
@@ -512,7 +447,7 @@ describe('dashboard API integration', () => {
     view.unmount();
     expect(signals.every(signal => signal.aborted)).toBe(true);
     resolvers[0](productPage(8));
-    resolvers[1](Response.json([offer(401, true, true)]));
+    resolvers[1](Response.json({ items: [], pageNumber: 1, pageSize: 1, totalItems: 0, counts: { all: 0, outlier: 0, stale: 0, outOfStock: 0, inactive: 0 } }));
     await Promise.resolve();
   });
 });

@@ -10,8 +10,7 @@ vi.mock('../products/products-api', () => ({ getAdminProducts: vi.fn() }));
 vi.mock('../offers/offers-api', () => ({ getAdminOffers: vi.fn() }));
 
 const offerPage: AdminOfferPage = {
-  items: [{ id: 2048, productId: 2048, partnerShopId: 12, priceVnd: 18490000, url: null, isActive: true, isOutlier: true, updatedAtUtc: '2026-11-13T00:00:00Z', productName: 'Phone', productImageUrl: null, partnerShopName: 'Shop', externalSku: null, imageUrl: null, originalPriceVnd: null, stockStatus: 'in_stock', lowestPriceVnd: null, deltaVnd: null, deltaPercent: null, outlierReason: null, otherOffersAveragePriceVnd: null, outlierDeviationPercent: null }],
-  pageNumber: 1, pageSize: 100, totalItems: 2,
+  items: [], pageNumber: 1, pageSize: 1, totalItems: 2,
   counts: { all: 2, outlier: 1, stale: 0, outOfStock: 0, inactive: 0 },
 };
 
@@ -28,54 +27,53 @@ describe('Dashboard', () => {
     vi.mocked(getAdminOffers).mockResolvedValue(offerPage);
   });
 
-  it('renders the Studio dashboard content, preserves API query, and exposes chart data in a table', async () => {
+  it('renders only the approved header and four KPI cards and uses a minimal offers query', async () => {
     const requestAdmin = vi.fn();
     renderDashboard(['products.read', 'offers.read'], requestAdmin);
 
     expect(await screen.findByText('12,480')).toBeInTheDocument();
-    expect(screen.getByText('2048')).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: 'Traffic & affiliate clicks' })).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: 'Data health' })).toBeInTheDocument();
-    expect(screen.getByText('MacBook Air M5 13 16GB 512GB')).toBeInTheDocument();
-    fireEvent.click(screen.getByText('Bảng dữ liệu thay thế cho biểu đồ'));
-    expect(screen.getAllByRole('table')[0]).toHaveTextContent('6,840 lượt xem');
-    expect(screen.getByLabelText('Khoảng thời gian')).toHaveValue('30 ngày');
+    expect(await screen.findByText('of 2 offers')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Dashboard' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '+ Tạo sản phẩm' })).toBeInTheDocument();
+    expect(screen.getAllByRole('article')).toHaveLength(4);
+    expect(screen.getByText('Products total')).toBeInTheDocument();
+    expect(screen.getByText('Offers active')).toBeInTheDocument();
+    expect(screen.getByText('Partner shops')).toBeInTheDocument();
+    expect(screen.getByText('Sync success rate')).toBeInTheDocument();
+    for (const obsolete of ['Traffic & affiliate clicks', 'Data health', 'Offers flagged as outlier', 'Matching queue', 'No flagged offers']) {
+      expect(screen.queryByText(obsolete)).not.toBeInTheDocument();
+    }
     expect(getAdminProducts).toHaveBeenCalledWith(requestAdmin, 1, 20, expect.any(AbortSignal));
-    expect(getAdminOffers).toHaveBeenCalledWith(requestAdmin, { page: 1, pageSize: 100, q: '', shopId: null, filter: 'all', sort: 'attention' }, expect.any(AbortSignal));
+    expect(getAdminOffers).toHaveBeenCalledWith(requestAdmin, { page: 1, pageSize: 1, q: '', shopId: null, filter: 'all', sort: 'attention' }, expect.any(AbortSignal));
   });
 
-  it('keeps loading and retryable error states visible without presenting errors as zero', async () => {
-    let rejectOffers!: (error: Error) => void;
-    vi.mocked(getAdminOffers).mockImplementationOnce(() => new Promise((_, reject) => { rejectOffers = reject; }));
-    vi.mocked(getAdminOffers).mockResolvedValueOnce({ ...offerPage, totalItems: 0, items: [] });
+  it('keeps KPI loading and empty states', async () => {
+    vi.mocked(getAdminProducts).mockResolvedValueOnce({ items: [], pageNumber: 1, pageSize: 20, totalItems: 0 });
+    vi.mocked(getAdminOffers).mockResolvedValueOnce({ ...offerPage, totalItems: 0, counts: { ...offerPage.counts, all: 0 } });
     renderDashboard();
 
-    expect(screen.getByText('Loading offers…')).toBeInTheDocument();
-    rejectOffers(new Error('Could not load offers. Please try again.'));
-    expect(await screen.findByRole('alert')).toHaveTextContent('Could not load offers. Please try again.');
-    expect(screen.getAllByText('—').length).toBeGreaterThan(0);
-    fireEvent.click(screen.getByRole('button', { name: 'Retry' }));
-    expect(await screen.findByText('No offers found')).toBeInTheDocument();
+    expect(screen.getByRole('status')).toHaveTextContent('Loading dashboard metrics');
+    expect(await screen.findByText('No products found')).toBeInTheDocument();
+    expect(await screen.findByText('of 0 offers')).toBeInTheDocument();
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
   });
 
-  it('keeps the outlier panel heading and empty state inside the same panel in reading order', async () => {
-    vi.mocked(getAdminOffers).mockResolvedValueOnce({ ...offerPage, items: [] });
+  it('keeps KPI errors visible and retries failed reads', async () => {
+    vi.mocked(getAdminProducts).mockRejectedValueOnce(new Error('Could not load products. Please try again.'));
+    vi.mocked(getAdminProducts).mockResolvedValueOnce({ items: [], pageNumber: 1, pageSize: 20, totalItems: 3 });
     renderDashboard();
 
-    const emptyState = (await screen.findByText('No flagged offers')).closest('.dashboard-offers-state');
-    const panel = emptyState?.closest('.dashboard-lower-panel');
-
-    expect(panel?.firstElementChild).toHaveClass('dashboard-panel-heading');
-    expect(panel?.querySelector('a[href="/offers"]')).toHaveTextContent('Xem tất cả →');
-    expect(panel?.lastElementChild).toBe(emptyState);
+    expect(await screen.findByRole('alert')).toHaveTextContent('Could not load products. Please try again.');
+    fireEvent.click(screen.getByRole('button', { name: 'Retry products' }));
+    expect(await screen.findByText('All catalog products')).toBeInTheDocument();
+    await waitFor(() => expect(getAdminProducts).toHaveBeenCalledTimes(2));
   });
 
-  it('does not call APIs for missing permissions and retains matching dashboard content', async () => {
+  it('does not call APIs when their KPI permissions are missing', async () => {
     renderDashboard([]);
-    expect(await screen.findByText('You do not have permission to view products.')).toBeInTheDocument();
-    await waitFor(() => expect(screen.getByText('You do not have permission to view offers.')).toBeInTheDocument());
+    expect(await screen.findByRole('alert')).toHaveTextContent('You do not have permission to view products.');
     expect(getAdminProducts).not.toHaveBeenCalled();
     expect(getAdminOffers).not.toHaveBeenCalled();
-    expect(screen.getByRole('heading', { name: 'Matching queue' })).toBeInTheDocument();
+    expect(screen.getAllByRole('article')).toHaveLength(4);
   });
 });
