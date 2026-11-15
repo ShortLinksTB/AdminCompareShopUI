@@ -51,7 +51,7 @@ describe('Partner Shops page', () => {
     expect(screen.getByRole('switch', { name: 'Hiển thị CellphoneS ở trang chủ' })).not.toBeChecked();
     expect(screen.getByText(/Active xác định shop còn hoạt động/)).toBeInTheDocument();
     expect(screen.queryByText(/Sync|Products|Offers/)).not.toBeInTheDocument();
-    expect(api.getPartnerShops).toHaveBeenCalledWith(requestAdmin, 1, 20);
+    expect(api.getPartnerShops).toHaveBeenCalledWith(requestAdmin, 1, 100);
   });
 
   it('saves visibility immediately and reports success', async () => {
@@ -88,6 +88,36 @@ describe('Partner Shops page', () => {
     await user.click(screen.getByRole('button', { name: /Đang ẩn/ }));
     expect(screen.getByText('CellphoneS')).toBeInTheDocument();
     expect(screen.getByText('Inactive shop')).toBeInTheDocument();
+  });
+
+  it('calculates visibility counts and filtered pagination from every API page', async () => {
+    const shops = Array.from({ length: 125 }, (_, index): PartnerShop => ({
+      ...shop,
+      id: index + 1,
+      name: `Shop ${index + 1}`,
+      slug: `shop-${index + 1}`,
+      showOnHome: index === 120,
+    }));
+    api.getPartnerShops
+      .mockResolvedValueOnce(page(shops.slice(0, 100), 1, shops.length, 100))
+      .mockResolvedValueOnce(page(shops.slice(100), 2, shops.length, 100));
+    const user = userEvent.setup();
+    renderShops();
+
+    expect(await screen.findByText('Showing 1–20 of 125 shops')).toBeInTheDocument();
+    expect(screen.getByText('Page 1 of 7')).toBeInTheDocument();
+    expect(api.getPartnerShops).toHaveBeenNthCalledWith(1, requestAdmin, 1, 100);
+    await waitFor(() => expect(api.getPartnerShops).toHaveBeenNthCalledWith(2, requestAdmin, 2, 100));
+
+    await user.click(screen.getByRole('button', { name: /Đang hiển thị/ }));
+    expect(screen.getByRole('button', { name: /Tất cả/ })).toHaveTextContent('125');
+    expect(screen.getByRole('button', { name: /Đang hiển thị/ })).toHaveTextContent('1');
+    expect(screen.getByRole('button', { name: /Đang ẩn/ })).toHaveTextContent('124');
+    expect(screen.getAllByText('Shop 121')).toHaveLength(2);
+    expect(screen.getByText('Showing 1–1 of 1 shops')).toBeInTheDocument();
+    expect(screen.getByText('Page 1 of 1')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Previous page' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Next page' })).toBeDisabled();
   });
 
   it('saves visibility and display order through the edit modal', async () => {
@@ -136,14 +166,17 @@ describe('Partner Shops page', () => {
 
   it('uses 1-based pagination and allows supported page sizes', async () => {
     const user = userEvent.setup();
-    api.getPartnerShops.mockResolvedValueOnce(page([shop], 1, 21)).mockResolvedValueOnce(page([shop], 2, 21));
+    const shops = Array.from({ length: 21 }, (_, index): PartnerShop => ({ ...shop, id: index + 1, name: `Shop ${index + 1}` }));
+    api.getPartnerShops.mockResolvedValueOnce(page(shops, 1, 21, 100));
     renderShops();
     expect(await screen.findByText('Page 1 of 2')).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Next page' }));
-    await waitFor(() => expect(api.getPartnerShops).toHaveBeenLastCalledWith(requestAdmin, 2, 20));
+    expect(await screen.findByText('Showing 21–21 of 21 shops')).toBeInTheDocument();
     expect(screen.getByText('Page 2 of 2')).toBeInTheDocument();
     await user.selectOptions(screen.getByRole('combobox', { name: 'Rows per page' }), '50');
-    await waitFor(() => expect(api.getPartnerShops).toHaveBeenLastCalledWith(requestAdmin, 1, 50));
+    expect(screen.getByText('Showing 1–21 of 21 shops')).toBeInTheDocument();
+    expect(screen.getByText('Page 1 of 1')).toBeInTheDocument();
+    expect(api.getPartnerShops).toHaveBeenCalledTimes(1);
   });
 
   it('shows only actions permitted by the permission snapshot', async () => {

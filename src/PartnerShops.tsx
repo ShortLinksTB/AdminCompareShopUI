@@ -5,6 +5,7 @@ import { Button, Card, DataTable, EmptyState, Field, FilterChips, Modal, PageHea
 import './partnerShops.css';
 
 const PAGE_SIZE_OPTIONS = [10, 20, 50, 100];
+const API_PAGE_SIZE = 100;
 const emptyPage: Page<PartnerShop> = { items: [], pageNumber: 1, pageSize: 20, totalItems: 0 };
 type VisibilityFilter = 'all' | 'shown' | 'hidden';
 
@@ -27,10 +28,18 @@ export function PartnerShops({ requestAdmin, permissions }: { requestAdmin: Admi
     setLoading(true);
     setError(null);
     try {
-      const data = await getPartnerShops(requestAdmin, requestedPage, requestedSize);
-      setResult(data);
-      setPage(data.pageNumber);
-      setPageSize(data.pageSize);
+      const firstPage = await getPartnerShops(requestAdmin, 1, API_PAGE_SIZE);
+      const pageCount = Math.ceil(firstPage.totalItems / firstPage.pageSize);
+      const remainingPages = await Promise.all(Array.from(
+        { length: Math.max(0, pageCount - 1) },
+        (_, index) => getPartnerShops(requestAdmin, index + 2, API_PAGE_SIZE),
+      ));
+      const items = [firstPage, ...remainingPages].flatMap(data => data.items);
+      const totalItems = firstPage.totalItems;
+      const requestedPageCount = Math.max(1, Math.ceil(totalItems / requestedSize));
+      setResult({ ...firstPage, items, totalItems });
+      setPage(Math.min(requestedPage, requestedPageCount));
+      setPageSize(requestedSize);
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : 'Could not load partner shops. Please try again.');
     } finally {
@@ -41,10 +50,16 @@ export function PartnerShops({ requestAdmin, permissions }: { requestAdmin: Admi
   useEffect(() => { void load(1, 20); }, [requestAdmin]);
 
   const can = (permission: string) => permissions.includes(permission);
-  const totalPages = Math.max(1, Math.ceil(result.totalItems / pageSize));
   const shownCount = result.items.filter(shop => shop.showOnHome).length;
   const hiddenCount = result.items.length - shownCount;
   const filteredShops = result.items.filter(shop => filter === 'all' || (filter === 'shown' ? shop.showOnHome : !shop.showOnHome));
+  const totalPages = Math.max(1, Math.ceil(filteredShops.length / pageSize));
+  const currentPage = Math.min(page, totalPages);
+  const displayedShops = filteredShops.slice((currentPage - 1) * pageSize, currentPage * pageSize);
+  const rangeStart = filteredShops.length === 0 ? 0 : (currentPage - 1) * pageSize + 1;
+  const rangeEnd = Math.min(currentPage * pageSize, filteredShops.length);
+
+  useEffect(() => { if (page > totalPages) setPage(totalPages); }, [page, totalPages]);
   const previewShops = useMemo(() => result.items.filter(shop => shop.isActive && shop.showOnHome)
     .sort((a, b) => (a.homeDisplayOrder ?? Number.MAX_SAFE_INTEGER) - (b.homeDisplayOrder ?? Number.MAX_SAFE_INTEGER) || a.id - b.id), [result.items]);
 
@@ -115,7 +130,7 @@ export function PartnerShops({ requestAdmin, permissions }: { requestAdmin: Admi
     <PageHeader eyebrow="AFFILIATE & DATA" title="Partner Shops" description="Active xác định shop còn hoạt động. Hiển thị ở trang chủ là cài đặt riêng cho mục Đối tác." actions={can('shops.create') && <Button tone="primary" onClick={() => { setShowOnHomeDraft(false); setIsActiveDraft(true); setEditing(null); }}>+ Add shop</Button>} />
     {error && <div className="partner-shop-alert" role="alert"><span>{error}</span><Button size="sm" onClick={() => void load()}>Retry</Button></div>}
     {toast && <div className="partner-shop-toast" role="status"><span>{toast}</span><Button size="sm" tone="ghost" aria-label="Đóng thông báo" onClick={() => setToast(null)}>×</Button></div>}
-    <FilterChips label="Lọc theo hiển thị trang chủ" value={filter} onChange={value => setFilter(value as VisibilityFilter)} items={[
+    <FilterChips label="Lọc theo hiển thị trang chủ" value={filter} onChange={value => { setFilter(value as VisibilityFilter); setPage(1); }} items={[
       { value: 'all', label: 'Tất cả', count: result.items.length },
       { value: 'shown', label: 'Đang hiển thị', count: shownCount },
       { value: 'hidden', label: 'Đang ẩn', count: hiddenCount },
@@ -126,7 +141,7 @@ export function PartnerShops({ requestAdmin, permissions }: { requestAdmin: Admi
         <thead><tr><th>Shop</th><th>Website</th><th>Hoạt động</th><th><span>Hiển thị ở trang chủ</span><small>Khác với trạng thái hoạt động</small></th><th>Thứ tự</th><th aria-label="Actions" /></tr></thead>
         <tbody>
           {loading && <tr><td colSpan={6}><div className="partner-shop-table-loading" role="status" aria-label="Loading partner shops">Đang tải danh sách shop…</div></td></tr>}
-          {!loading && filteredShops.map(shop => <tr key={shop.id}>
+          {!loading && displayedShops.map(shop => <tr key={shop.id}>
             <td className="partner-shop-name"><b>{shop.name}</b><small>{shop.slug} · #{shop.id}</small></td>
             <td>{shop.websiteUrl ? <a className="partner-shop-website" href={shop.websiteUrl} target="_blank" rel="noreferrer">{shop.websiteUrl}</a> : <span className="partner-shop-muted">—</span>}</td>
             <td><Pill tone={shop.isActive ? 'ok' : 'neutral'}>{shop.isActive ? 'Active' : 'Inactive'}</Pill></td>
@@ -138,8 +153,8 @@ export function PartnerShops({ requestAdmin, permissions }: { requestAdmin: Admi
           {!loading && filteredShops.length === 0 && <tr><td colSpan={6}><EmptyState title={error ? 'Không thể tải danh sách shop.' : filter === 'all' ? 'Chưa có partner shop.' : 'Không có shop trong bộ lọc này.'} /></td></tr>}
         </tbody>
       </DataTable>
-      <TableFooter start={result.totalItems === 0 ? 0 : (page - 1) * pageSize + 1} end={Math.min(page * pageSize, result.totalItems)} total={result.totalItems} startContent={<span>Showing {result.totalItems === 0 ? 0 : (page - 1) * pageSize + 1}–{Math.min(page * pageSize, result.totalItems)} of {result.totalItems} shops</span>} center={<label className="partner-shop-page-size">Rows per page <Select size="sm" aria-label="Rows per page" value={pageSize} disabled={loading} onChange={event => { const size = Number(event.target.value); setPage(1); setPageSize(size); void load(1, size); }}>{PAGE_SIZE_OPTIONS.map(size => <option key={size} value={size}>{size}</option>)}</Select></label>}>
-        <Pager page={page} pages={totalPages} previousLabel="Previous page" nextLabel="Next page" formatPage={(current, count) => `Page ${current} of ${count}`} disabled={loading} onChange={next => void load(next)} />
+      <TableFooter start={rangeStart} end={rangeEnd} total={filteredShops.length} startContent={<span>Showing {rangeStart}–{rangeEnd} of {filteredShops.length} shops</span>} center={<label className="partner-shop-page-size">Rows per page <Select size="sm" aria-label="Rows per page" value={pageSize} disabled={loading} onChange={event => { const size = Number(event.target.value); setPage(1); setPageSize(size); }}>{PAGE_SIZE_OPTIONS.map(size => <option key={size} value={size}>{size}</option>)}</Select></label>}>
+        <Pager page={currentPage} pages={totalPages} previousLabel="Previous page" nextLabel="Next page" formatPage={(current, count) => `Page ${current} of ${count}`} disabled={loading} onChange={setPage} />
       </TableFooter>
     </Card>
     <Card className="partner-shop-preview"><div><h2>Xem trước mục “Đối tác của chúng tôi” ở trang chủ</h2><p>Tối đa 12 shop đang hoạt động, theo thứ tự hiển thị.</p></div>
