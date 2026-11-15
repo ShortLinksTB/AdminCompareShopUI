@@ -26,6 +26,11 @@ function renderEditor(request = vi.fn<AdminRequest>().mockResolvedValue(Response
     disconnect() {}
   }
   vi.stubGlobal('ResizeObserver', FakeResizeObserver);
+  class FakePointerEvent extends MouseEvent {
+    pointerId: number;
+    constructor(type: string, init: PointerEventInit = {}) { super(type, init); this.pointerId = init.pointerId ?? 0; }
+  }
+  vi.stubGlobal('PointerEvent', FakePointerEvent);
   class FakeImage {
     constructor() { loadedImages.push(this); }
     crossOrigin?: string;
@@ -114,6 +119,7 @@ describe('DerivativeModal', () => {
     const { onCreated, onClose } = renderEditor(request);
     await waitFor(() => expect(drawImage).toHaveBeenCalled());
     const stage = screen.getByLabelText(/Cuộn để zoom tại con trỏ/);
+    fireEvent.click(screen.getByRole('button', { name: '100%' }));
     fireEvent.pointerDown(stage, { pointerId: 9, button: 0, clientX: 180, clientY: 150 });
     fireEvent.pointerMove(stage, { pointerId: 9, clientX: 220, clientY: 150 });
     fireEvent.pointerUp(stage, { pointerId: 9 });
@@ -122,7 +128,7 @@ describe('DerivativeModal', () => {
     await waitFor(() => expect(onCreated).toHaveBeenCalledOnce());
     const variant = JSON.parse(String(request.mock.calls[0][1]?.body)).variants[0];
     expect(variant.name).toBe('wide-banner');
-    expect(variant.focalX).not.toBe(0.5);
+    expect(variant.focalX).toBeCloseTo(0.5 - (40 * 500) / (600 * 800));
     expect(variant.focalY).toBe(0.5);
     expect(onClose).toHaveBeenCalledOnce();
   });
