@@ -101,6 +101,7 @@ describe('FilesPage thumbnail fallback', () => {
     fireEvent.click(trigger);
     expect(await screen.findByRole('dialog', { name: 'Image preview' })).toBeInTheDocument();
     fireEvent.mouseDown(document.querySelector('.studio-overlay')!);
+    queueMicrotask(() => (document.activeElement as HTMLElement | null)?.blur());
     expect(screen.queryByRole('dialog', { name: 'Image preview' })).not.toBeInTheDocument();
     await waitFor(() => expect(trigger).toHaveFocus());
   });
