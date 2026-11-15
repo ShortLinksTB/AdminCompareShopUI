@@ -23,7 +23,6 @@ export type HomeShowcaseResponse = {
 export type ShowcaseSelection = Record<ShowcaseSection, Array<number | null>>;
 export type ShowcaseFallbacks = Record<ShowcaseSection, ShowcaseProduct[]>;
 
-type PublicCategory = { id: number; slug: string; name: string };
 type PublicHomeProduct = {
   id: number;
   slug: string;
@@ -32,7 +31,7 @@ type PublicHomeProduct = {
   brand: string | null;
   category: { slug: string; name: string };
 };
-type PublicPage<T> = { items: T[] };
+type PublicHomeShowcase = { featured: PublicHomeProduct[]; interestedComputers: PublicHomeProduct[] };
 
 export class HomeShowcaseApiError extends Error {
   constructor(message: string, readonly status: number) {
@@ -59,18 +58,9 @@ export function getHomeShowcase(requestAdmin: AdminRequest, signal?: AbortSignal
 export async function getHomeShowcaseFallbacks(signal?: AbortSignal): Promise<ShowcaseFallbacks> {
   const apiBaseUrl = (import.meta.env.VITE_API_BASE_URL || 'https://api-compareshop-dev.giamha.online').replace(/\/$/, '');
   const apiRoot = `${apiBaseUrl}/api/v1`;
-  const get = async <T,>(path: string): Promise<T> => {
-    const response = await fetch(`${apiRoot}${path}`, { signal });
-    if (!response.ok) throw new Error(`Could not load homepage preview fallback (request failed with status ${response.status}).`);
-    return response.json() as Promise<T>;
-  };
-  const categories = await get<PublicPage<PublicCategory>>('/categories');
-  const computers = categories.items.find(category => category.slug.toLocaleLowerCase() === 'computers');
-  if (!computers) throw new Error('Could not find the Computers category for the homepage preview fallback.');
-  const [featured, interestedComputers] = await Promise.all([
-    get<PublicPage<PublicHomeProduct>>('/products?page=1&pageSize=15'),
-    get<PublicPage<PublicHomeProduct>>(`/products?categoryId=${computers.id}&page=1&pageSize=15`),
-  ]);
+  const response = await fetch(`${apiRoot}/home/showcase`, { signal });
+  if (!response.ok) throw new Error(`Could not load homepage preview fallback (request failed with status ${response.status}).`);
+  const showcase = await response.json() as PublicHomeShowcase;
   const mapProduct = (product: PublicHomeProduct): ShowcaseProduct => ({
     id: product.id,
     slug: product.slug,
@@ -82,8 +72,8 @@ export async function getHomeShowcaseFallbacks(signal?: AbortSignal): Promise<Sh
     isVisible: true,
   });
   return {
-    featured: featured.items.map(mapProduct),
-    interestedComputers: interestedComputers.items.map(mapProduct),
+    featured: showcase.featured.map(mapProduct),
+    interestedComputers: showcase.interestedComputers.map(mapProduct),
   };
 }
 
