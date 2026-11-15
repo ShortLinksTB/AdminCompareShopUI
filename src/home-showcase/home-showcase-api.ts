@@ -78,10 +78,9 @@ export async function getHomeShowcaseFallbacks(signal?: AbortSignal): Promise<Sh
 }
 
 export function saveHomeShowcaseDraft(requestAdmin: AdminRequest, selection: ShowcaseSelection) {
-  const slots = (section: ShowcaseSection) => selection[section].map((productId, index) => ({ slotIndex: index + 1, productId }));
   return mutate(requestAdmin, '/admin/home-showcase/draft', {
     method: 'PUT', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ featured: slots('featured'), interestedComputers: slots('interestedComputers') }),
+    body: JSON.stringify({ featured: selection.featured, interestedComputers: selection.interestedComputers }),
   });
 }
 
