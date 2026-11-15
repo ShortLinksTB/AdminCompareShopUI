@@ -98,4 +98,22 @@ describe('SyncJobsPage', () => {
     expect(screen.queryByRole('dialog', { name: /Log đồng bộ/ })).not.toBeInTheDocument();
     expect(screen.getByRole('row', { name: /QC-SL1815 Shop A/ })).toBeInTheDocument();
   });
+  it('clears a failed retry message when closing job A and opening job B', async () => {
+    const jobB: SyncJob = { ...job, id: '211', dataSource: 'QC-SL1815 Shop B' };
+    render(<SyncJobsPage requestAdmin={requestMock(true, [job, jobB], [403])} permissions={['sync_jobs.read', 'sync_jobs.execute']} />);
+    await screen.findByText('QC-SL1815 Shop A');
+
+    fireEvent.click(screen.getByLabelText('Thao tác job 210'));
+    fireEvent.click(screen.getByRole('button', { name: 'Xem log' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Retry job này' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent('You do not have permission to retry this job.');
+
+    fireEvent.click(screen.getAllByRole('button', { name: 'Đóng' }).at(-1)!);
+    fireEvent.click(screen.getByLabelText('Thao tác job 211'));
+    fireEvent.click(screen.getByRole('button', { name: 'Xem log' }));
+    expect(await screen.findByRole('dialog', { name: /QC-SL1815 Shop B/ })).toBeInTheDocument();
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    expect(screen.getByRole('row', { name: /QC-SL1815 Shop A/ })).toBeInTheDocument();
+    expect(screen.getByRole('row', { name: /QC-SL1815 Shop B/ })).toBeInTheDocument();
+  });
 });
