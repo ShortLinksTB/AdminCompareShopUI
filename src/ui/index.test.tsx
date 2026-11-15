@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type CSSProperties } from 'react';
 import { cleanup, createEvent, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import '@testing-library/jest-dom/vitest';
@@ -63,6 +63,40 @@ describe('Studio shared components', () => {
   it('opens row menu and renders empty, error, loading, page header and toast states', () => {
     render(<><RowMenu><button>Archive</button></RowMenu><EmptyState title="Empty" /><ErrorState title="Error" /><Loading /><PageHeader title="Products" eyebrow="CATALOG" description="Manage products" /><Toast>Saved</Toast></>);
     fireEvent.click(screen.getByLabelText('Thao tác')); expect(screen.getByText('Archive')).toBeVisible(); expect(screen.getByRole('alert')).toHaveTextContent('Error'); expect(screen.getByRole('status', { name: 'Đang tải' })).toBeInTheDocument(); expect(screen.getByText('Products')).toBeInTheDocument(); expect(screen.getByText('Saved')).toBeInTheDocument();
+  });
+  it('portals the row menu out of table overflow and flips it above the trigger near the viewport bottom', () => {
+    Object.defineProperty(window, 'innerHeight', { configurable: true, value: 768 });
+    Object.defineProperty(window, 'innerWidth', { configurable: true, value: 1366 });
+    const rect = (top: number, right: number, width: number, height: number) => ({ x: right - width, y: top, top, right, bottom: top + height, left: right - width, width, height, toJSON: () => ({}) });
+    const bounds = vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (this: HTMLElement) {
+      if (this.tagName === 'SUMMARY') return rect(700, 400, 34, 34) as DOMRect;
+      if (this.classList.contains('studio-row-menu-popover')) return rect(0, 0, 220, 180) as DOMRect;
+      return rect(0, 0, 0, 0) as DOMRect;
+    });
+    const { container } = render(<div className="studio-table-scroll"><table><tbody><tr><td><RowMenu><button>Details</button><button>Delete</button></RowMenu></td></tr></tbody></table></div>);
+    const opener = screen.getByLabelText('Thao tác');
+    fireEvent.click(opener);
+    const menu = screen.getByRole('menu');
+    expect(menu.parentElement).toBe(document.body);
+    expect(container.querySelector('.studio-table-scroll')?.contains(menu)).toBe(false);
+    expect(menu).toHaveStyle({ position: 'fixed', top: '516px', left: '180px' });
+    expect(menu).not.toHaveStyle({ overflowY: 'auto' });
+    bounds.mockRestore();
+  });
+  it.each([['light', '#ffffff'], ['dark', '#101b26']] as const)('carries the %s Studio theme into the body portal', (theme, surface) => {
+    const { container } = render(<div className="studio-shell" data-theme={theme} style={{ '--studio-surface': surface } as CSSProperties}><RowMenu><button>Action</button></RowMenu></div>);
+    fireEvent.click(screen.getByLabelText('Thao tác'));
+    expect(screen.getByRole('menu')).toHaveStyle({ '--studio-surface': surface, maxWidth: 'calc(100vw - 16px)' });
+    container.remove();
+  });
+  it('supports arrow-key navigation and closes on outside pointer while preserving controlled state', () => {
+    const onOpenChange = vi.fn();
+    render(<><RowMenu open onOpenChange={onOpenChange}><button>First</button><button>Second</button></RowMenu><button>Outside</button></>);
+    const first = screen.getByRole('button', { name: 'First' });
+    const second = screen.getByRole('button', { name: 'Second' });
+    first.focus(); fireEvent.keyDown(first, { key: 'ArrowDown' }); expect(second).toHaveFocus();
+    fireEvent.pointerDown(screen.getByRole('button', { name: 'Outside' }));
+    expect(onOpenChange).toHaveBeenCalledWith(false);
   });
   it('dismisses a row menu on Escape and returns focus to its opener', () => {
     render(<RowMenu><button>Archive</button></RowMenu>);

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ButtonHTMLAttributes, type CSSProperties, type HTMLAttributes, type InputHTMLAttributes, type ReactNode, type SelectHTMLAttributes } from 'react';
+import { useEffect, useId, useLayoutEffect, useRef, useState, type ButtonHTMLAttributes, type CSSProperties, type HTMLAttributes, type InputHTMLAttributes, type ReactNode, type SelectHTMLAttributes } from 'react';
 import { createPortal } from 'react-dom';
 import './studio-ui.css';
 
@@ -17,7 +17,82 @@ export function Checkbox({ checked, indeterminate = false, onChange, ...props }:
 }
 export function TableFooter({ start, end, total, center, summary, startContent, children }: { start: number; end: number; total: number; center?: ReactNode; summary?: ReactNode; startContent?: ReactNode; children?: ReactNode }) { return <footer className="studio-table-footer"><span>{startContent ?? summary ?? <>Hiển thị <b>{start}–{end}</b> trong <b>{total}</b></>}</span><span className="studio-footer-range">{center}</span><div>{children}</div></footer>; }
 export function Pager({ page, pages, onChange, previousLabel = 'Trang trước', nextLabel = 'Trang sau', formatPage = (current, count) => `${current} / ${count}`, disabled = false }: { page: number; pages: number; onChange: (page: number) => void; previousLabel?: string; nextLabel?: string; formatPage?: (page: number, pages: number) => string; disabled?: boolean }) { return <div className="studio-pager"><Button size="sm" aria-label={previousLabel} disabled={disabled || page <= 1} onClick={() => onChange(page - 1)}>←</Button><span>{formatPage(page, pages)}</span><Button size="sm" aria-label={nextLabel} disabled={disabled || page >= pages} onClick={() => onChange(page + 1)}>→</Button></div>; }
-export function RowMenu({ children, open, onOpenChange, label = 'Thao tác' }: { children: ReactNode; open?: boolean; onOpenChange?: (open: boolean) => void; label?: string }) { return <details className="studio-row-menu" open={open} onKeyDown={event => { if (event.key !== 'Escape' || !event.currentTarget.open) return; event.preventDefault(); event.stopPropagation(); if (open === undefined) event.currentTarget.open = false; onOpenChange?.(false); event.currentTarget.querySelector('summary')?.focus(); }}><summary aria-label={label} onClick={open === undefined ? undefined : event => { event.preventDefault(); onOpenChange?.(!open); }}>⋮</summary><div>{open === false ? null : children}</div></details>; }
+export function RowMenu({ children, open, onOpenChange, label = 'Thao tác' }: { children: ReactNode; open?: boolean; onOpenChange?: (open: boolean) => void; label?: string }) {
+  const [uncontrolledOpen, setUncontrolledOpen] = useState(false);
+  const isOpen = open ?? uncontrolledOpen;
+  const trigger = useRef<HTMLElement>(null);
+  const menu = useRef<HTMLDivElement>(null);
+  const id = useId();
+  const [position, setPosition] = useState<CSSProperties>({ position: 'fixed', top: 0, left: 0, visibility: 'hidden' });
+  const updateOpen = (nextOpen: boolean) => {
+    if (open === undefined) setUncontrolledOpen(nextOpen);
+    onOpenChange?.(nextOpen);
+  };
+  const positionMenu = () => {
+    const anchor = trigger.current;
+    const popover = menu.current;
+    if (!anchor?.isConnected || !popover) return;
+    const anchorRect = anchor.getBoundingClientRect();
+    const menuRect = popover.getBoundingClientRect();
+    const gap = 4;
+    const edge = 8;
+    const below = window.innerHeight - anchorRect.bottom - gap;
+    const above = anchorRect.top - gap;
+    const flip = menuRect.height > below && above > below;
+    const top = flip ? anchorRect.top - menuRect.height - gap : anchorRect.bottom + gap;
+    const left = Math.min(Math.max(edge, anchorRect.right - menuRect.width), Math.max(edge, window.innerWidth - menuRect.width - edge));
+    setPosition({ position: 'fixed', top: Math.max(edge, Math.min(top, window.innerHeight - menuRect.height - edge)), left, visibility: 'visible' });
+  };
+  useLayoutEffect(() => {
+    if (!isOpen) return;
+    positionMenu();
+    const handleViewportChange = () => positionMenu();
+    window.addEventListener('resize', handleViewportChange);
+    window.addEventListener('scroll', handleViewportChange, true);
+    return () => {
+      window.removeEventListener('resize', handleViewportChange);
+      window.removeEventListener('scroll', handleViewportChange, true);
+    };
+  }, [isOpen]);
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleOutsidePointer = (event: PointerEvent) => {
+      const target = event.target;
+      if (target instanceof Node && (trigger.current?.contains(target) || menu.current?.contains(target))) return;
+      updateOpen(false);
+    };
+    document.addEventListener('pointerdown', handleOutsidePointer);
+    return () => document.removeEventListener('pointerdown', handleOutsidePointer);
+  }, [isOpen]);
+  const closeAndRestoreFocus = () => {
+    updateOpen(false);
+    trigger.current?.focus();
+  };
+  const focusMenuItem = (direction: 1 | -1, current?: EventTarget | null) => {
+    const items = [...(menu.current?.querySelectorAll<HTMLElement>('button:not([disabled]),a[href],[role="menuitem"]') ?? [])];
+    if (!items.length) return;
+    const index = items.indexOf(current as HTMLElement);
+    const nextIndex = index < 0 ? (direction > 0 ? 0 : items.length - 1) : (index + direction + items.length) % items.length;
+    items[nextIndex].focus();
+  };
+  const shell = trigger.current?.closest('.studio-shell');
+  const computedShell = shell ? getComputedStyle(shell) : null;
+  const themeStyle = computedShell ? Object.fromEntries(Array.from({ length: computedShell.length }, (_, index) => computedShell.item(index)).filter(property => property.startsWith('--')).map(property => [property, computedShell.getPropertyValue(property)])) as CSSProperties : undefined;
+  const wideMenu = trigger.current?.closest('.offers-actions') ? { minWidth: 245 } : undefined;
+  const popover = isOpen ? createPortal(<div id={`${id}-menu`} ref={menu} role="menu" className="studio-row-menu-popover" style={{ ...themeStyle, ...wideMenu, maxWidth: 'calc(100vw - 16px)', ...position }} onClick={event => {
+    if ((event.target as Element).closest('button:not([disabled]),a[href],[role="menuitem"]')) closeAndRestoreFocus();
+  }} onKeyDown={event => {
+    if (event.key === 'ArrowDown' || event.key === 'ArrowUp') { event.preventDefault(); focusMenuItem(event.key === 'ArrowDown' ? 1 : -1, event.target); }
+    else if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); closeAndRestoreFocus(); }
+  }}>{children}</div>, document.body) : null;
+  return <details className="studio-row-menu" open={isOpen} onKeyDown={event => {
+    if (event.key === 'Escape' && isOpen) { event.preventDefault(); event.stopPropagation(); closeAndRestoreFocus(); }
+    else if ((event.key === 'ArrowDown' || event.key === 'ArrowUp') && event.target === trigger.current) { event.preventDefault(); focusMenuItem(event.key === 'ArrowDown' ? 1 : -1); }
+  }}>
+    <summary ref={element => { trigger.current = element; }} aria-label={label} aria-haspopup="menu" aria-expanded={isOpen} aria-controls={`${id}-menu`} onClick={event => { event.preventDefault(); updateOpen(!isOpen); }}>⋮</summary>
+    {popover}
+  </details>;
+}
 export function SearchField({ label, ...props }: InputHTMLAttributes<HTMLInputElement> & { label: string }) { return <label className="studio-search-field"><span aria-hidden="true">⌕</span><input {...props} aria-label={props['aria-label'] ?? label} /></label>; }
 export function Select({ className = '', size = 'md', ...props }: Omit<SelectHTMLAttributes<HTMLSelectElement>, 'size'> & { size?: 'sm' | 'md' }) { return <select {...props} className={['studio-select', `studio-select-${size}`, className].filter(Boolean).join(' ')} />; }
 function FocusLayer({ children, onClose, label, className, role = 'dialog', portalToBody = false, captureEscape = false }: { children: ReactNode; onClose: () => void; label: string; className: string; role?: 'dialog' | 'alertdialog'; portalToBody?: boolean; captureEscape?: boolean }) {

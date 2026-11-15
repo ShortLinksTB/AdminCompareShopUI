@@ -43,7 +43,7 @@ export function CategoriesPage({ requestAdmin, permissions }: { requestAdmin: Ad
   useEffect(() => { void load(1, 100); }, [requestAdmin]);
   useEffect(() => {
     const closeMenu = (event: PointerEvent) => {
-      if (!(event.target instanceof Element) || !event.target.closest('.studio-row-menu')) setOpenMenu(null);
+      if (!(event.target instanceof Element) || !event.target.closest('.studio-row-menu, .studio-row-menu-popover')) setOpenMenu(null);
     };
     document.addEventListener('pointerdown', closeMenu);
     return () => document.removeEventListener('pointerdown', closeMenu);
