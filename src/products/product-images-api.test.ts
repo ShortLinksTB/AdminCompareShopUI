@@ -20,7 +20,9 @@ describe('product images API', () => {
     const request = vi.fn<AdminRequest>().mockResolvedValue(new Response(null, { status: 204 }));
     const images = [{ fileId: 'file-1', altText: 'Front', sortOrder: 0 }];
     await saveProductImages(request, '42', images);
-    expect(request).toHaveBeenCalledWith('/admin/products/42/images', expect.objectContaining({ method: 'PUT', body: JSON.stringify(images) }));
+    expect(request).toHaveBeenCalledWith('/admin/products/42/images?createDerivatives=true', expect.objectContaining({ method: 'PUT', body: JSON.stringify(images) }));
+    await saveProductImages(request, '42', images, false);
+    expect(request).toHaveBeenCalledWith('/admin/products/42/images?createDerivatives=false', expect.objectContaining({ method: 'PUT', body: JSON.stringify(images) }));
     request.mockResolvedValueOnce(new Response(null, { status: 403 }));
     await expect(saveProductImages(request, '42', images)).rejects.toThrow('không có quyền');
   });

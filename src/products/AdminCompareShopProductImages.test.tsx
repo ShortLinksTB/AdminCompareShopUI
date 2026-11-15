@@ -13,6 +13,7 @@ const files = { items: [
   { id: 'file-1', originalFileName: 'front.jpg', contentType: 'image/jpeg', sizeBytes: 100, width: 1200, height: 1200, uploadedBy: '', uploadedAtUtc: '' },
   { id: 'file-3', originalFileName: 'side.jpg', contentType: 'image/png', sizeBytes: 100, width: 1000, height: 1000, uploadedBy: '', uploadedAtUtc: '' },
   { id: 'file-4', originalFileName: 'top.jpg', contentType: 'image/png', sizeBytes: 100, width: 1000, height: 1000, uploadedBy: '', uploadedAtUtc: '' },
+  { id: 'file-svg', originalFileName: 'qc-sl2370-svg-03825.svg', contentType: 'image/svg+xml', sizeBytes: 100, uploadedBy: '', uploadedAtUtc: '' },
 ] };
 function setup(request: AdminRequest, permissions = ['products.read', 'products.update']) {
   return render(<MemoryRouter initialEntries={['/products/42/images']}><Routes><Route path="/products/:id/images" element={<AdminCompareShopProductImages requestAdmin={request} permissions={permissions} />} /></Routes></MemoryRouter>);
@@ -78,6 +79,26 @@ describe('AdminCompareShopProductImages', () => {
     expect(screen.getByText('Chưa lưu')).toBeInTheDocument();
     expect(request.mock.calls.some(([path, init]) => init?.method === 'DELETE' && path.includes('/files/'))).toBe(false);
     expect(within(screen.getByLabelText('Thư viện ảnh')).getAllByRole('listitem')).toHaveLength(3);
+  });
+
+  it('keeps the derivative option enabled and defaults on, filters SVG, and shows a deliberate preview fallback', async () => {
+    const request = vi.fn<AdminRequest>().mockImplementation(path => path.startsWith('/admin/products/42/images') ? Promise.resolve(Response.json({ images: [] })) : Promise.resolve(Response.json(files)));
+    setup(request);
+    await screen.findByText('Chưa có ảnh nào');
+    fireEvent.click(screen.getAllByRole('button', { name: '＋ Thêm ảnh' })[0]);
+    const derivativeOption = await screen.findByRole('checkbox', { name: /Tự tạo bản/ });
+    expect(derivativeOption).toBeEnabled();
+    expect(derivativeOption).toBeChecked();
+    expect(screen.queryByText('qc-sl2370-svg-03825.svg')).not.toBeInTheDocument();
+    expect(await screen.findByText('side.jpg')).toBeInTheDocument();
+    const preview = document.querySelector('.product-images-file-grid img');
+    if (preview) fireEvent.error(preview);
+    expect(await screen.findByLabelText('Không xem trước được')).toBeInTheDocument();
+    fireEvent.click(derivativeOption);
+    expect(screen.getByText(/Chỉ liên kết ảnh gốc/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Huỷ' }));
+    fireEvent.click(screen.getAllByRole('button', { name: '＋ Thêm ảnh' })[0]);
+    expect(await screen.findByRole('checkbox', { name: /Tự tạo bản/ })).toBeChecked();
   });
 
   it('shows a retryable load error and renders the empty gallery after a successful retry', async () => {
@@ -168,9 +189,9 @@ describe('AdminCompareShopProductImages', () => {
     await screen.findByRole('listitem', { name: /front.jpg/ });
     fireEvent.click(screen.getAllByRole('button', { name: '＋ Thêm ảnh' })[0]);
     fireEvent.click(screen.getByRole('button', { name: 'Tải ảnh mới' }));
-    expect(screen.getByRole('checkbox', { name: /Tự tạo bản/ })).toBeDisabled();
+    expect(screen.getByRole('checkbox', { name: /Tự tạo bản/ })).toBeEnabled();
     fireEvent.change(document.querySelector('input[type="file"]')!, { target: { files: [upload] } });
-    expect(await screen.findByText(/API sẽ tự tạo bản 600 × 600 và 1000 × 1000 khi lưu/)).toBeInTheDocument();
+    expect(await screen.findByText(/Đã thêm 1 ảnh/)).toBeInTheDocument();
     expect(request).toHaveBeenCalledWith('/admin/files', expect.objectContaining({ method: 'POST', body: expect.any(FormData) }));
     expect(request.mock.calls.some(([path]) => path.includes('/derivatives'))).toBe(false);
     expect(screen.getByRole('listitem', { name: /new.png/ })).toBeInTheDocument();

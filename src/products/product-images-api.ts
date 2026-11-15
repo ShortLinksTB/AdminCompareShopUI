@@ -40,8 +40,8 @@ export async function getProductImages(request: AdminRequest, productId: string,
   return response.json() as Promise<ProductImagesResponse>;
 }
 
-export async function saveProductImages(request: AdminRequest, productId: string, images: ProductImageInput[]): Promise<void> {
-  const response = await request(`/admin/products/${encodeURIComponent(productId)}/images`, {
+export async function saveProductImages(request: AdminRequest, productId: string, images: ProductImageInput[], createDerivatives = true): Promise<void> {
+  const response = await request(`/admin/products/${encodeURIComponent(productId)}/images?createDerivatives=${createDerivatives}`, {
     method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(images),
   });
   if (!response.ok) throw new Error(errorMessage(response, 'lưu thư viện ảnh'));

@@ -14,6 +14,8 @@ const available = (value?: string | null, id?: string | null) => Boolean(id || v
 const has600 = (image: ProductImage) => available(image.card600Status || image.derivative600Status, image.card600FileId) || Boolean(image.url600 && image.url600 !== sourceUrl(image));
 const has1000 = (image: ProductImage) => available(image.detail1000Status || image.derivative1000Status, image.detail1000FileId) || Boolean(image.url1000 && image.url1000 !== sourceUrl(image));
 const errorText = (reason: unknown) => reason instanceof Error ? reason.message : 'Đã xảy ra lỗi. Vui lòng thử lại.';
+const supportedImageType = (contentType: string) => ['image/jpeg', 'image/png', 'image/webp', 'image/gif'].includes(contentType.toLowerCase());
+const supportedImage = (file: AdminFile) => supportedImageType(file.contentType);
 
 export function AdminCompareShopProductImages({ requestAdmin, permissions = [] }: { requestAdmin: AdminRequest; permissions?: string[] }) {
   const { id = '' } = useParams();
@@ -33,6 +35,8 @@ export function AdminCompareShopProductImages({ requestAdmin, permissions = [] }
   const [filesError, setFilesError] = useState('');
   const [fileQuery, setFileQuery] = useState('');
   const [picked, setPicked] = useState<Set<string>>(new Set());
+  const [createDerivatives, setCreateDerivatives] = useState(true);
+  const [unpreviewableFiles, setUnpreviewableFiles] = useState<Set<string>>(new Set());
   const [uploadError, setUploadError] = useState('');
   const [busyDerivative, setBusyDerivative] = useState('');
   const [derivativeErrors, setDerivativeErrors] = useState<Record<string, string>>({});
@@ -77,13 +81,13 @@ export function AdminCompareShopProductImages({ requestAdmin, permissions = [] }
   async function save() {
     if (!canUpdate || saving) return;
     setSaving(true); setSaveError('');
-    try { await saveProductImages(requestAdmin, id, draft.map((image, index) => ({ ...toInput(image), sortOrder: index }))); await load(); setToast('Đã lưu thư viện ảnh.'); }
+    try { await saveProductImages(requestAdmin, id, draft.map((image, index) => ({ ...toInput(image), sortOrder: index })), createDerivatives); await load(); setToast('Đã lưu thư viện ảnh.'); }
     catch (reason) { setSaveError(errorText(reason)); }
     finally { setSaving(false); }
   }
   async function openPicker() {
-    setPickerOpen(true); setFilesLoading(true); setFilesError(''); setPicked(new Set());
-    try { const result = await getAdminFiles(requestAdmin, 1, 100, '', 'image'); setFiles(result.items.filter(file => file.contentType.startsWith('image/'))); }
+    setPickerOpen(true); setFilesLoading(true); setFilesError(''); setPicked(new Set()); setCreateDerivatives(true);
+    try { const result = await getAdminFiles(requestAdmin, 1, 100, '', 'image'); setFiles(result.items.filter(supportedImage)); setUnpreviewableFiles(new Set()); }
     catch (reason) { setFilesError(errorText(reason)); }
     finally { setFilesLoading(false); }
   }
@@ -96,8 +100,8 @@ export function AdminCompareShopProductImages({ requestAdmin, permissions = [] }
   }
   async function uploadSelected(filesToUpload: FileList | null) {
     if (!filesToUpload?.length) return;
-    const images = Array.from(filesToUpload).filter(file => file.type.startsWith('image/'));
-    setUploadError(images.length !== filesToUpload.length ? 'Chỉ hỗ trợ tải lên tệp ảnh.' : '');
+    const images = Array.from(filesToUpload).filter(file => supportedImageType(file.type));
+    setUploadError(images.length !== filesToUpload.length ? 'Chỉ hỗ trợ JPG, PNG, WebP và GIF.' : '');
     const outcomes = await uploadAdminFiles(requestAdmin, images, () => undefined);
     const uploaded: AdminFile[] = [];
     const failures: string[] = [];
@@ -158,9 +162,9 @@ export function AdminCompareShopProductImages({ requestAdmin, permissions = [] }
     {toast && <div role="status" className="product-images-toast">{toast}</div>}
     <Modal open={pickerOpen} onClose={() => setPickerOpen(false)} title="Thêm ảnh cho sản phẩm" actions={<><Button onClick={() => setPickerOpen(false)}>Huỷ</Button><Button tone="primary" disabled={!picked.size} onClick={() => addFiles(files.filter(file => picked.has(file.id)))}>Thêm {picked.size || ''} ảnh</Button></>}>
       <div className="product-images-picker"><div className="product-images-picker-tabs"><button type="button" className="is-active">Chọn từ Files</button><button type="button" onClick={() => fileInput.current?.click()}>Tải ảnh mới</button></div><p>Chọn nhiều ảnh từ Files hoặc tải ảnh mới lên; tệp mới sẽ được lưu vào Files trước khi gắn vào sản phẩm.</p><input aria-label="Tìm trong Files" value={fileQuery} onChange={event => setFileQuery(event.target.value)} placeholder="Tìm tên ảnh…" />
-        <label className="product-images-auto"><input type="checkbox" checked disabled readOnly />Tự tạo bản 600 × 600 và 1000 × 1000 <small>API tự tạo khi lưu · hiện chưa hỗ trợ tắt</small></label>
+        <label className="product-images-auto"><input type="checkbox" checked={createDerivatives} onChange={event => setCreateDerivatives(event.target.checked)} />Tự tạo bản 600 × 600 và 1000 × 1000 <small>{createDerivatives ? 'Tạo bản theo kích thước khi lưu thư viện ảnh.' : 'Chỉ liên kết ảnh gốc; bạn có thể tạo bản sau trong chi tiết ảnh.'}</small></label>
         <input ref={fileInput} type="file" accept="image/*" multiple hidden onChange={event => void uploadSelected(event.target.files)} />{uploadError && <p className="product-images-upload-error" role="alert">{uploadError}</p>}{filesError && <p className="product-images-upload-error" role="alert">{filesError}</p>}
-        {filesLoading ? <Loading label="Đang tải Files" /> : filesError ? <Button size="sm" onClick={() => void openPicker()}>Thử tải lại</Button> : filteredFiles.length ? <div className="product-images-file-grid">{filteredFiles.map(file => <button type="button" key={file.id} aria-pressed={picked.has(file.id)} onClick={() => setPicked(current => { const next = new Set(current); next.has(file.id) ? next.delete(file.id) : next.add(file.id); return next; })}><img src={publicFileUrl(file.id)} alt=""/><b>{file.originalFileName}</b><small>{file.width && file.height ? `${file.width} × ${file.height}` : file.contentType}</small><span>{picked.has(file.id) ? '✓ Đã chọn' : 'Chọn'}</span></button>)}</div> : <div className="product-images-empty">Không có ảnh phù hợp trong Files.</div>}
+        {filesLoading ? <Loading label="Đang tải Files" /> : filesError ? <Button size="sm" onClick={() => void openPicker()}>Thử tải lại</Button> : filteredFiles.length ? <div className="product-images-file-grid">{filteredFiles.map(file => <button type="button" key={file.id} aria-pressed={picked.has(file.id)} onClick={() => setPicked(current => { const next = new Set(current); next.has(file.id) ? next.delete(file.id) : next.add(file.id); return next; })}>{unpreviewableFiles.has(file.id) ? <span className="product-images-file-placeholder" aria-label="Không xem trước được">▧<small>Không xem trước</small></span> : <img src={publicFileUrl(file.id)} alt="" onError={() => setUnpreviewableFiles(current => new Set(current).add(file.id))} />}<b>{file.originalFileName}</b><small>{file.width && file.height ? `${file.width} × ${file.height}` : file.contentType}</small><span>{picked.has(file.id) ? '✓ Đã chọn' : 'Chọn'}</span></button>)}</div> : <div className="product-images-empty">Không có ảnh phù hợp trong Files.</div>}
       </div>
     </Modal>
   </main>;
