@@ -155,8 +155,16 @@ function DerivativePreview({ image, size, fit, background, focal, onFocalChange 
       return;
     }
     const crop = cropRect(image.naturalWidth, image.naturalHeight, size.width, size.height, currentDrag.startFocal);
-    const nextX = crop.width < image.naturalWidth ? currentDrag.startFocal.x - dx / (viewRef.current.scale * image.naturalWidth) : currentDrag.startFocal.x;
-    const nextY = crop.height < image.naturalHeight ? currentDrag.startFocal.y - dy / (viewRef.current.scale * image.naturalHeight) : currentDrag.startFocal.y;
+    // The preview canvas represents the requested output dimensions, while
+    // focal coordinates are normalized against the oriented source image.
+    // Convert the pointer movement through the crop-to-output scale before
+    // updating the source focal point.
+    const nextX = crop.width < image.naturalWidth
+      ? currentDrag.startFocal.x - (dx * crop.width) / (viewRef.current.scale * size.width * image.naturalWidth)
+      : currentDrag.startFocal.x;
+    const nextY = crop.height < image.naturalHeight
+      ? currentDrag.startFocal.y - (dy * crop.height) / (viewRef.current.scale * size.height * image.naturalHeight)
+      : currentDrag.startFocal.y;
     onFocalChange({ x: clamp(nextX, 0, 1), y: clamp(nextY, 0, 1) });
   }
   const transform = `translate(calc(-50% + ${view.x}px), calc(-50% + ${view.y}px)) scale(${view.scale})`;
