@@ -71,7 +71,7 @@ describe('DerivativeModal', () => {
     fireEvent.change(screen.getByRole('spinbutton', { name: 'Rộng' }), { target: { value: '1200' } });
     fireEvent.change(screen.getByRole('spinbutton', { name: 'Cao' }), { target: { value: '800' } });
     fireEvent.click(screen.getByRole('checkbox', { name: /1000 × 1000 px/ }));
-    fireEvent.click(screen.getByRole('button', { name: '1000x1000' }));
+    fireEvent.click(screen.getByRole('button', { name: '1000x1000 · Chi tiết sản phẩm' }));
 
     fireEvent.click(screen.getByRole('button', { name: 'Giữ nguyên ảnh + nền' }));
     fireEvent.click(screen.getByRole('button', { name: 'Nền trong suốt' }));
@@ -97,9 +97,9 @@ describe('DerivativeModal', () => {
       .mockResolvedValueOnce(Response.json({ results: [{ success: false, errorCode: 'invalid_dimensions' }] }));
     renderEditor(request);
     fireEvent.click(screen.getByRole('button', { name: 'Tạo 1 bản sao' }));
-    expect(await screen.findByText('600x600: network unavailable')).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: 'Thử lại' }));
-    expect(await screen.findByText('600x600: Kích thước phải từ 16 đến 4000 px.')).toBeInTheDocument();
+    expect(await screen.findByText('Trang chủ · 600x600: network unavailable')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Thử lại Trang chủ' }));
+    expect(await screen.findByText('Trang chủ · 600x600: Kích thước phải từ 16 đến 4000 px.')).toBeInTheDocument();
     expect(request).toHaveBeenCalledTimes(2);
   });
 
@@ -109,7 +109,7 @@ describe('DerivativeModal', () => {
     expect(screen.getByRole('button', { name: '✥ Vùng cắt' })).toBeDisabled();
     fireEvent.click(screen.getByRole('checkbox', { name: /1000 × 1000 px/ }));
     await waitFor(() => expect(resizeCallbacks.length).toBeGreaterThan(0));
-    fireEvent.click(screen.getByRole('button', { name: '1000x1000' }));
+    fireEvent.click(screen.getByRole('button', { name: '1000x1000 · Chi tiết sản phẩm' }));
     const stage = screen.getByLabelText(/Cuộn để zoom tại con trỏ/);
     badge = document.querySelector('.derivative-zoom-badge')!;
     fireEvent.click(screen.getByRole('button', { name: '100%' }));
@@ -131,10 +131,48 @@ describe('DerivativeModal', () => {
 
     expect(Number.parseInt(badge.textContent || '0', 10)).toBeGreaterThan(100);
     const observersBeforeSwitch = resizeCallbacks.length;
-    fireEvent.click(screen.getByRole('button', { name: '600x600' }));
+    fireEvent.click(screen.getByRole('button', { name: '600x600 · Trang chủ' }));
     badge = document.querySelector('.derivative-zoom-badge')!;
     await waitFor(() => expect(resizeCallbacks.length).toBeGreaterThan(observersBeforeSwitch));
     act(() => resizeCallbacks.at(-1)?.());
     await waitFor(() => expect(Number.parseInt(badge.textContent || '0', 10)).toBe(63));
+  });
+
+  it('keeps a preset and custom variant with identical dimensions independent through outcomes and retry', async () => {
+    const request = vi.fn<AdminRequest>()
+      .mockResolvedValueOnce(Response.json({ results: [
+        { success: true, file: { ...source, id: 'home-result', originalFileName: 'wide-banner-600x600.webp', publicUrl: 'https://files.test/home' } },
+        { success: false, errorCode: 'encode_failed' },
+      ] }))
+      .mockResolvedValueOnce(Response.json({ results: [
+        { success: true, file: { ...source, id: 'custom-result', originalFileName: 'wide-banner-600x600-2.webp', publicUrl: 'https://files.test/custom' } },
+      ] }));
+    renderEditor(request);
+    fireEvent.click(screen.getByRole('checkbox', { name: /Tuỳ chọn/ }));
+    fireEvent.change(screen.getByRole('spinbutton', { name: 'Rộng' }), { target: { value: '600' } });
+    fireEvent.change(screen.getByRole('spinbutton', { name: 'Cao' }), { target: { value: '600' } });
+
+    const homeTab = screen.getByRole('button', { name: '600x600 · Trang chủ' });
+    const customTab = screen.getByRole('button', { name: '600x600 · Tuỳ chọn' });
+    expect(homeTab).toBeInTheDocument();
+    expect(customTab).toBeInTheDocument();
+    expect(homeTab).not.toBe(customTab);
+    fireEvent.click(screen.getByRole('button', { name: 'Tạo 2 bản sao' }));
+
+    expect(await screen.findByText(/Tuỳ chọn · 600x600: Không thể tạo ảnh theo định dạng này\./)).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Mở file mới' })).toHaveAttribute('href', 'https://files.test/home');
+    expect(screen.getByRole('button', { name: 'Thử lại Tuỳ chọn' })).toBeInTheDocument();
+    expect(request).toHaveBeenCalledTimes(1);
+    expect(JSON.parse(String(request.mock.calls[0][1]?.body)).variants).toHaveLength(2);
+
+    fireEvent.click(customTab);
+    expect(customTab).toHaveAttribute('aria-pressed', 'true');
+    expect(homeTab).toHaveAttribute('aria-pressed', 'false');
+    expect(screen.getByText(/Tuỳ chọn · 600x600: Không thể tạo ảnh theo định dạng này\./)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Thử lại Tuỳ chọn' }));
+    await waitFor(() => expect(request).toHaveBeenCalledTimes(2));
+    expect(JSON.parse(String(request.mock.calls[1][1]?.body)).variants).toHaveLength(1);
+    expect(JSON.parse(String(request.mock.calls[1][1]?.body)).variants[0].name).toBe('wide-banner-600x600');
+    expect(await screen.findByRole('link', { name: 'Mở file mới' })).toHaveAttribute('href', 'https://files.test/custom');
   });
 });
