@@ -194,12 +194,12 @@ describe('mobile application navigation', () => {
 
   it('loads Sync Jobs only for admins with sync_jobs.read', async () => {
     auth.permissions = ['sync_jobs.read'];
-    auth.requestAdmin.mockResolvedValue(Response.json([]));
+    auth.requestAdmin.mockResolvedValue(Response.json({ items: [], page: 1, pageSize: 25, totalItems: 0 }));
     renderApp('/sync-jobs');
 
     expect(screen.getByRole('heading', { name: 'Sync Jobs' })).toBeInTheDocument();
-    expect(await screen.findByText('No Sync Jobs yet')).toBeInTheDocument();
-    expect(auth.requestAdmin).toHaveBeenCalledWith('/admin/sync-jobs', expect.objectContaining({ signal: expect.any(AbortSignal) }));
+    expect(await screen.findByText('Chưa có Sync Job')).toBeInTheDocument();
+    expect(auth.requestAdmin).toHaveBeenCalledWith('/admin/sync-jobs?page=1&pageSize=25', expect.objectContaining({ signal: expect.any(AbortSignal) }));
   });
 
   it('loads Categories on its real route only for admins with categories.read', async () => {
