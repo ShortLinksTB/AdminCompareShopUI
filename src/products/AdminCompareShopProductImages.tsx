@@ -1,15 +1,15 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { getAdminFile, getAdminFiles, publicFileUrl, uploadAdminFiles, type AdminFile } from '../files/files-api';
+import { getAdminFile, getAdminFiles, publicFileUrl, resolvePublicFileUrl, uploadAdminFiles, type AdminFile } from '../files/files-api';
 import { Button, Card, ErrorState, Loading, Modal, PageHeader, Pill } from '../ui';
 import type { AdminRequest } from './products-api';
 import { getProductImages, retryProductImageDerivatives, saveProductImages, type ProductImage, type ProductImageInput } from './product-images-api';
 import './product-images.css';
 
 type DraftImage = ProductImage & { key: string };
-const sourceUrl = (image: ProductImage) => image.sourceUrl || image.originalUrl || image.url || image.externalUrl || (image.fileId ? publicFileUrl(image.fileId) : '');
-const preview600 = (image: ProductImage) => image.url600 || image.card600Url || (image.card600FileId ? publicFileUrl(image.card600FileId) : '') || sourceUrl(image);
-const preview1000 = (image: ProductImage) => image.url1000 || image.detail1000Url || (image.detail1000FileId ? publicFileUrl(image.detail1000FileId) : '') || sourceUrl(image);
+const sourceUrl = (image: ProductImage) => { const url = image.sourceUrl || image.originalUrl || image.url || image.externalUrl; return url ? resolvePublicFileUrl(url) : image.fileId ? publicFileUrl(image.fileId) : ''; };
+const preview600 = (image: ProductImage) => { const url = image.url600 || image.card600Url; return url ? resolvePublicFileUrl(url) : (image.card600FileId ? publicFileUrl(image.card600FileId) : '') || sourceUrl(image); };
+const preview1000 = (image: ProductImage) => { const url = image.url1000 || image.detail1000Url; return url ? resolvePublicFileUrl(url) : (image.detail1000FileId ? publicFileUrl(image.detail1000FileId) : '') || sourceUrl(image); };
 const available = (value?: string | null, id?: string | null) => Boolean(id || value?.toLowerCase() === 'ready');
 const has600 = (image: ProductImage) => available(image.card600Status || image.derivative600Status, image.card600FileId) || Boolean(image.url600 && image.url600 !== sourceUrl(image));
 const has1000 = (image: ProductImage) => available(image.detail1000Status || image.derivative1000Status, image.detail1000FileId) || Boolean(image.url1000 && image.url1000 !== sourceUrl(image));
@@ -77,7 +77,7 @@ export function AdminCompareShopProductImages({ requestAdmin, permissions = [] }
   async function save() {
     if (!canUpdate || saving) return;
     setSaving(true); setSaveError('');
-    try { await saveProductImages(requestAdmin, id, draft.map((image, index) => ({ ...toInput(image), sortOrder: index }))); await load(); setToast('Đã lưu thư viện ảnh.'); }
+    try { await saveProductImages(requestAdmin, id, draft.map((image, index) => ({ ...toInput(image), sortOrder: index }))); setSaved(draft); setToast('Đã lưu thư viện ảnh.'); }
     catch (reason) { setSaveError(errorText(reason)); }
     finally { setSaving(false); }
   }
@@ -143,7 +143,7 @@ export function AdminCompareShopProductImages({ requestAdmin, permissions = [] }
               <Card className="product-images-details"><div className="product-images-section-heading"><div><h2>Chi tiết ảnh</h2><p>{selected ? `Ảnh ${selectedIndex + 1}${selectedIndex === 0 ? ' · Ảnh chính' : ''}` : 'Chọn một ảnh trong thư viện'}</p></div></div>
                 {!selected ? <div className="product-images-empty">Chọn ảnh để xem chi tiết.</div> : <div className="product-image-detail">
                   <div className="product-image-detail-preview">{sourceUrl(selected) ? <img src={sourceUrl(selected)} alt={selected.altText || selected.originalFileName || ''} /> : <span>Ảnh không khả dụng</span>}</div>
-                  <div className="product-image-file-info"><b>{selected.originalFileName || 'Ảnh sản phẩm'}</b><span>{selected.width && selected.height ? `${selected.width} × ${selected.height} px` : 'Kích thước gốc chưa có'}</span>{selected.sourceAvailable === false && <Pill tone="bad">Ảnh gốc không khả dụng</Pill>}</div>
+                  <div className="product-image-file-info"><b>{selected.originalFileName || 'Ảnh sản phẩm'}</b><span>{selected.width && selected.height ? `${selected.width} × ${selected.height} px` : selected.sourceAvailable ? 'Ảnh gốc khả dụng · chưa có thông tin kích thước' : 'Kích thước gốc chưa có'}</span>{selected.sourceAvailable === false && <Pill tone="bad">Ảnh gốc không khả dụng</Pill>}</div>
                   <label className="product-image-alt">Mô tả ảnh (alt)<textarea value={selected.altText ?? ''} disabled={!canUpdate} placeholder="Ví dụ: Mặt trước sản phẩm" onChange={event => updateSelected({ altText: event.target.value })} /><small>Dùng cho SEO và người dùng đọc màn hình.</small></label>
                   <section className="product-image-derivatives" aria-label="Bản theo kích thước"><h3>Bản theo kích thước</h3>{(['600', '1000'] as const).map(size => { const is600 = size === '600'; const present = is600 ? has600(selected) : has1000(selected); const status = is600 ? selected.card600Status || selected.derivative600Status : selected.detail1000Status || selected.derivative1000Status; const unavailable = status === 'unavailable'; const derivativeError = derivativeErrors[`${selected.key}:${size}`] || derivativeErrors[size]; return <div className="product-image-derivative" key={size}><span><b>{size} × {size} · {is600 ? 'Trang chủ, danh sách' : 'Trang chi tiết'}</b><small>{present ? 'Đã có bản riêng' : derivativeError || (unavailable ? 'Chưa khả dụng · website đang dùng ảnh gốc' : status === 'failed' ? 'Tạo bản thất bại · có thể thử lại' : 'Chưa có bản · website dùng ảnh gốc')}</small></span>{present ? <Pill tone="ok">Có ✓</Pill> : <Button size="sm" disabled={!canUpdate || !selected.id || Boolean(busyDerivative)} onClick={() => void createMissingDerivatives()}>{busyDerivative ? 'Đang tạo…' : derivativeError || status === 'failed' || unavailable ? 'Thử lại' : 'Tạo'}</Button>}</div>; })}{derivativeErrors.request && <p className="product-images-upload-error" role="alert">{derivativeErrors.request}</p>}</section>
                   {selected.width && selected.height && (selected.width < 1000 || selected.height < 1000) && <p className="product-image-warning" role="status">Ảnh gốc {selected.width} × {selected.height} px nhỏ hơn 1000 × 1000; bản chi tiết có thể bị mờ.</p>}
