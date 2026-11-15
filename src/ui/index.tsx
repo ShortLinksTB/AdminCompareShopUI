@@ -31,6 +31,15 @@ export function RowMenu({ children, open, onOpenChange, label = 'Thao tác' }: {
     if (!isOpen || !triggerElement || !menuElement) return;
     const placeMenu = () => {
       const triggerRect = triggerElement.getBoundingClientRect();
+      const minWidth = triggerElement.closest('.offers-actions') ? 245 : 150;
+      const shell = triggerElement.closest<HTMLElement>('.studio-shell');
+      const computed = shell ? getComputedStyle(shell) : null;
+      const theme = computed ? Object.fromEntries(Array.from({ length: computed.length }, (_, index) => computed.item(index)).filter(property => property.startsWith('--studio-')).map(property => [property, computed.getPropertyValue(property)])) : {};
+      // Apply the final theme and minimum width before measuring. Otherwise the
+      // first measurement can use the actions' intrinsic width, then the portal
+      // grows after positioning and crosses the viewport edge.
+      Object.entries(theme).forEach(([property, value]) => menuElement.style.setProperty(property, String(value)));
+      menuElement.style.minWidth = `${minWidth}px`;
       const menuRect = menuElement.getBoundingClientRect();
       const margin = 8;
       const gap = 4;
@@ -41,10 +50,7 @@ export function RowMenu({ children, open, onOpenChange, label = 'Thao tác' }: {
         ? Math.max(margin, triggerRect.top - menuRect.height - gap)
         : Math.min(window.innerHeight - menuRect.height - margin, triggerRect.bottom + gap);
       const left = Math.max(margin, Math.min(triggerRect.right - menuRect.width, window.innerWidth - menuRect.width - margin));
-      const shell = triggerElement.closest<HTMLElement>('.studio-shell');
-      const computed = shell ? getComputedStyle(shell) : null;
-      const theme = computed ? Object.fromEntries(Array.from({ length: computed.length }, (_, index) => computed.item(index)).filter(property => property.startsWith('--studio-')).map(property => [property, computed.getPropertyValue(property)])) : {};
-      setPosition({ ...theme, position: 'fixed', top, left, minWidth: triggerElement.closest('.offers-actions') ? 245 : 150, visibility: 'visible' } as CSSProperties);
+      setPosition({ ...theme, position: 'fixed', top, left, minWidth, visibility: 'visible' } as CSSProperties);
     };
     placeMenu();
     // The fixed popup cannot be clipped by table overflow. Close it on any scroll
