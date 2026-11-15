@@ -6,7 +6,7 @@ import userEvent from '@testing-library/user-event';
 import type { AdminRequest } from '../products/products-api';
 import { HomeShowcasePage } from './HomeShowcasePage';
 
-const api = vi.hoisted(() => ({ getHomeShowcase: vi.fn(), saveHomeShowcaseDraft: vi.fn(), resetHomeShowcaseDraft: vi.fn(), publishHomeShowcase: vi.fn(), issueHomeShowcasePreviewToken: vi.fn() }));
+const api = vi.hoisted(() => ({ getHomeShowcase: vi.fn(), getPublicHomeShowcase: vi.fn(), saveHomeShowcaseDraft: vi.fn(), resetHomeShowcaseDraft: vi.fn(), publishHomeShowcase: vi.fn(), issueHomeShowcasePreviewToken: vi.fn() }));
 const productsApi = vi.hoisted(() => ({ getAdminProducts: vi.fn(), getAdminCategories: vi.fn() }));
 vi.mock('./home-showcase-api', async () => ({ ...(await vi.importActual<typeof import('./home-showcase-api')>('./home-showcase-api')), ...api }));
 vi.mock('../products/products-api', async () => ({ ...(await vi.importActual<typeof import('../products/products-api')>('../products/products-api')), ...productsApi }));
@@ -38,6 +38,7 @@ describe('Home Showcase editor', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     api.getHomeShowcase.mockResolvedValue(response(apple, laptop));
+    api.getPublicHomeShowcase.mockResolvedValue({ featured: [apple, camera], interestedComputers: [laptop] });
     api.saveHomeShowcaseDraft.mockResolvedValue(undefined);
     api.resetHomeShowcaseDraft.mockResolvedValue(undefined);
     api.publishHomeShowcase.mockResolvedValue(undefined);
@@ -54,8 +55,32 @@ describe('Home Showcase editor', () => {
     expect(screen.getByRole('tab', { name: /Máy tính được quan tâm/ })).toHaveTextContent('1/15');
     expect(screen.getByRole('list', { name: 'Sản phẩm nổi bật: 15 ô' }).children).toHaveLength(15);
     expect(screen.getByText('🔥 Sản phẩm nổi bật')).toBeInTheDocument();
+    expect(screen.getByRole('region', { name: 'Xem trước trang chủ' }).querySelector('.showcase-site__section')).not.toHaveTextContent('Camera A');
     expect(screen.getByRole('button', { name: 'Điện thoại' })).toBeInTheDocument();
     expect(screen.getByText('Bản nháp trùng bản đang chạy')).toBeInTheDocument();
+  });
+
+  it('shows the public fallback products in both sections and the featured hero when the selected snapshot is empty', async () => {
+    const user = userEvent.setup();
+    api.getHomeShowcase.mockResolvedValue(response());
+    renderPage();
+    const preview = await screen.findByRole('region', { name: 'Xem trước trang chủ' });
+    await waitFor(() => expect(preview.querySelector('.showcase-site__hero-card')).toHaveTextContent('Phone A'));
+    expect(preview.querySelector('.showcase-site__hero-card')).toHaveTextContent('Camera A');
+    await user.click(within(preview).getByRole('button', { name: 'Đang chạy' }));
+    expect(within(preview).getAllByText('Phone A').length).toBeGreaterThan(0);
+    await user.click(screen.getByRole('tab', { name: /Máy tính được quan tâm/ }));
+    expect(within(preview).getByText('Laptop A')).toBeInTheDocument();
+    expect(api.getHomeShowcase).toHaveBeenCalledOnce();
+    expect(api.getPublicHomeShowcase).toHaveBeenCalledOnce();
+  });
+
+  it('reports a fallback request failure while keeping the editor available', async () => {
+    api.getPublicHomeShowcase.mockRejectedValueOnce(new Error('offline'));
+    renderPage();
+    expect(await screen.findByRole('heading', { name: 'Trang chủ' })).toBeInTheDocument();
+    expect(await screen.findByRole('alert')).toHaveTextContent('Không tải được sản phẩm fallback: offline');
+    expect(screen.getByRole('tab', { name: /Sản phẩm nổi bật/ })).toBeInTheDocument();
   });
 
   it('only offers Computers in the interested-computers picker and labels hidden products', async () => {

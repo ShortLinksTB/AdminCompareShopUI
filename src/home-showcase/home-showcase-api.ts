@@ -20,6 +20,10 @@ export type HomeShowcaseResponse = {
   draftChangedSlotCount?: number;
   changedSlots?: unknown[];
 };
+export type PublicHomeShowcaseResponse = {
+  featured: ShowcaseProduct[];
+  interestedComputers: ShowcaseProduct[];
+};
 export type ShowcaseSelection = Record<ShowcaseSection, Array<number | null>>;
 
 export class HomeShowcaseApiError extends Error {
@@ -42,6 +46,13 @@ async function mutate(requestAdmin: AdminRequest, path: string, init: RequestIni
 
 export function getHomeShowcase(requestAdmin: AdminRequest, signal?: AbortSignal) {
   return readJson<HomeShowcaseResponse>(requestAdmin, '/admin/home-showcase', { signal });
+}
+
+export async function getPublicHomeShowcase(signal?: AbortSignal): Promise<PublicHomeShowcaseResponse> {
+  const apiBaseUrl = (import.meta.env.VITE_API_BASE_URL || 'https://api-compareshop-dev.giamha.online').replace(/\/$/, '');
+  const response = await fetch(`${apiBaseUrl}/api/v1/home/showcase`, { signal, cache: 'no-store' });
+  if (!response.ok) throw new HomeShowcaseApiError(`Yêu cầu thất bại (mã ${response.status}).`, response.status);
+  return response.json() as Promise<PublicHomeShowcaseResponse>;
 }
 
 export function saveHomeShowcaseDraft(requestAdmin: AdminRequest, selection: ShowcaseSelection) {

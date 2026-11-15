@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { getAdminCategories, getAdminProducts, type AdminCategory, type AdminProduct, type AdminRequest } from '../products/products-api';
 import { Button, Loading } from '../ui';
-import { getHomeShowcase, issueHomeShowcasePreviewToken, publishHomeShowcase, resetHomeShowcaseDraft, saveHomeShowcaseDraft, type HomeShowcaseResponse, type ShowcaseProduct, type ShowcaseSection, type ShowcaseSelection } from './home-showcase-api';
+import { getHomeShowcase, getPublicHomeShowcase, issueHomeShowcasePreviewToken, publishHomeShowcase, resetHomeShowcaseDraft, saveHomeShowcaseDraft, type HomeShowcaseResponse, type ShowcaseProduct, type ShowcaseSection, type ShowcaseSelection } from './home-showcase-api';
 import './home-showcase.css';
 
 const SLOT_COUNT = 15;
@@ -10,17 +10,17 @@ const copySelection = (value: ShowcaseSelection): ShowcaseSelection => ({ featur
 const sectionLabel: Record<ShowcaseSection, string> = { featured: 'Sản phẩm nổi bật', interestedComputers: 'Máy tính được quan tâm' };
 const productVisible = (product: ShowcaseProduct) => product.isVisible;
 const errorMessage = (error: unknown) => error instanceof Error ? error.message : 'Đã có lỗi xảy ra. Vui lòng thử lại.';
+function normalizeProduct(product: ShowcaseProduct): ShowcaseProduct {
+  const source = product as ShowcaseProduct & { isActive?: boolean; visible?: boolean; isHidden?: boolean; category?: { name?: string; slug?: string } };
+  return { ...product,
+    categoryName: product.categoryName || source.category?.name || null,
+    categorySlug: product.categorySlug || source.category?.slug || null,
+    isVisible: product.isVisible ?? source.isActive ?? source.visible ?? (source.isHidden === undefined ? true : !source.isHidden),
+  };
+}
 
 function normalizeShowcase(response: HomeShowcaseResponse): { draft: ShowcaseSelection; published: ShowcaseSelection; products: ShowcaseProduct[] } {
   const products = new Map<number, ShowcaseProduct>();
-  const normalizeProduct = (product: ShowcaseProduct): ShowcaseProduct => {
-    const source = product as ShowcaseProduct & { isActive?: boolean; visible?: boolean; isHidden?: boolean; category?: { name?: string; slug?: string } };
-    return { ...product,
-      categoryName: product.categoryName || source.category?.name || null,
-      categorySlug: product.categorySlug || source.category?.slug || null,
-      isVisible: product.isVisible ?? source.isActive ?? source.visible ?? (source.isHidden === undefined ? true : !source.isHidden),
-    };
-  };
   const selectionFor = (snapshot: HomeShowcaseResponse['draft']) => {
     const selection = emptySelection();
     for (const section of ['featured', 'interestedComputers'] as const) {
@@ -59,6 +59,7 @@ export function HomeShowcasePage({ requestAdmin, permissions }: { requestAdmin: 
   const [savedDraft, setSavedDraft] = useState<ShowcaseSelection>(emptySelection);
   const [published, setPublished] = useState<ShowcaseSelection>(emptySelection);
   const [products, setProducts] = useState<ShowcaseProduct[]>([]);
+  const [fallbackProducts, setFallbackProducts] = useState<Record<ShowcaseSection, ShowcaseProduct[]>>({ featured: [], interestedComputers: [] });
   const [catalog, setCatalog] = useState<AdminProduct[]>([]);
   const [categories, setCategories] = useState<AdminCategory[]>([]);
   const [catalogPage, setCatalogPage] = useState(0);
@@ -83,6 +84,7 @@ export function HomeShowcasePage({ requestAdmin, permissions }: { requestAdmin: 
   const [fullScreen, setFullScreen] = useState(false);
   const [resetConfirm, setResetConfirm] = useState(false);
   const [dragIndex, setDragIndex] = useState<number | null>(null);
+  const [previewFallbackError, setPreviewFallbackError] = useState('');
   const pickerTrigger = useRef<HTMLElement | null>(null);
   const canRead = permissions.includes('home_showcase.read');
   const canUpdate = permissions.includes('home_showcase.update');
@@ -103,9 +105,22 @@ export function HomeShowcasePage({ requestAdmin, permissions }: { requestAdmin: 
   const load = useCallback(async (signal?: AbortSignal) => {
     setLoading(true);
     setError('');
+    setPreviewFallbackError('');
     try {
-      const response = await getHomeShowcase(requestAdmin, signal);
+      const [response, publicResponse] = await Promise.all([
+        getHomeShowcase(requestAdmin, signal),
+        getPublicHomeShowcase(signal).catch(reason => {
+          if (!signal?.aborted) setPreviewFallbackError(errorMessage(reason));
+          return null;
+        }),
+      ]);
       if (!signal?.aborted) applyResponse(response);
+      if (!signal?.aborted && publicResponse) {
+        const featured = publicResponse.featured.map(product => normalizeProduct(product));
+        const interestedComputers = publicResponse.interestedComputers.map(product => normalizeProduct(product));
+        setFallbackProducts({ featured, interestedComputers });
+        setProducts(current => [...new Map([...current, ...featured, ...interestedComputers].map(product => [product.id, product])).values()]);
+      }
     } catch (reason) {
       if (!signal?.aborted) setError(errorMessage(reason));
     } finally {
@@ -252,8 +267,10 @@ export function HomeShowcasePage({ requestAdmin, permissions }: { requestAdmin: 
       const product = id == null ? undefined : productById.get(id);
       return product && productVisible(product) ? [product] : [];
     });
-    const featured = visible('featured');
-    const computers = visible('interestedComputers');
+    const selectedFeatured = visible('featured');
+    const selectedComputers = visible('interestedComputers');
+    const featured = selectedFeatured.length ? selectedFeatured : fallbackProducts.featured.filter(productVisible);
+    const computers = selectedComputers.length ? selectedComputers : fallbackProducts.interestedComputers.filter(productVisible);
     return <div className={`showcase-site showcase-site--${size}`}>
       <div className="showcase-site__nav"><b>G</b><strong>GiaTot</strong>{size === 'desktop' && <span>Danh mục　·　Sản phẩm nổi bật　·　Blog</span>}</div>
       <div className="showcase-site__hero"><div><small>MUA THÔNG MINH HƠN</small><h3>So sánh giá thông minh,<br /><em>tiết kiệm hơn mỗi ngày.</em></h3><div className="showcase-site__search">Tìm sản phẩm, thương hiệu…</div></div>
@@ -313,7 +330,7 @@ export function HomeShowcasePage({ requestAdmin, permissions }: { requestAdmin: 
           <div className="home-showcase__toggle" role="group" aria-label="Kích thước xem trước">{(['desktop', 'mobile'] as const).map(value => <button key={value} aria-pressed={device === value} onClick={() => setDevice(value)}>{value === 'desktop' ? 'Máy tính' : 'Điện thoại'}</button>)}</div>
           <Button size="sm" onClick={() => { setFullDevice(device); setFullScreen(true); }}>⤢ Toàn màn hình</Button><Button size="sm" disabled={openingPreview} onClick={() => void openWebsitePreview()}>{openingPreview ? 'Đang mở…' : '↗ Mở tab mới'}</Button>
         </div></div>
-        <div className="home-showcase__preview-canvas">{renderSite(currentPreview, device)}</div>
+        <div className="home-showcase__preview-canvas">{previewFallbackError && <p className="home-showcase__alert" role="alert">Không tải được sản phẩm fallback: {previewFallbackError}</p>}{renderSite(currentPreview, device)}</div>
       </section>
     </div>
     <div className="home-showcase__notes"><b>Quy tắc hiển thị</b><span>Ô 1–3 của Sản phẩm nổi bật cũng xuất hiện trong hero. Sản phẩm đã ở ô khác trong cùng mục sẽ bị vô hiệu trong bộ chọn.</span><span>Sản phẩm ẩn vẫn có thể được chọn nhưng không hiển thị trên website. Khi mục không còn sản phẩm hợp lệ, website tự dùng dữ liệu fallback.</span><span>Lưu nháp không đổi trang chủ khách truy cập; chỉ Publish mới cập nhật bản đang chạy.</span></div>

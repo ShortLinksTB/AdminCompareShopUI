@@ -1,9 +1,11 @@
-import { describe, expect, it, vi } from 'vitest';
-import { getHomeShowcase, issueHomeShowcasePreviewToken, publishHomeShowcase, resetHomeShowcaseDraft, saveHomeShowcaseDraft, type ShowcaseSelection } from './home-showcase-api';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { getHomeShowcase, getPublicHomeShowcase, issueHomeShowcasePreviewToken, publishHomeShowcase, resetHomeShowcaseDraft, saveHomeShowcaseDraft, type ShowcaseSelection } from './home-showcase-api';
 
 const selection: ShowcaseSelection = { featured: Array(15).fill(null), interestedComputers: Array(15).fill(null) };
 
 describe('home showcase API contract', () => {
+  afterEach(() => vi.unstubAllGlobals());
+
   it('loads both draft and published snapshots with the abort signal', async () => {
     const signal = new AbortController().signal;
     const result = { draft: { featured: [], interestedComputers: [] }, published: { featured: [], interestedComputers: [] } };
@@ -11,6 +13,20 @@ describe('home showcase API contract', () => {
 
     await expect(getHomeShowcase(requestAdmin, signal)).resolves.toEqual(result);
     expect(requestAdmin).toHaveBeenCalledWith('/admin/home-showcase', { signal });
+  });
+
+  it('reads the storefront showcase endpoint without admin credentials and bypasses cache', async () => {
+    const result = { featured: [], interestedComputers: [] };
+    const fetchMock = vi.fn().mockResolvedValue(Response.json(result));
+    vi.stubGlobal('fetch', fetchMock);
+
+    await expect(getPublicHomeShowcase()).resolves.toEqual(result);
+    expect(fetchMock).toHaveBeenCalledWith('https://api-compareshop-dev.giamha.online/api/v1/home/showcase', { signal: undefined, cache: 'no-store' });
+  });
+
+  it('surfaces a failed storefront fallback response', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response('', { status: 503 })));
+    await expect(getPublicHomeShowcase()).rejects.toMatchObject({ status: 503 });
   });
 
   it('writes the complete 15-slot draft for both sections, including empty slots', async () => {
