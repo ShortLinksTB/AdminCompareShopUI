@@ -10,12 +10,13 @@ const rect = (width = 400, height = 320) => ({ x: 0, y: 0, left: 0, top: 0, righ
 let drawImage: ReturnType<typeof vi.fn>;
 let stageRect = rect();
 let resizeCallbacks: Array<() => void> = [];
+let loadedImages: Array<{ crossOrigin?: string }> = [];
 
 afterEach(() => { cleanup(); vi.restoreAllMocks(); vi.unstubAllGlobals(); Reflect.deleteProperty(HTMLElement.prototype, 'setPointerCapture'); });
 
-function renderEditor(request = vi.fn<AdminRequest>().mockResolvedValue(Response.json({ results: [{ success: true, file: { ...source, id: 'result', originalFileName: 'wide-banner-600x600.webp', warnings: ['GIF first frame'] } }] })), dimensions = { width: 800, height: 500 }) {
+function renderEditor(request = vi.fn<AdminRequest>().mockResolvedValue(Response.json({ results: [{ success: true, file: { ...source, id: 'result', originalFileName: 'wide-banner-600x600.webp', warnings: ['GIF first frame'] } }] })), dimensions = { width: 800, height: 500 }, existingFiles: AdminFile[] = []) {
   drawImage = vi.fn();
-  stageRect = rect(); resizeCallbacks = [];
+  stageRect = rect(); resizeCallbacks = []; loadedImages = [];
   vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue({ clearRect: vi.fn(), fillRect: vi.fn(), drawImage, imageSmoothingQuality: '' } as unknown as CanvasRenderingContext2D);
   vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (this: HTMLElement) { return this.classList?.contains('derivative-stage') ? stageRect : rect(0, 0); });
   Object.defineProperty(HTMLElement.prototype, 'setPointerCapture', { configurable: true, value: vi.fn() });
@@ -26,6 +27,8 @@ function renderEditor(request = vi.fn<AdminRequest>().mockResolvedValue(Response
   }
   vi.stubGlobal('ResizeObserver', FakeResizeObserver);
   class FakeImage {
+    constructor() { loadedImages.push(this); }
+    crossOrigin?: string;
     naturalWidth = dimensions.width;
     naturalHeight = dimensions.height;
     onload: (() => void) | null = null;
@@ -34,7 +37,7 @@ function renderEditor(request = vi.fn<AdminRequest>().mockResolvedValue(Response
   }
   vi.stubGlobal('Image', FakeImage);
   const onClose = vi.fn(), onCreated = vi.fn();
-  render(<DerivativeModal file={source} requestAdmin={request} existingFiles={[]} onClose={onClose} onCreated={onCreated} />);
+  render(<DerivativeModal file={source} requestAdmin={request} existingFiles={existingFiles} onClose={onClose} onCreated={onCreated} />);
   return { request, onClose, onCreated };
 }
 
@@ -47,6 +50,7 @@ describe('DerivativeModal', () => {
     const { onClose, onCreated } = renderEditor(request);
     const stage = screen.getByLabelText(/Cuộn để zoom tại con trỏ/);
     await waitFor(() => expect(drawImage).toHaveBeenCalled());
+    expect(loadedImages[0]?.crossOrigin).toBeUndefined();
     expect(screen.getByRole('status')).toHaveTextContent(/Ảnh gốc 800×500/);
     expect((document.querySelector('canvas') as HTMLCanvasElement).width).toBe(600);
 
@@ -172,7 +176,33 @@ describe('DerivativeModal', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Thử lại Tuỳ chọn' }));
     await waitFor(() => expect(request).toHaveBeenCalledTimes(2));
     expect(JSON.parse(String(request.mock.calls[1][1]?.body)).variants).toHaveLength(1);
-    expect(JSON.parse(String(request.mock.calls[1][1]?.body)).variants[0].name).toBe('wide-banner-600x600');
+    expect(JSON.parse(String(request.mock.calls[1][1]?.body)).variants[0].name).toBe('wide-banner-600x600-2');
     expect(await screen.findByRole('link', { name: 'Mở file mới' })).toHaveAttribute('href', 'https://files.test/custom');
+  });
+
+  it('previews cross-origin source images and announces distinct collision-safe names for duplicate dimensions', async () => {
+    const request = vi.fn<AdminRequest>().mockResolvedValue(Response.json({ results: [
+      { success: true, file: { ...source, id: 'home-result', originalFileName: 'wide-banner-600x600-2.webp' } },
+      { success: true, file: { ...source, id: 'custom-result', originalFileName: 'wide-banner-600x600-3.webp' } },
+    ] }));
+    const occupied: AdminFile = { ...source, id: 'existing', originalFileName: 'wide-banner-600x600.webp' };
+    renderEditor(request, { width: 1600, height: 900 }, [occupied]);
+    await waitFor(() => expect(drawImage).toHaveBeenCalled());
+    expect(loadedImages[0]?.crossOrigin).toBeUndefined();
+    expect(screen.queryByText(/Không tải được ảnh xem trước/)).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('checkbox', { name: /Tuỳ chọn/ }));
+    fireEvent.change(screen.getByRole('spinbutton', { name: 'Rộng' }), { target: { value: '600' } });
+    fireEvent.change(screen.getByRole('spinbutton', { name: 'Cao' }), { target: { value: '600' } });
+    expect(screen.getByText('wide-banner-600x600-2.webp')).toBeInTheDocument();
+    expect(screen.getByText('wide-banner-600x600-3.webp')).toBeInTheDocument();
+    expect(screen.getAllByRole('status').some(status => status.textContent?.includes('Tên wide-banner-600x600-2.webp bị trùng'))).toBe(true);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Tạo 2 bản sao' }));
+    await waitFor(() => expect(request).toHaveBeenCalledOnce());
+    const variants = JSON.parse(String(request.mock.calls[0][1]?.body)).variants;
+    expect(variants.map((variant: { name: string }) => variant.name)).toEqual([
+      'wide-banner-600x600-2', 'wide-banner-600x600-3',
+    ]);
   });
 });

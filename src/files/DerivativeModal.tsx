@@ -9,6 +9,7 @@ type Props = { file: AdminFile; requestAdmin: AdminRequest; existingFiles: Admin
 const MIN_ZOOM = 0.56;
 const MAX_ZOOM = 4;
 const basename = (name: string) => name.replace(/\.[^.]+$/, '');
+const normalizedName = (name: string) => name.normalize('NFC').toLowerCase();
 const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
 const presetLabel = (preset: Size['preset']) => preset === 'home-600x600' ? 'Trang chủ' : preset === 'product-detail-1000x1000' ? 'Chi tiết sản phẩm' : 'Tuỳ chọn';
 const extensionFor = (format: DerivativeVariantRequest['format'], mime: string) => format === 'keep' ? (mime === 'image/gif' ? 'png' : mime.split('/')[1]?.replace('jpeg', 'jpg') || 'png') : format;
@@ -191,25 +192,39 @@ export function DerivativeModal({ file, requestAdmin, existingFiles, onClose, on
   const [globalError, setGlobalError] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const sizes = useMemo(() => getSizes(home, detail, custom, width, height), [home, detail, custom, width, height]);
+  const outputExtension = extensionFor(format, file.contentType);
   const currentSize = sizes.find(size => size.id === active) ?? sizes[0];
   const keys = sizes.map(size => size.id);
   const activeFocal = focals[currentSize?.id ?? ''] ?? { x: 0.5, y: 0.5 };
-  const collisions = useMemo(() => new Set(existingFiles.map(item => basename(item.originalFileName).toLocaleLowerCase())), [existingFiles]);
-  const collisionByKey = (size: Size) => collisions.has(`${name.trim()}-${size.width}x${size.height}`.toLocaleLowerCase());
+  const plannedNames = useMemo(() => {
+    const occupied = new Set(existingFiles.map(item => normalizedName(item.originalFileName)));
+    return new Map(sizes.map(size => {
+      const base = `${name.trim()}-${size.width}x${size.height}`;
+      let candidate = `${base}.${outputExtension}`;
+      let suffix = 2;
+      while (occupied.has(normalizedName(candidate))) {
+        candidate = `${base}-${suffix}.${outputExtension}`;
+        suffix += 1;
+      }
+      occupied.add(normalizedName(candidate));
+      return [size.id, { name: candidate.slice(0, -(outputExtension.length + 1)), collided: candidate !== `${base}.${outputExtension}` }];
+    }));
+  }, [existingFiles, sizes, name, outputExtension]);
+  const plannedName = (size: Size) => plannedNames.get(size.id) ?? { name: `${name.trim()}-${size.width}x${size.height}`, collided: false };
   const warnings = currentSize && image ? [
     (image.naturalWidth < currentSize.width || image.naturalHeight < currentSize.height) ? `Ảnh gốc ${image.naturalWidth}×${image.naturalHeight} nhỏ hơn ${currentSize.width}×${currentSize.height}: phải phóng to nên ảnh có thể mờ.` : '',
     fit === 'cover' && (image.naturalWidth / image.naturalHeight > 1.8 || image.naturalWidth / image.naturalHeight < 0.55) ? 'Ảnh rất dài hoặc rất cao; cắt khung có thể làm mất nhiều nội dung.' : '',
-    ...sizes.filter(collisionByKey).map(size => `Tên ${name.trim()}-${size.width}x${size.height} đã tồn tại; máy chủ sẽ tự thêm hậu tố.`),
+    ...sizes.filter(size => plannedName(size).collided).map(size => `Tên ${plannedName(size).name}.${outputExtension} bị trùng; bản sao sẽ dùng hậu tố này.`),
   ].filter(Boolean) : [];
 
   useEffect(() => {
-    const source = new Image(); source.crossOrigin = 'anonymous'; source.onload = () => setImage(source); source.onerror = () => setImageError('Không tải được ảnh xem trước. Bạn vẫn có thể tạo bản sao từ máy chủ.'); source.src = publicFileUrl(file.id);
+    const source = new Image(); source.onload = () => setImage(source); source.onerror = () => setImageError('Không tải được ảnh xem trước. Bạn vẫn có thể tạo bản sao từ máy chủ.'); source.src = publicFileUrl(file.id);
   }, [file.id]);
   useEffect(() => { if (!keys.includes(active)) setActive(keys[0] ?? ''); }, [keys.join(','), active]);
   function setFocal(value: { x: number; y: number }) { if (currentSize) setFocals(current => ({ ...current, [currentSize.id]: value })); }
   function makeVariant(size: Size): DerivativeVariantRequest {
     const focal = focals[size.id] ?? { x: 0.5, y: 0.5 };
-    const variant: DerivativeVariantRequest = { width: size.width, height: size.height, fit, background, format, quality, name: `${name.trim()}-${size.width}x${size.height}` };
+    const variant: DerivativeVariantRequest = { width: size.width, height: size.height, fit, background, format, quality, name: plannedName(size).name };
     if (fit === 'cover') { variant.focalX = focal.x; variant.focalY = focal.y; }
     return variant;
   }
@@ -237,7 +252,6 @@ export function DerivativeModal({ file, requestAdmin, existingFiles, onClose, on
   async function retry(size: Size) { await create([size]); }
   const failedSizes = sizes.filter(size => results[size.id]?.status === 'error');
   const pendingCount = Object.values(results).filter(result => result.status === 'loading').length;
-  const outputExtension = extensionFor(format, file.contentType);
   const currentResult = currentSize ? results[currentSize.id] : undefined;
   const currentOutput = currentResult?.result?.file;
   const successWarnings = [...(currentResult?.result?.warnings ?? []), ...(currentOutput?.warnings ?? [])];
@@ -262,7 +276,7 @@ export function DerivativeModal({ file, requestAdmin, existingFiles, onClose, on
         <div className="derivative-fields"><label>Định dạng<Select aria-label="Định dạng" value={format} onChange={event => setFormat(event.target.value as DerivativeVariantRequest['format'])}><option value="keep">Giữ nguyên</option><option value="webp">WebP</option><option value="jpg">JPG</option><option value="png">PNG</option></Select></label><label>Chất lượng<Select aria-label="Chất lượng" value={quality} onChange={event => setQuality(Number(event.target.value) as 70 | 80 | 90)}><option value="90">90 (đề xuất)</option><option value="80">80</option><option value="70">70</option></Select></label></div>
         <Field label="Tên gốc" value={name} onChange={event => setName(event.target.value)} />
         <p className="derivative-help">Tên file mới: <code>tên-gốc-RộngxCao.{outputExtension}</code>. Có thể sửa tên gốc.</p>
-        <div className="derivative-name-list" aria-live="polite">{sizes.length ? sizes.map(size => { const key = `${size.width}x${size.height}`, state = results[size.id]; return <div key={size.id}><code>{name.trim()}-{key}.{outputExtension}</code><span>{presetLabel(size.preset)} · {state?.status === 'success' ? 'Đã tạo' : state?.status === 'loading' ? 'Đang xử lý…' : state?.status === 'error' ? 'Lỗi' : collisionByKey(size) ? 'Tên trùng, tự thêm hậu tố' : key}</span></div>; }) : <span>Chưa chọn kích thước hợp lệ.</span>}</div>
+        <div className="derivative-name-list" aria-live="polite">{sizes.length ? sizes.map(size => { const key = `${size.width}x${size.height}`, state = results[size.id], plan = plannedName(size); return <div key={size.id}><code>{plan.name}.{outputExtension}</code><span>{presetLabel(size.preset)} · {state?.status === 'success' ? 'Đã tạo' : state?.status === 'loading' ? 'Đang xử lý…' : state?.status === 'error' ? 'Lỗi' : plan.collided ? 'Tên trùng, đã thêm hậu tố' : key}</span></div>; }) : <span>Chưa chọn kích thước hợp lệ.</span>}</div>
         {warnings.map(warning => <div className="derivative-warning" key={warning} role="status">{warning}</div>)}
         {globalError && <ErrorState title={globalError} />}
         {failedSizes.map(size => { const key = `${size.width}x${size.height}`, result = results[size.id]; return <div className="derivative-result-error" key={size.id} role="alert"><span>{presetLabel(size.preset)} · {key}: {result.error}</span><Button size="sm" disabled={submitting} onClick={() => void retry(size)}>Thử lại {presetLabel(size.preset)}</Button></div>; })}
