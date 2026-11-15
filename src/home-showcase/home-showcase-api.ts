@@ -21,6 +21,18 @@ export type HomeShowcaseResponse = {
   changedSlots?: unknown[];
 };
 export type ShowcaseSelection = Record<ShowcaseSection, Array<number | null>>;
+export type ShowcaseFallbacks = Record<ShowcaseSection, ShowcaseProduct[]>;
+
+type PublicCategory = { id: number; slug: string; name: string };
+type PublicHomeProduct = {
+  id: number;
+  slug: string;
+  name: string;
+  imageUrl: string | null;
+  brand: string | null;
+  category: { slug: string; name: string };
+};
+type PublicPage<T> = { items: T[] };
 
 export class HomeShowcaseApiError extends Error {
   constructor(message: string, readonly status: number) {
@@ -42,6 +54,37 @@ async function mutate(requestAdmin: AdminRequest, path: string, init: RequestIni
 
 export function getHomeShowcase(requestAdmin: AdminRequest, signal?: AbortSignal) {
   return readJson<HomeShowcaseResponse>(requestAdmin, '/admin/home-showcase', { signal });
+}
+
+export async function getHomeShowcaseFallbacks(signal?: AbortSignal): Promise<ShowcaseFallbacks> {
+  const apiBaseUrl = (import.meta.env.VITE_API_BASE_URL || 'https://api-compareshop-dev.giamha.online').replace(/\/$/, '');
+  const apiRoot = `${apiBaseUrl}/api/v1`;
+  const get = async <T,>(path: string): Promise<T> => {
+    const response = await fetch(`${apiRoot}${path}`, { signal });
+    if (!response.ok) throw new Error(`Could not load homepage preview fallback (request failed with status ${response.status}).`);
+    return response.json() as Promise<T>;
+  };
+  const categories = await get<PublicPage<PublicCategory>>('/categories');
+  const computers = categories.items.find(category => category.slug.toLocaleLowerCase() === 'computers');
+  if (!computers) throw new Error('Could not find the Computers category for the homepage preview fallback.');
+  const [featured, interestedComputers] = await Promise.all([
+    get<PublicPage<PublicHomeProduct>>('/products?page=1&pageSize=15'),
+    get<PublicPage<PublicHomeProduct>>(`/products?categoryId=${computers.id}&page=1&pageSize=15`),
+  ]);
+  const mapProduct = (product: PublicHomeProduct): ShowcaseProduct => ({
+    id: product.id,
+    slug: product.slug,
+    name: product.name,
+    imageUrl: product.imageUrl,
+    brand: product.brand,
+    categoryName: product.category?.name ?? null,
+    categorySlug: product.category?.slug ?? null,
+    isVisible: true,
+  });
+  return {
+    featured: featured.items.map(mapProduct),
+    interestedComputers: interestedComputers.items.map(mapProduct),
+  };
 }
 
 export function saveHomeShowcaseDraft(requestAdmin: AdminRequest, selection: ShowcaseSelection) {

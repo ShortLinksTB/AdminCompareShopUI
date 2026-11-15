@@ -1,9 +1,29 @@
 import { describe, expect, it, vi } from 'vitest';
-import { getHomeShowcase, issueHomeShowcasePreviewToken, publishHomeShowcase, resetHomeShowcaseDraft, saveHomeShowcaseDraft, type ShowcaseSelection } from './home-showcase-api';
+import { getHomeShowcase, getHomeShowcaseFallbacks, issueHomeShowcasePreviewToken, publishHomeShowcase, resetHomeShowcaseDraft, saveHomeShowcaseDraft, type ShowcaseSelection } from './home-showcase-api';
 
 const selection: ShowcaseSelection = { featured: Array(15).fill(null), interestedComputers: Array(15).fill(null) };
 
 describe('home showcase API contract', () => {
+  it('loads the same public catalog fallback lists used by the storefront', async () => {
+    const product = { id: 9, slug: 'fallback-product', name: 'Fallback product', imageUrl: '/image.png', brand: 'Brand', category: { id: 3, slug: 'computers', name: 'Computers' } };
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(Response.json({ items: [{ id: 3, slug: 'computers', name: 'Computers' }] }))
+      .mockResolvedValueOnce(Response.json({ items: [product] }))
+      .mockResolvedValueOnce(Response.json({ items: [product] }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    await expect(getHomeShowcaseFallbacks()).resolves.toEqual({
+      featured: [{ id: 9, slug: 'fallback-product', name: 'Fallback product', imageUrl: '/image.png', brand: 'Brand', categoryName: 'Computers', categorySlug: 'computers', isVisible: true }],
+      interestedComputers: [{ id: 9, slug: 'fallback-product', name: 'Fallback product', imageUrl: '/image.png', brand: 'Brand', categoryName: 'Computers', categorySlug: 'computers', isVisible: true }],
+    });
+    expect(fetchMock.mock.calls.map(([url]) => url)).toEqual([
+      'https://api-compareshop-dev.giamha.online/api/v1/categories',
+      'https://api-compareshop-dev.giamha.online/api/v1/products?page=1&pageSize=15',
+      'https://api-compareshop-dev.giamha.online/api/v1/products?categoryId=3&page=1&pageSize=15',
+    ]);
+    vi.unstubAllGlobals();
+  });
+
   it('loads both draft and published snapshots with the abort signal', async () => {
     const signal = new AbortController().signal;
     const result = { draft: { featured: [], interestedComputers: [] }, published: { featured: [], interestedComputers: [] } };

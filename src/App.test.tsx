@@ -48,6 +48,7 @@ afterEach(() => {
   auth.status = 'authenticated';
   auth.permissionState = 'ready';
   auth.requestAdmin.mockReset();
+  vi.unstubAllGlobals();
   vi.clearAllMocks();
   window.history.replaceState({}, '', '/');
   window.localStorage.removeItem('admin-studio-theme');
@@ -214,6 +215,11 @@ describe('mobile application navigation', () => {
 
   it('loads Home Showcase at its real /home-showcase route behind its dedicated permission', async () => {
     auth.permissions = ['home_showcase.read'];
+    vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.endsWith('/categories')) return Response.json({ items: [{ id: 7, slug: 'computers', name: 'Computers' }] });
+      return Response.json({ items: [] });
+    }));
     const emptySlots = Array.from({ length: 15 }, (_, index) => ({ slotIndex: index + 1, product: null }));
     auth.requestAdmin.mockResolvedValue(Response.json({
       draft: { featured: emptySlots, interestedComputers: emptySlots },

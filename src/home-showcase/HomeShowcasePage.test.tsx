@@ -6,7 +6,7 @@ import userEvent from '@testing-library/user-event';
 import type { AdminRequest } from '../products/products-api';
 import { HomeShowcasePage } from './HomeShowcasePage';
 
-const api = vi.hoisted(() => ({ getHomeShowcase: vi.fn(), saveHomeShowcaseDraft: vi.fn(), resetHomeShowcaseDraft: vi.fn(), publishHomeShowcase: vi.fn(), issueHomeShowcasePreviewToken: vi.fn() }));
+const api = vi.hoisted(() => ({ getHomeShowcase: vi.fn(), getHomeShowcaseFallbacks: vi.fn(), saveHomeShowcaseDraft: vi.fn(), resetHomeShowcaseDraft: vi.fn(), publishHomeShowcase: vi.fn(), issueHomeShowcasePreviewToken: vi.fn() }));
 const productsApi = vi.hoisted(() => ({ getAdminProducts: vi.fn(), getAdminCategories: vi.fn() }));
 vi.mock('./home-showcase-api', async () => ({ ...(await vi.importActual<typeof import('./home-showcase-api')>('./home-showcase-api')), ...api }));
 vi.mock('../products/products-api', async () => ({ ...(await vi.importActual<typeof import('../products/products-api')>('../products/products-api')), ...productsApi }));
@@ -15,6 +15,8 @@ const apple = { id: 1, slug: 'phone-a', name: 'Phone A', imageUrl: null, brand: 
 const laptop = { id: 2, slug: 'laptop-a', name: 'Laptop A', imageUrl: null, brand: 'Brand A', categoryName: 'Computers', categorySlug: 'computers', isVisible: true };
 const hiddenLaptop = { id: 3, slug: 'laptop-hidden', name: 'Hidden Laptop', imageUrl: null, brand: 'Brand B', categoryName: 'Computers', categorySlug: 'computers', isVisible: false };
 const camera = { id: 4, slug: 'camera-a', name: 'Camera A', imageUrl: null, brand: 'Camera Co', categoryName: 'Cameras', categorySlug: 'cameras', isVisible: true };
+const fallbackFeatured = [apple, laptop, camera];
+const fallbackComputers = [laptop];
 const slots = (product?: typeof apple) => Array.from({ length: 15 }, (_, index) => ({ slotIndex: index + 1, product: index === 0 ? product || null : null }));
 const response = (featured?: typeof apple, interested?: typeof laptop) => ({
   draft: { featured: slots(featured), interestedComputers: slots(interested) },
@@ -38,6 +40,7 @@ describe('Home Showcase editor', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     api.getHomeShowcase.mockResolvedValue(response(apple, laptop));
+    api.getHomeShowcaseFallbacks.mockResolvedValue({ featured: fallbackFeatured, interestedComputers: fallbackComputers });
     api.saveHomeShowcaseDraft.mockResolvedValue(undefined);
     api.resetHomeShowcaseDraft.mockResolvedValue(undefined);
     api.publishHomeShowcase.mockResolvedValue(undefined);
@@ -56,6 +59,29 @@ describe('Home Showcase editor', () => {
     expect(screen.getByText('🔥 Sản phẩm nổi bật')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Điện thoại' })).toBeInTheDocument();
     expect(screen.getByText('Bản nháp trùng bản đang chạy')).toBeInTheDocument();
+  });
+
+  it('renders storefront fallback products in empty draft and live preview sections, including the first three hero items', async () => {
+    api.getHomeShowcase.mockResolvedValue(response());
+    const user = userEvent.setup();
+    renderPage();
+    await screen.findByRole('heading', { name: 'Trang chủ' });
+
+    const hero = document.querySelector('.showcase-site__hero-card');
+    expect(hero).toHaveTextContent('Phone A');
+    expect(hero).toHaveTextContent('Laptop A');
+    expect(hero).toHaveTextContent('Camera A');
+    expect(document.querySelector('.showcase-site__hero-card')).not.toHaveTextContent('Chưa có sản phẩm nổi bật');
+    const featuredSection = document.querySelectorAll('.showcase-site__section')[0];
+    const computersSection = document.querySelectorAll('.showcase-site__section')[1];
+    expect(featuredSection).toHaveTextContent('Phone A');
+    expect(featuredSection).toHaveTextContent('Camera A');
+    expect(computersSection).toHaveTextContent('Laptop A');
+
+    await user.click(screen.getByRole('button', { name: 'Đang chạy' }));
+    expect(document.querySelector('.showcase-site__hero-card')).toHaveTextContent('Phone A');
+    expect(document.querySelectorAll('.showcase-site__section')[1]).toHaveTextContent('Laptop A');
+    expect(api.getHomeShowcaseFallbacks).toHaveBeenCalledOnce();
   });
 
   it('only offers Computers in the interested-computers picker and labels hidden products', async () => {
