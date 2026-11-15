@@ -41,6 +41,47 @@ describe('Studio shared components', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Hidden' })); fireEvent.click(screen.getByRole('switch', { name: 'Visible' }));
     expect(change).toHaveBeenCalledWith('hidden'); expect(toggle).toHaveBeenCalledWith(false);
   });
+
+  it('portals RowMenu outside overflowing tables and flips above the trigger near the viewport bottom', async () => {
+    const bounds = vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (this: HTMLElement) {
+      if (this.matches('summary[aria-label="Row actions"]')) return { x: 20, y: 710, top: 710, right: 54, bottom: 744, left: 20, width: 34, height: 34, toJSON: () => ({}) } as DOMRect;
+      if (this.classList.contains('studio-row-menu-portal')) return { x: 0, y: 0, top: 0, right: 180, bottom: 180, left: 0, width: 180, height: 180, toJSON: () => ({}) } as DOMRect;
+      return { x: 0, y: 0, top: 0, right: 100, bottom: 100, left: 0, width: 100, height: 100, toJSON: () => ({}) } as DOMRect;
+    });
+    render(<div style={{ overflow: 'hidden' }}><table><tbody><tr><td><RowMenu label="Row actions"><button>Delete row</button></RowMenu></td></tr></tbody></table></div>);
+    fireEvent.click(screen.getByText('⋮', { selector: 'summary' }));
+    const popup = await screen.findByRole('button', { name: 'Delete row' });
+    const portal = popup.closest('.studio-row-menu-portal');
+    expect(portal?.parentElement).toBe(document.body);
+    expect(portal).toHaveStyle({ position: 'fixed', top: '526px' });
+    expect(portal).not.toHaveStyle({ overflow: 'auto' });
+    bounds.mockRestore();
+  });
+
+  it('supports arrow navigation and Escape focus restoration for RowMenu', () => {
+    render(<RowMenu label="Row actions"><button>First</button><button>Second</button></RowMenu>);
+    const trigger = screen.getByText('⋮', { selector: 'summary' });
+    fireEvent.click(trigger);
+    const first = screen.getByRole('button', { name: 'First' });
+    first.focus();
+    fireEvent.keyDown(first, { key: 'ArrowDown' });
+    expect(screen.getByRole('button', { name: 'Second' })).toHaveFocus();
+    fireEvent.keyDown(screen.getByRole('button', { name: 'Second' }), { key: 'Escape' });
+    expect(trigger).toHaveFocus();
+    expect(screen.queryByRole('button', { name: 'First' })).not.toBeInTheDocument();
+  });
+
+  it('closes on outside click and restores trigger focus after selecting an action', () => {
+    render(<><RowMenu label="Row actions"><button onClick={() => {}}>Delete</button></RowMenu><button>Outside</button></>);
+    const trigger = screen.getByText('⋮', { selector: 'summary' });
+    fireEvent.click(trigger);
+    fireEvent.mouseDown(screen.getByRole('button', { name: 'Outside' }));
+    expect(screen.queryByRole('button', { name: 'Delete' })).not.toBeInTheDocument();
+    fireEvent.click(trigger);
+    fireEvent.click(screen.getByRole('button', { name: 'Delete' }));
+    expect(screen.queryByRole('button', { name: 'Delete' })).not.toBeInTheDocument();
+    expect(trigger).toHaveFocus();
+  });
   it('renders searchable toolbar, data table and three-part footer pager', () => {
     const change = vi.fn(); render(<><Toolbar><Field label="Search" placeholder="Name" /></Toolbar><DataTable><thead><tr><th>Name</th></tr></thead><tbody><tr><td>One</td></tr></tbody></DataTable><TableFooter start={1} end={10} total={20}><Pager page={1} pages={2} onChange={change} /></TableFooter></>);
     expect(screen.getByLabelText('Search')).toBeInTheDocument(); expect(screen.getByText('One')).toBeInTheDocument(); fireEvent.click(screen.getByRole('button', { name: 'Trang sau' })); expect(change).toHaveBeenCalledWith(2);
