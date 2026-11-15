@@ -5,7 +5,7 @@ import '@testing-library/jest-dom/vitest';
 import { Button, Card, Checkbox, DataTable, Drawer, EmptyState, ErrorState, Field, FilterChips, Kbd, Lightbox, Loading, Modal, PageHeader, Pager, Pill, RowMenu, Select, Switch, TableFooter, Toast, Toolbar } from './index';
 
 describe('Studio shared components', () => {
-  afterEach(cleanup);
+  afterEach(() => { cleanup(); vi.restoreAllMocks(); vi.unstubAllGlobals(); });
   it('renders button variants, status pills, semantic card and keyboard hint', () => {
     render(<><Button tone="primary">Save</Button><Button tone="danger" size="sm">Delete</Button><Pill tone="ok" size="sm">Ready</Pill><Card aria-label="Card"><Kbd>⌘K</Kbd></Card></>);
     expect(screen.getByRole('button', { name: 'Save' })).toHaveClass('studio-button-primary');
@@ -58,17 +58,48 @@ describe('Studio shared components', () => {
     bounds.mockRestore();
   });
 
-  it('supports arrow navigation and Escape focus restoration for RowMenu', () => {
+  it('measures the final menu width before clamping it near the right viewport edge', async () => {
+    vi.stubGlobal('innerWidth', 1366);
+    const bounds = vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (this: HTMLElement) {
+      if (this.matches('summary[aria-label="Right edge actions"]')) return { x: 1251, y: 100, top: 100, right: 1285, bottom: 134, left: 1251, width: 34, height: 34, toJSON: () => ({}) } as DOMRect;
+      if (this.classList.contains('studio-row-menu-portal')) {
+        // Without the final min-width, the intrinsic action width is narrower;
+        // that early measurement would place the subsequently expanded menu offscreen.
+        const width = this.style.minWidth === '150px' ? 150 : 60;
+        return { x: 0, y: 0, top: 0, right: width, bottom: 90, left: 0, width, height: 90, toJSON: () => ({}) } as DOMRect;
+      }
+      return { x: 0, y: 0, top: 0, right: 100, bottom: 100, left: 0, width: 100, height: 100, toJSON: () => ({}) } as DOMRect;
+    });
+    render(<RowMenu label="Right edge actions"><button>Edit</button><button>Delete</button></RowMenu>);
+    fireEvent.click(screen.getByText('⋮', { selector: 'summary' }));
+    const portal = (await screen.findByRole('button', { name: 'Edit' })).closest('.studio-row-menu-portal');
+    expect(portal).toHaveStyle({ left: '1135px', minWidth: '150px' });
+    expect(Number.parseFloat((portal as HTMLElement).style.left) + 150).toBeLessThanOrEqual(window.innerWidth - 8);
+  });
+
+  it('opens RowMenu into its first item with ArrowDown and wraps through items before Escape restores focus', () => {
     render(<RowMenu label="Row actions"><button>First</button><button>Second</button></RowMenu>);
     const trigger = screen.getByText('⋮', { selector: 'summary' });
-    fireEvent.click(trigger);
+    trigger.focus();
+    fireEvent.keyDown(trigger, { key: 'ArrowDown' });
     const first = screen.getByRole('button', { name: 'First' });
-    first.focus();
+    expect(first).toHaveFocus();
     fireEvent.keyDown(first, { key: 'ArrowDown' });
-    expect(screen.getByRole('button', { name: 'Second' })).toHaveFocus();
-    fireEvent.keyDown(screen.getByRole('button', { name: 'Second' }), { key: 'Escape' });
+    const second = screen.getByRole('button', { name: 'Second' });
+    expect(second).toHaveFocus();
+    fireEvent.keyDown(second, { key: 'ArrowDown' });
+    expect(first).toHaveFocus();
+    fireEvent.keyDown(first, { key: 'Escape' });
     expect(trigger).toHaveFocus();
     expect(screen.queryByRole('button', { name: 'First' })).not.toBeInTheDocument();
+  });
+
+  it('opens RowMenu into its last item with ArrowUp', () => {
+    render(<RowMenu label="Row actions"><button>First</button><button>Second</button></RowMenu>);
+    const trigger = screen.getByText('⋮', { selector: 'summary' });
+    trigger.focus();
+    fireEvent.keyDown(trigger, { key: 'ArrowUp' });
+    expect(screen.getByRole('button', { name: 'Second' })).toHaveFocus();
   });
 
   it('closes on outside click and restores trigger focus after selecting an action', () => {
