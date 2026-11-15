@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { cleanup, createEvent, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import '@testing-library/jest-dom/vitest';
@@ -190,5 +190,44 @@ describe('Studio shared components', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Change source' }));
     expect(screen.getByText('100%')).toBeInTheDocument();
     expect(document.querySelector('.studio-lightbox-content')).toHaveStyle({ transform: 'translate(0px,0px) scale(1)' });
+  });
+  it('lets Escape close only the top lightbox before document handlers can dismiss its edit dialog', async () => {
+    const Demo = () => {
+      const [editOpen, setEditOpen] = useState(true);
+      const [lightboxOpen, setLightboxOpen] = useState(false);
+      const [name, setName] = useState('Original name');
+
+      useEffect(() => {
+        const handle = (event: KeyboardEvent) => {
+          if (event.key !== 'Escape') return;
+          if (lightboxOpen) setLightboxOpen(false);
+          else setEditOpen(false);
+        };
+        document.addEventListener('keydown', handle);
+        return () => document.removeEventListener('keydown', handle);
+      }, [lightboxOpen]);
+
+      return <>
+        {editOpen && <Modal open title="Edit product" onClose={() => setEditOpen(false)}>
+          <label>Name<input aria-label="Name" value={name} onChange={event => setName(event.target.value)} /></label>
+          <button type="button" onClick={() => setLightboxOpen(true)}>View product preview</button>
+        </Modal>}
+        {lightboxOpen && <Lightbox open onClose={() => setLightboxOpen(false)}><img alt="Product preview" src="/image.png" /></Lightbox>}
+      </>;
+    };
+
+    render(<Demo />);
+    const editDialog = screen.getByRole('dialog', { name: 'Edit product' });
+    fireEvent.change(screen.getByRole('textbox', { name: 'Name' }), { target: { value: 'Unsaved name' } });
+    const previewOpener = screen.getByRole('button', { name: 'View product preview' });
+    previewOpener.focus();
+    fireEvent.click(previewOpener);
+    fireEvent.keyDown(document, { key: 'Escape' });
+
+    expect(screen.queryByRole('dialog', { name: 'Xem ảnh' })).not.toBeInTheDocument();
+    expect(editDialog).toBeInTheDocument();
+    expect(screen.getByRole('textbox', { name: 'Name' })).toHaveValue('Unsaved name');
+    expect(document.body.style.overflow).toBe('hidden');
+    await waitFor(() => expect(previewOpener).toHaveFocus());
   });
 });
