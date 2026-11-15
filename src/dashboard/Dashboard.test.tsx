@@ -1,5 +1,5 @@
 import '@testing-library/jest-dom/vitest';
-import { cleanup, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { BrowserRouter } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { getAdminProducts } from '../products/products-api';
@@ -10,10 +10,7 @@ vi.mock('../products/products-api', () => ({ getAdminProducts: vi.fn() }));
 vi.mock('../offers/offers-api', () => ({ getAdminOffers: vi.fn() }));
 
 const offerPage: AdminOfferPage = {
-  items: [],
-  pageNumber: 1,
-  pageSize: 100,
-  totalItems: 2,
+  items: [], pageNumber: 1, pageSize: 1, totalItems: 2,
   counts: { all: 2, outlier: 1, stale: 0, outOfStock: 0, inactive: 0 },
 };
 
@@ -30,47 +27,53 @@ describe('Dashboard', () => {
     vi.mocked(getAdminOffers).mockResolvedValue(offerPage);
   });
 
-  it('keeps the approved header and four KPI cards while removing the retired dashboard panels', async () => {
+  it('renders only the approved header and four KPI cards and uses a minimal offers query', async () => {
     const requestAdmin = vi.fn();
     renderDashboard(['products.read', 'offers.read'], requestAdmin);
 
     expect(await screen.findByText('12,480')).toBeInTheDocument();
+    expect(await screen.findByText('of 2 offers')).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Dashboard' })).toBeInTheDocument();
-    expect(screen.getByText('Tổng quan sức khỏe catalog, giá và affiliate data.')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: '+ Tạo sản phẩm' })).toBeInTheDocument();
-    expect(screen.getByRole('region', { name: 'Chỉ số tổng quan' }).querySelectorAll('article')).toHaveLength(4);
-    expect(screen.getByText('2')).toBeInTheDocument();
-    expect(screen.getByText('of 2 offers')).toBeInTheDocument();
-
-    for (const removedHeading of ['Traffic & affiliate clicks', 'Data health', 'Offers flagged as outlier', 'Matching queue']) {
-      expect(screen.queryByRole('heading', { name: removedHeading })).not.toBeInTheDocument();
+    expect(screen.getAllByRole('article')).toHaveLength(4);
+    expect(screen.getByText('Products total')).toBeInTheDocument();
+    expect(screen.getByText('Offers active')).toBeInTheDocument();
+    expect(screen.getByText('Partner shops')).toBeInTheDocument();
+    expect(screen.getByText('Sync success rate')).toBeInTheDocument();
+    for (const obsolete of ['Traffic & affiliate clicks', 'Data health', 'Offers flagged as outlier', 'Matching queue', 'No flagged offers']) {
+      expect(screen.queryByText(obsolete)).not.toBeInTheDocument();
     }
-    expect(screen.queryByText('No flagged offers')).not.toBeInTheDocument();
-    expect(screen.queryByRole('link', { name: 'Xem tất cả →' })).not.toBeInTheDocument();
     expect(getAdminProducts).toHaveBeenCalledWith(requestAdmin, 1, 20, expect.any(AbortSignal));
-    expect(getAdminOffers).toHaveBeenCalledWith(requestAdmin, { page: 1, pageSize: 100, q: '', shopId: null, filter: 'all', sort: 'attention' }, expect.any(AbortSignal));
+    expect(getAdminOffers).toHaveBeenCalledWith(requestAdmin, { page: 1, pageSize: 1, q: '', shopId: null, filter: 'all', sort: 'attention' }, expect.any(AbortSignal));
   });
 
-  it('preserves the KPI loading, empty, and error states', async () => {
-    let rejectOffers!: (error: Error) => void;
+  it('keeps KPI loading and empty states', async () => {
     vi.mocked(getAdminProducts).mockResolvedValueOnce({ items: [], pageNumber: 1, pageSize: 20, totalItems: 0 });
-    vi.mocked(getAdminOffers).mockImplementationOnce(() => new Promise((_, reject) => { rejectOffers = reject; }));
+    vi.mocked(getAdminOffers).mockResolvedValueOnce({ ...offerPage, totalItems: 0, counts: { ...offerPage.counts, all: 0 } });
     renderDashboard();
 
-    expect(screen.getAllByText('Loading…')).toHaveLength(2);
+    expect(screen.getByRole('status')).toHaveTextContent('Loading dashboard metrics');
     expect(await screen.findByText('No products found')).toBeInTheDocument();
-    rejectOffers(new Error('Could not load offers. Please try again.'));
-    await waitFor(() => expect(screen.getByText('Unavailable')).toBeInTheDocument());
-    expect(screen.getAllByText('—')).toHaveLength(1);
-    expect(screen.getByRole('alert')).toHaveTextContent('Could not load offers. Please try again.');
+    expect(await screen.findByText('of 0 offers')).toBeInTheDocument();
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
   });
 
-  it('does not request KPI data without permission and reports the access errors', async () => {
-    renderDashboard([]);
+  it('keeps KPI errors visible and retries failed reads', async () => {
+    vi.mocked(getAdminProducts).mockRejectedValueOnce(new Error('Could not load products. Please try again.'));
+    vi.mocked(getAdminProducts).mockResolvedValueOnce({ items: [], pageNumber: 1, pageSize: 20, totalItems: 3 });
+    renderDashboard();
 
-    expect(await screen.findByText('You do not have permission to view products.')).toBeInTheDocument();
-    expect(screen.getByText('You do not have permission to view offers.')).toBeInTheDocument();
+    expect(await screen.findByRole('alert')).toHaveTextContent('Could not load products. Please try again.');
+    fireEvent.click(screen.getByRole('button', { name: 'Retry products' }));
+    expect(await screen.findByText('All catalog products')).toBeInTheDocument();
+    await waitFor(() => expect(getAdminProducts).toHaveBeenCalledTimes(2));
+  });
+
+  it('does not call APIs when their KPI permissions are missing', async () => {
+    renderDashboard([]);
+    expect(await screen.findByRole('alert')).toHaveTextContent('You do not have permission to view products.');
     expect(getAdminProducts).not.toHaveBeenCalled();
     expect(getAdminOffers).not.toHaveBeenCalled();
+    expect(screen.getAllByRole('article')).toHaveLength(4);
   });
 });

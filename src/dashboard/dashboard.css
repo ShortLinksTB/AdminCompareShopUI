@@ -10,9 +10,8 @@
 .dashboard-kpi strong{margin-top:3px;font-size:25px;letter-spacing:-.04em}
 .dashboard-kpi small{margin-top:3px;color:var(--studio-muted);font-size:11px}
 .dashboard-kpi small.positive{color:var(--studio-ok)}.dashboard-kpi small.negative{color:var(--studio-bad)}
-.dashboard-kpi>.studio-button{grid-column:2;justify-self:start;margin-top:5px;padding:6px 10px;font-size:11px}
 .dashboard-error{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:0;padding:12px;border:1px solid color-mix(in srgb,var(--studio-bad) 40%,var(--studio-border));border-radius:12px;background:var(--studio-bad-soft);color:var(--studio-bad);font-size:12px}
-.studio-dashboard button:focus-visible{outline:2px solid var(--studio-brand-text);outline-offset:3px}
+.studio-dashboard button:focus-visible,.studio-dashboard a:focus-visible{outline:2px solid var(--studio-brand-text);outline-offset:3px}
 @media(max-width:1100px){.dashboard-kpi-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
-@media(max-width:600px){.studio-dashboard{gap:14px}.studio-dashboard .studio-page-header>div{align-items:stretch;flex-direction:column;gap:12px}.studio-dashboard .studio-page-header>div>.studio-button{width:100%;max-width:100%;white-space:nowrap}}
-@media(max-width:580px){.dashboard-kpi-grid{gap:10px}.dashboard-kpi{grid-template-columns:30px minmax(0,1fr);column-gap:8px;padding:12px}.dashboard-kpi-icon{width:29px;height:29px;border-radius:8px;font-size:15px}.dashboard-kpi-label{font-size:10px}.dashboard-kpi strong{font-size:20px}.dashboard-kpi small{font-size:9px}}
+@media(max-width:600px){.studio-dashboard .studio-page-header>div{align-items:stretch;flex-direction:column;gap:12px}.studio-dashboard .studio-page-header>div>.studio-button{width:100%;max-width:100%;white-space:nowrap}}
+@media(max-width:580px){.studio-dashboard{gap:14px}.dashboard-kpi-grid{gap:10px}.dashboard-kpi{grid-template-columns:30px minmax(0,1fr);column-gap:8px;padding:12px}.dashboard-kpi-icon{width:29px;height:29px;border-radius:8px;font-size:15px}.dashboard-kpi-label{font-size:10px}.dashboard-kpi strong{font-size:20px}.dashboard-kpi small{font-size:9px}}

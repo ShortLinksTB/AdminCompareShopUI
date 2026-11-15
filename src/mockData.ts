@@ -21,8 +21,3 @@ export const offers: Offer[] = [
 export const shops: Shop[] = [
   { name: 'Tiki', type: 'Marketplace', products: 1240, offers: 2380, status: 'Active', lastSync: '2 phút trước' }, { name: 'Shopee Mall', type: 'Marketplace', products: 980, offers: 1840, status: 'Active', lastSync: '8 phút trước' }, { name: 'CellphoneS', type: 'Retailer', products: 420, offers: 610, status: 'Active', lastSync: '15 phút trước' }, { name: 'TechMart', type: 'Retailer', products: 315, offers: 450, status: 'Failed', lastSync: '3 giờ trước' },
 ];
-export const matchingQueue = [
-  { id: 'M-401', listing: 'MacBook Air M5 13 16GB 512GB', shop: 'CellphoneS', suggestion: 'MacBook Air M5 13 inch', confidence: 96, warning: '' },
-  { id: 'M-402', listing: 'Laptop ASUS Vivobook 14 X1407', shop: 'Tiki', suggestion: 'ASUS Vivobook 14 X1407CA', confidence: 88, warning: 'Khác dung lượng SSD' },
-  { id: 'M-403', listing: 'iPhone 15 256GB Blue', shop: 'Shopee Mall', suggestion: 'iPhone 15 128GB', confidence: 72, warning: 'Khác bộ nhớ' },
-];

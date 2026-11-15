@@ -4,14 +4,13 @@ import { getAdminOffers, type AdminOfferPage } from '../offers/offers-api';
 import { Button, Card, PageHeader } from '../ui';
 import './dashboard.css';
 
-function DashboardKpi({ label, value, change, tone, onRetry }: { label: string; value: string; change: string; tone: string; onRetry?: () => void }) {
+function DashboardKpi({ label, value, change, tone }: { label: string; value: string; change: string; tone: string }) {
   const icon = tone === 'orange' ? '▦' : tone === 'green' ? '↗' : tone === 'blue' ? '⌂' : '◷';
   return <Card as="article" className="dashboard-kpi">
     <span className={`dashboard-kpi-icon ${tone}`} aria-hidden="true">{icon}</span>
     <span className="dashboard-kpi-label">{label}</span>
     <strong>{value}</strong>
     <small className={change.startsWith('+') ? 'positive' : change.startsWith('-') ? 'negative' : ''}>{change}</small>
-    {onRetry && <Button size="sm" onClick={onRetry}>Retry</Button>}
   </Card>;
 }
 
@@ -52,14 +51,12 @@ export function Dashboard({ requestAdmin, permissions }: { requestAdmin: (path: 
       setOffersLoading(false);
       return () => controller.abort();
     }
-    getAdminOffers(requestAdmin, { page: 1, pageSize: 100, q: '', shopId: null, filter: 'all', sort: 'attention' }, controller.signal)
+    getAdminOffers(requestAdmin, { page: 1, pageSize: 1, q: '', shopId: null, filter: 'all', sort: 'attention' }, controller.signal)
       .then(result => { if (!controller.signal.aborted) setOffersData(result); })
       .catch(reason => { if (!controller.signal.aborted) setOffersError(reason instanceof Error ? reason.message : 'Could not load offers. Please try again.'); })
       .finally(() => { if (!controller.signal.aborted) setOffersLoading(false); });
     return () => controller.abort();
   }, [requestAdmin, permissions, offersReload]);
-
-  const activeOffers = offersData ? offersData.totalItems - offersData.counts.inactive : undefined;
 
   return <div className="studio-dashboard">
     <PageHeader eyebrow="OVERVIEW" title="Dashboard" description="Tổng quan sức khỏe catalog, giá và affiliate data."
@@ -67,12 +64,11 @@ export function Dashboard({ requestAdmin, permissions }: { requestAdmin: (path: 
 
     <section className="dashboard-kpi-grid" aria-label="Chỉ số tổng quan">
       <DashboardKpi label="Products total" value={productsLoading || productsError ? '—' : (productTotal ?? 0).toLocaleString()} change={productsLoading ? 'Loading…' : productsError ? 'Unavailable' : productTotal === 0 ? 'No products found' : 'All catalog products'} tone="orange" />
-      <DashboardKpi label="Offers active" value={offersLoading || offersError ? '—' : (activeOffers ?? 0).toLocaleString()} change={offersLoading ? 'Loading…' : offersError ? 'Unavailable' : offersData?.totalItems === 0 ? 'No offers found' : `of ${(offersData?.totalItems ?? 0).toLocaleString()} offers`} tone="green" onRetry={offersError ? () => setOffersReload(value => value + 1) : undefined} />
+      <DashboardKpi label="Offers active" value={offersLoading || offersError ? '—' : (offersData ? offersData.totalItems - offersData.counts.inactive : 0).toLocaleString()} change={offersLoading ? 'Loading…' : offersError ? 'Unavailable' : `of ${(offersData?.totalItems ?? 0).toLocaleString()} offers`} tone="green" />
       <DashboardKpi label="Partner shops" value="24" change="+3 shop mới" tone="blue" />
       <DashboardKpi label="Sync success rate" value="98.2%" change="-1.1% trong 24 giờ" tone="purple" />
     </section>
 
-    {productsLoading ? <span className="sr-only" role="status">Loading products…</span> : productsError ? <div className="dashboard-error" role="alert">{productsError}<Button size="sm" onClick={() => setProductsReload(value => value + 1)}>Retry products</Button></div> : null}
-    {offersError ? <span className="sr-only" role="alert">{offersError}</span> : null}
+    {productsLoading || offersLoading ? <span className="sr-only" role="status">Loading dashboard metrics…</span> : productsError || offersError ? <div className="dashboard-error" role="alert">{productsError || offersError}{productsError && <Button size="sm" onClick={() => setProductsReload(value => value + 1)}>Retry products</Button>}{offersError && <Button size="sm" onClick={() => setOffersReload(value => value + 1)}>Retry offers</Button>}</div> : null}
   </div>;
 }
