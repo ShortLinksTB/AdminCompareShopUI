@@ -122,7 +122,7 @@ describe('FilesPage details and file actions', () => {
     await user.click(within(imageRow).getByText('⋮', { selector: 'summary' }));
     await user.click(screen.getByRole('button', { name: 'Tạo bản sao theo kích thước…' }));
     expect(await screen.findByRole('dialog', { name: 'Tạo bản sao theo kích thước' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: '600x600' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '600x600 · Trang chủ' })).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Tạo 1 bản sao' }));
     await waitFor(() => expect(request).toHaveBeenCalledWith('/admin/files/image-1/derivatives', expect.objectContaining({ method: 'POST' })));
     const body = JSON.parse(String(request.mock.calls.find(([path]) => path.endsWith('/derivatives'))?.[1]?.body));
@@ -148,8 +148,8 @@ describe('FilesPage details and file actions', () => {
     await user.click(screen.getByRole('button', { name: 'Tạo bản sao theo kích thước…' }));
     await user.click(screen.getByRole('checkbox', { name: /1000 × 1000 px/ }));
     await user.click(screen.getByRole('button', { name: 'Tạo 2 bản sao' }));
-    expect(await screen.findByText(/1000x1000: Không thể tạo ảnh theo định dạng này/)).toBeInTheDocument();
-    await user.click(screen.getByRole('button', { name: 'Thử lại' }));
+    expect(await screen.findByText(/Chi tiết sản phẩm · 1000x1000: Không thể tạo ảnh theo định dạng này/)).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Thử lại Chi tiết sản phẩm' }));
     await waitFor(() => expect(request.mock.calls.filter(([path]) => path.endsWith('/derivatives'))).toHaveLength(2));
     const retryBody = JSON.parse(String(request.mock.calls.filter(([path]) => path.endsWith('/derivatives'))[1][1]?.body));
     expect(retryBody.variants).toHaveLength(1);
