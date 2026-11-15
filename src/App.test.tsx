@@ -212,6 +212,27 @@ describe('mobile application navigation', () => {
     expect(auth.requestAdmin).toHaveBeenCalledWith('/admin/categories?page=1&pageSize=100', { signal: undefined });
   });
 
+  it('loads Home Showcase at its real /home-showcase route behind its dedicated permission', async () => {
+    auth.permissions = ['home_showcase.read'];
+    const emptySlots = Array.from({ length: 15 }, (_, index) => ({ slotIndex: index + 1, product: null }));
+    auth.requestAdmin.mockResolvedValue(Response.json({
+      draft: { featured: emptySlots, interestedComputers: emptySlots },
+      published: { featured: emptySlots, interestedComputers: emptySlots },
+    }));
+    renderApp('/home-showcase');
+
+    expect(await screen.findByRole('heading', { name: 'Trang chủ' })).toBeInTheDocument();
+    expect(document.querySelector('.admin-breadcrumb')).toHaveTextContent('GiaTot Admin / Trang chủ');
+    expect(screen.getByRole('link', { name: /Trang chủ/ })).toHaveAttribute('href', '/home-showcase');
+    expect(auth.requestAdmin).toHaveBeenCalledWith('/admin/home-showcase', expect.objectContaining({ signal: expect.any(AbortSignal) }));
+  });
+
+  it('does not request Home Showcase without its read permission', () => {
+    renderApp('/home-showcase');
+    expect(auth.requestAdmin).not.toHaveBeenCalled();
+    expect(screen.queryByRole('heading', { name: 'Trang chủ' })).not.toBeInTheDocument();
+  });
+
   it('does not load Categories when categories.read is absent', () => {
     renderApp('/categories');
 
