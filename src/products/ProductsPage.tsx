@@ -193,8 +193,11 @@ export function ProductsPage({ requestAdmin, permissions = [] }: { requestAdmin:
     if (!lightbox && !editor && !deleteTarget && openMenu === null) return;
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key !== 'Escape') return;
-      if (lightbox) closeLightbox();
-      else if (categoryPickerOpen) {
+      // The shared FocusLayer owns Escape while a lightbox is open. Let the
+      // event reach its topmost layer so it can close without dismissing the
+      // edit dialog underneath it.
+      if (lightbox) return;
+      if (categoryPickerOpen) {
         event.stopPropagation();
         setCategoryPickerOpen(false);
         categoryPickerTrigger.current?.focus();

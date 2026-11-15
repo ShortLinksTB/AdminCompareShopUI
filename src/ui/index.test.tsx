@@ -172,6 +172,14 @@ describe('Studio shared components', () => {
     for (let index = 0; index < 20; index++) fireEvent.wheel(stage, { deltaY: 100, clientX: 200, clientY: 100 });
     expect(screen.getByText('100%')).toBeInTheDocument(); expect(stage).not.toHaveClass('is-zoomed');
   });
+  it('toggles the shared lightbox image between 100% and 200% on click by default', () => {
+    render(<Lightbox open onClose={vi.fn()}><img alt="Zoom image" src="/image.png" /></Lightbox>);
+    const image = screen.getByRole('img', { name: 'Zoom image' });
+    fireEvent.click(image);
+    expect(screen.getByText('200%')).toBeInTheDocument();
+    fireEvent.click(image);
+    expect(screen.getByText('100%')).toBeInTheDocument();
+  });
   it('resets zoom and pan when the lightbox source changes', () => {
     const Demo = () => { const [source, setSource] = useState('shop'); return <><button onClick={() => setSource('product')}>Change source</button><Lightbox open onClose={vi.fn()} clickZoom resetKey={source}><img alt="Zoom image" src="/image.png" /></Lightbox></>; };
     render(<Demo />);
