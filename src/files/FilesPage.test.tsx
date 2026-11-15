@@ -35,7 +35,7 @@ describe('FilesPage list and permissions', () => {
     expect(await screen.findByText('banner')).toBeInTheDocument();
     expect(screen.getByText('guide')).toBeInTheDocument();
     expect(screen.queryByText('1 KB')).not.toBeInTheDocument();
-    expect(screen.queryByText('800 × 600')).not.toBeInTheDocument();
+    expect(screen.getByText('800 × 600')).toBeInTheDocument();
     await user.type(screen.getByRole('textbox', { name: 'Search file name' }), 'banner');
     await waitFor(() => expect(request).toHaveBeenCalledWith(expect.stringContaining('q=banner'), expect.objectContaining({ signal: expect.any(AbortSignal) })));
     await user.selectOptions(screen.getByRole('combobox', { name: 'Filter by type' }), 'image');
@@ -108,6 +108,34 @@ describe('FilesPage thumbnail fallback', () => {
 });
 
 describe('FilesPage details and file actions', () => {
+  it('opens derivative creation from an eligible image and submits the selected preset', async () => {
+    const request = requestFor();
+    const created = { ...image, id: 'derived-1', originalFileName: 'banner-600x600.webp', width: 600, height: 600, derivedFrom: { id: image.id, originalFileName: image.originalFileName }, derivedPreset: 'Trang chủ' };
+    request.mockImplementation(path => path === '/admin/files?page=1&pageSize=10' ? Promise.resolve(pageResponse([image]))
+      : path === `/admin/files/${image.id}/derivatives` ? Promise.resolve(Response.json({ results: [{ file: created }] }))
+        : path.startsWith('/admin/files/') ? Promise.resolve(Response.json(image)) : Promise.resolve(new Response(null, { status: 204 })));
+    const user = userEvent.setup();
+    render(<FilesPage requestAdmin={request} permissions={['files.read', 'files.write']} />);
+    await screen.findByText('banner');
+    await user.click(screen.getAllByText('⋮', { selector: 'summary' })[0]);
+    await user.click(screen.getByRole('button', { name: 'Tạo bản sao theo kích thước…' }));
+    expect(await screen.findByRole('dialog', { name: 'Tạo bản sao theo kích thước' })).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Tạo bản sao' }));
+    await waitFor(() => expect(request).toHaveBeenCalledWith(`/admin/files/${image.id}/derivatives`, expect.objectContaining({ method: 'POST' })));
+    const body = JSON.parse(request.mock.calls.find(call => call[0] === `/admin/files/${image.id}/derivatives` )?.[1]?.body as string);
+    expect(body.variants).toEqual([expect.objectContaining({ width: 600, height: 600, fit: 'cover', name: 'banner-600x600' })]);
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Tạo bản sao theo kích thước' })).not.toBeInTheDocument());
+  });
+
+  it('keeps SVG derivative action disabled with an explanation', async () => {
+    const svg = { ...image, id: 'svg', originalFileName: 'logo.svg', contentType: 'image/svg+xml' };
+    render(<FilesPage requestAdmin={vi.fn<AdminRequest>().mockResolvedValue(pageResponse([svg]))} permissions={['files.read', 'files.write']} />);
+    await screen.findByText('logo');
+    fireEvent.click(screen.getAllByText('⋮', { selector: 'summary' })[0]);
+    expect(screen.getByRole('button', { name: 'Tạo bản sao theo kích thước…' })).toBeDisabled();
+    expect(screen.getByText('Chỉ áp dụng cho ảnh JPG, PNG, WebP, GIF')).toBeInTheDocument();
+  });
+
   it('loads full metadata in Details and closes with Escape', async () => {
     const user = userEvent.setup();
     const request = requestFor();
@@ -115,7 +143,7 @@ describe('FilesPage details and file actions', () => {
     await user.click(await screen.findByRole('button', { name: 'banner' }));
     expect(await screen.findByRole('dialog', { name: 'File details' })).toBeInTheDocument();
     expect(screen.getByText('1 KB')).toBeInTheDocument();
-    expect(screen.getByText('800 × 600')).toBeInTheDocument();
+    expect(screen.getAllByText('800 × 600').length).toBeGreaterThan(0);
     expect(request).toHaveBeenCalledWith('/admin/files/image-1', expect.objectContaining({ signal: expect.any(AbortSignal) }));
     fireEvent.keyDown(document, { key: 'Escape' });
     expect(screen.queryByRole('dialog', { name: 'File details' })).not.toBeInTheDocument();

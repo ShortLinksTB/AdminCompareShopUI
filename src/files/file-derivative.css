@@ -1,0 +1,28 @@
+.file-derivative-modal{width:min(940px,calc(100vw - 32px))!important;max-height:calc(100dvh - 32px);overflow:auto}
+.file-derivative-modal .studio-modal-body{padding:16px 20px}
+.derivative-layout{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.05fr);gap:20px;align-items:start}
+.derivative-options,.derivative-preview{display:grid;gap:12px;align-content:start;min-width:0}
+.derivative-options h3,.derivative-preview h3{margin:4px 0 0;font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--studio-muted)}
+.derivative-preset{display:flex;gap:10px;align-items:flex-start;padding:10px 12px;border:1px solid var(--studio-border);border-radius:12px;cursor:pointer}
+.derivative-preset:has(input:checked){border-color:var(--studio-brand);background:color-mix(in srgb,var(--studio-brand) 8%,var(--studio-surface))}
+.derivative-preset input{margin:4px 0 0;accent-color:var(--studio-brand);flex:none}
+.derivative-preset span{min-width:0}.derivative-preset b,.derivative-preset small{display:block}.derivative-preset small,.derivative-name small{color:var(--studio-muted);font-size:12px;margin-top:3px}
+.derivative-dimensions{display:flex!important;align-items:center;gap:7px;margin-top:8px!important;color:var(--studio-muted);font-size:12px}
+.derivative-dimensions input{width:78px;min-height:34px;padding:5px 8px;border:1px solid var(--studio-border);border-radius:8px;background:var(--studio-bg);color:var(--studio-text)}
+.derivative-segment,.derivative-tabs,.derivative-zoom-tools,.derivative-colors{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.derivative-tool-select{display:flex;gap:4px;margin-right:auto}
+.derivative-colors button{width:28px;height:28px;border:2px solid var(--studio-border);border-radius:8px;cursor:pointer}
+.derivative-colors button[aria-pressed=true]{border-color:var(--studio-brand);box-shadow:0 0 0 2px color-mix(in srgb,var(--studio-brand) 24%,transparent)}
+.derivative-fields{display:grid;grid-template-columns:1fr 1fr;gap:10px}.derivative-fields label,.derivative-name{display:grid;gap:5px;font-weight:600;font-size:13px}
+.derivative-name input{min-height:38px;padding:7px 10px;border:1px solid var(--studio-border);border-radius:9px;background:var(--studio-bg);color:var(--studio-text)}
+.derivative-names{display:grid;gap:6px}.derivative-names>div,.derivative-result-error{display:flex;gap:8px;align-items:center;justify-content:space-between;padding:7px 9px;border-radius:8px;background:var(--studio-bg2);font-size:12px}
+.derivative-names code{overflow-wrap:anywhere;color:var(--studio-text)}.derivative-names small{color:var(--studio-muted);white-space:nowrap}
+.derivative-warning{margin:0;padding:8px 10px;border-radius:9px;background:color-mix(in srgb,#d97706 14%,var(--studio-surface));color:var(--studio-text);font-size:12px}
+.derivative-stage{position:relative;height:360px;overflow:hidden;display:grid;place-items:center;border:1px solid var(--studio-border);border-radius:12px;background:repeating-conic-gradient(var(--studio-bg2) 0% 25%,var(--studio-bg) 0% 50%) 50%/16px 16px;touch-action:none;user-select:none;cursor:crosshair}
+.derivative-stage canvas{display:block;max-width:none;max-height:none;transform-origin:center center;box-shadow:0 6px 24px #0004;image-rendering:auto}
+.derivative-preview-meta{display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;color:var(--studio-muted);font-size:12px}
+.derivative-result-error{color:var(--studio-danger,#b42318)}
+.file-derived-label,.file-dimensions{margin-top:3px;color:var(--studio-muted);font-size:11.5px}
+.file-derivative-menu-item{color:var(--studio-accent)!important}.file-derivative-menu-item:disabled{opacity:.45;cursor:not-allowed}.file-derivative-disabled-note{display:block;padding:2px 10px 6px;color:var(--studio-muted);font-size:11px}
+@media(max-width:760px){.derivative-layout{grid-template-columns:1fr}.derivative-stage{height:300px}}
+@media(max-width:640px){.file-derivative-modal{width:100vw!important;max-height:100dvh;height:100dvh;border-radius:0}.derivative-fields{grid-template-columns:1fr 1fr}.derivative-stage{height:260px}}

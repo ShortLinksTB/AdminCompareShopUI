@@ -9,7 +9,17 @@ export interface AdminFile {
   height: number | null;
   uploadedBy: string;
   uploadedAtUtc: string;
+  derivedFrom?: { id?: string; originalFileName?: string } | null;
+  derivedPreset?: string | null;
+  derivativeSpec?: { width?: number; height?: number; fit?: 'cover' | 'contain'; format?: string; quality?: number } | null;
 }
+
+export type DerivativeFormat = 'keep' | 'webp' | 'jpg' | 'png';
+export interface FileDerivativeVariant {
+  width: number; height: number; fit: 'cover' | 'contain'; focalX?: number; focalY?: number;
+  background: string; format: DerivativeFormat; quality: number; name: string;
+}
+export interface FileDerivativeResult { index?: number; file?: AdminFile; publicUrl?: string; error?: string; warnings?: string[]; }
 
 export interface AdminFilePage {
   items: AdminFile[];
@@ -68,6 +78,15 @@ export async function uploadAdminFiles(request: AdminRequest, files: File[], onF
 export async function deleteAdminFile(request: AdminRequest, id: string): Promise<void> {
   const response = await request(`/admin/files/${encodeURIComponent(id)}`, { method: 'DELETE' });
   if (!response.ok) throw apiError(response, 'delete file');
+}
+
+export async function createFileDerivatives(request: AdminRequest, id: string, variants: FileDerivativeVariant[]): Promise<FileDerivativeResult[]> {
+  const response = await request(`/admin/files/${encodeURIComponent(id)}/derivatives`, {
+    method: 'POST', body: JSON.stringify({ variants }), headers: { 'Content-Type': 'application/json' },
+  });
+  if (!response.ok) throw apiError(response, 'create image derivatives');
+  const payload = await response.json() as { results?: FileDerivativeResult[]; items?: FileDerivativeResult[] } | FileDerivativeResult[];
+  return Array.isArray(payload) ? payload : payload.results ?? payload.items ?? [];
 }
 
 export function publicFileUrl(id: string, apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'https://api-compareshop-dev.giamha.online'): string {
