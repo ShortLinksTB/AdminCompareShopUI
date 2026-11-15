@@ -260,12 +260,22 @@ describe('Studio shared components', () => {
     const close = vi.fn();
     render(<Lightbox open onClose={close}><img alt="Zoom image" src="/image.png" /></Lightbox>);
     const image = screen.getByRole('img', { name: 'Zoom image' });
+    const stage = document.querySelector('.studio-lightbox-stage') as HTMLDivElement;
+    stage.setPointerCapture = vi.fn();
     fireEvent.click(image);
     expect(screen.getByText('200%')).toBeInTheDocument();
-    fireEvent.click(image);
+    const pointerEvent = (type: string) => {
+      const event = new MouseEvent(type, { bubbles: true });
+      Object.defineProperty(event, 'pointerId', { value: 1 });
+      return event;
+    };
+    fireEvent(image, pointerEvent('pointerdown'));
+    fireEvent(stage, pointerEvent('pointerup'));
+    fireEvent.click(stage);
     expect(screen.getByText('100%')).toBeInTheDocument();
     expect(screen.getByRole('dialog', { name: 'Xem ảnh' })).toBeInTheDocument();
     expect(close).not.toHaveBeenCalled();
+    expect(stage.setPointerCapture).toHaveBeenCalledWith(1);
   });
   it('resets zoom and pan when the lightbox source changes', () => {
     const Demo = () => { const [source, setSource] = useState('shop'); return <><button onClick={() => setSource('product')}>Change source</button><Lightbox open onClose={vi.fn()} clickZoom resetKey={source}><img alt="Zoom image" src="/image.png" /></Lightbox></>; };
