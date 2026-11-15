@@ -1,7 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { getHomeShowcase, getHomeShowcaseFallbacks, issueHomeShowcasePreviewToken, publishHomeShowcase, resetHomeShowcaseDraft, saveHomeShowcaseDraft, type ShowcaseSelection } from './home-showcase-api';
-
-const selection: ShowcaseSelection = { featured: Array(15).fill(null), interestedComputers: Array(15).fill(null) };
+import { getHomeShowcase, getHomeShowcaseFallbacks, issueHomeShowcasePreviewToken, publishHomeShowcase, resetHomeShowcaseDraft, saveHomeShowcaseDraft } from './home-showcase-api';
 
 describe('home showcase API contract', () => {
   it('loads published fallback lists from the public showcase endpoint without requiring a Computers category lookup', async () => {
@@ -28,18 +26,20 @@ describe('home showcase API contract', () => {
   });
 
   it('writes the complete 15-slot draft for both sections, including empty slots', async () => {
-    const input = { ...selection, featured: [42, ...Array(14).fill(null)] };
+    const input = {
+      featured: [42, null, 17, ...Array(12).fill(null)],
+      interestedComputers: [null, 84, ...Array(13).fill(null)],
+    };
     const requestAdmin = vi.fn().mockResolvedValue(new Response(null, { status: 204 }));
 
     await expect(saveHomeShowcaseDraft(requestAdmin, input)).resolves.toBeUndefined();
-    const [, init] = requestAdmin.mock.calls[0];
+    const [path, init] = requestAdmin.mock.calls[0];
+    expect(path).toBe('/admin/home-showcase/draft');
     expect(init?.method).toBe('PUT');
     const body = JSON.parse(String(init?.body));
+    expect(body).toEqual(input);
     expect(body.featured).toHaveLength(15);
     expect(body.interestedComputers).toHaveLength(15);
-    expect(body.featured[0]).toEqual({ slotIndex: 1, productId: 42 });
-    expect(body.featured[1]).toEqual({ slotIndex: 2, productId: null });
-    expect(body.interestedComputers[14]).toEqual({ slotIndex: 15, productId: null });
   });
 
   it('uses separate reset, publish, and preview-token endpoints', async () => {
