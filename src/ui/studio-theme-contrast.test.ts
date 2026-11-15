@@ -24,10 +24,11 @@ function contrast(foreground: string, background: string) {
 }
 
 describe('Studio navigation group label contrast', () => {
-  it('hides the closed Studio drawer through the 960px breakpoint and preserves its open state', () => {
-    expect(styles).toContain('@media(max-width:959px){.studio-shell .admin-sidebar{transform:translateX(-105%);visibility:hidden;transition:transform .22s ease,visibility .22s ease}.studio-shell .admin-sidebar.mobile-nav-open{transform:translateX(0);visibility:visible;transition:transform .22s ease,visibility 0s}}');
-    expect(styles).toContain('@media(min-width:960px){.studio-shell .mobile-theme-controls{display:none}}');
-    expect(styles).toContain('@media(max-width:959px){.studio-shell .mobile-theme-controls');
+  it('switches to the mobile Studio header before the desktop breadcrumb becomes cramped', () => {
+    expect(styles).toContain('@media(max-width:1023px){.studio-shell .admin-sidebar{transform:translateX(-105%);visibility:hidden;transition:transform .22s ease,visibility .22s ease}.studio-shell .admin-sidebar.mobile-nav-open{transform:translateX(0);visibility:visible;transition:transform .22s ease,visibility 0s}}');
+    expect(styles).toContain('.studio-shell .admin-header{padding-inline:16px}.studio-shell .admin-breadcrumb{display:none}');
+    expect(styles).toContain('@media(min-width:1024px){.studio-shell .mobile-theme-controls{display:none}}');
+    expect(styles).toContain('@media(max-width:1023px){.studio-shell .mobile-theme-controls');
     expect(styles).toContain('@media(max-width:760px)');
   });
 
