@@ -2,10 +2,15 @@ export type AdminRequest = (path: string, init?: RequestInit) => Promise<Respons
 
 export interface SyncJob {
   id: string;
+  dataSourceId?: number;
   dataSource: string;
+  queuedAtUtc?: string;
   startedAtUtc: string | null;
   finishedAtUtc: string | null;
   state: 'Queued' | 'Running' | 'Success' | 'Partial' | 'Failed';
+  seenCount?: number;
+  importedCount?: number;
+  pendingCount?: number;
 }
 
 export class SyncJobsApiError extends Error {
@@ -37,13 +42,19 @@ function normalizeSyncJob(value: unknown): SyncJob | null {
     || (job.finishedAtUtc !== null && typeof job.finishedAtUtc !== 'string')
     || state === null) return null;
 
-  return {
+  const normalized: SyncJob = {
     id,
     dataSource: job.dataSource,
     startedAtUtc: job.startedAtUtc as string | null,
     finishedAtUtc: job.finishedAtUtc as string | null,
     state,
   };
+  if (typeof job.dataSourceId === 'number' && Number.isInteger(job.dataSourceId)) normalized.dataSourceId = job.dataSourceId;
+  if (typeof job.queuedAtUtc === 'string') normalized.queuedAtUtc = job.queuedAtUtc;
+  if (typeof job.seenCount === 'number' && Number.isFinite(job.seenCount)) normalized.seenCount = job.seenCount;
+  if (typeof job.importedCount === 'number' && Number.isFinite(job.importedCount)) normalized.importedCount = job.importedCount;
+  if (typeof job.pendingCount === 'number' && Number.isFinite(job.pendingCount)) normalized.pendingCount = job.pendingCount;
+  return normalized;
 }
 
 export async function getSyncJobs(requestAdmin: AdminRequest, signal?: AbortSignal): Promise<SyncJob[]> {
