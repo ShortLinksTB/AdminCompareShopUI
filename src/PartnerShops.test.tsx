@@ -102,6 +102,19 @@ describe('Partner Shops page', () => {
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
   });
 
+  it('disables homepage visibility immediately when Active is unchecked in the edit modal', async () => {
+    const user = userEvent.setup();
+    renderShops();
+    await user.click(await screen.findByRole('button', { name: 'Sửa' }));
+    const visibilitySwitch = screen.getByRole('switch', { name: 'Hiển thị ở trang chủ' });
+    expect(visibilitySwitch).toBeEnabled();
+    await user.click(screen.getByRole('checkbox', { name: 'Active' }));
+    expect(visibilitySwitch).toBeDisabled();
+    expect(screen.getByText('Shop không hoạt động nên không thể hiển thị ở trang chủ.')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Save shop' }));
+    await waitFor(() => expect(api.updatePartnerShop).toHaveBeenCalledWith(requestAdmin, 42, expect.objectContaining({ isActive: false, showOnHome: false })));
+  });
+
   it('uses the shared modal and preserves the existing create fields and actions', async () => {
     const user = userEvent.setup();
     renderShops();

@@ -16,6 +16,7 @@ export function PartnerShops({ requestAdmin, permissions }: { requestAdmin: Admi
   const [error, setError] = useState<string | null>(null);
   const [editing, setEditing] = useState<PartnerShop | null | undefined>(undefined);
   const [showOnHomeDraft, setShowOnHomeDraft] = useState(false);
+  const [isActiveDraft, setIsActiveDraft] = useState(true);
   const [saving, setSaving] = useState(false);
   const [deletingId, setDeletingId] = useState<number | null>(null);
   const [updatingIds, setUpdatingIds] = useState<number[]>([]);
@@ -73,7 +74,7 @@ export function PartnerShops({ requestAdmin, permissions }: { requestAdmin: Admi
       slug: String(form.get('slug') ?? '').trim(),
       name: String(form.get('name') ?? '').trim(),
       websiteUrl: String(form.get('websiteUrl') ?? '').trim() || undefined,
-      isActive: form.get('isActive') === 'on',
+      isActive: isActiveDraft,
       showOnHome: showOnHomeDraft,
       homeDisplayOrder: orderValue ? Number(orderValue) : undefined,
     };
@@ -111,7 +112,7 @@ export function PartnerShops({ requestAdmin, permissions }: { requestAdmin: Admi
   }
 
   return <div className="partner-shops-page">
-    <PageHeader eyebrow="AFFILIATE & DATA" title="Partner Shops" description="Active xác định shop còn hoạt động. Hiển thị ở trang chủ là cài đặt riêng cho mục Đối tác." actions={can('shops.create') && <Button tone="primary" onClick={() => { setShowOnHomeDraft(false); setEditing(null); }}>+ Add shop</Button>} />
+    <PageHeader eyebrow="AFFILIATE & DATA" title="Partner Shops" description="Active xác định shop còn hoạt động. Hiển thị ở trang chủ là cài đặt riêng cho mục Đối tác." actions={can('shops.create') && <Button tone="primary" onClick={() => { setShowOnHomeDraft(false); setIsActiveDraft(true); setEditing(null); }}>+ Add shop</Button>} />
     {error && <div className="partner-shop-alert" role="alert"><span>{error}</span><Button size="sm" onClick={() => void load()}>Retry</Button></div>}
     {toast && <div className="partner-shop-toast" role="status"><span>{toast}</span><Button size="sm" tone="ghost" aria-label="Đóng thông báo" onClick={() => setToast(null)}>×</Button></div>}
     <FilterChips label="Lọc theo hiển thị trang chủ" value={filter} onChange={value => setFilter(value as VisibilityFilter)} items={[
@@ -132,7 +133,7 @@ export function PartnerShops({ requestAdmin, permissions }: { requestAdmin: Admi
             <td><div className="partner-shop-toggle-cell"><Switch checked={shop.showOnHome} disabled={!shop.isActive || !can('shops.update') || updatingIds.includes(shop.id)} label={`Hiển thị ${shop.name} ở trang chủ`} onChange={checked => void toggleVisibility(shop, checked)} />
               {updatingIds.includes(shop.id) ? <small role="status">Đang lưu…</small> : !shop.isActive ? <small>Shop không hoạt động sẽ không hiện ở trang chủ</small> : null}</div></td>
             <td>{shop.showOnHome ? shop.homeDisplayOrder ?? '—' : <span className="partner-shop-muted">—</span>}</td>
-            <td className="partner-shop-actions-cell">{can('shops.update') && <Button size="sm" onClick={() => { setShowOnHomeDraft(shop.showOnHome); setEditing(shop); }}>Sửa</Button>} {can('shops.delete') && <Button size="sm" tone="danger" disabled={deletingId === shop.id} onClick={() => void remove(shop)}>{deletingId === shop.id ? 'Đang xoá…' : 'Xoá'}</Button>}</td>
+            <td className="partner-shop-actions-cell">{can('shops.update') && <Button size="sm" onClick={() => { setShowOnHomeDraft(shop.showOnHome); setIsActiveDraft(shop.isActive); setEditing(shop); }}>Sửa</Button>} {can('shops.delete') && <Button size="sm" tone="danger" disabled={deletingId === shop.id} onClick={() => void remove(shop)}>{deletingId === shop.id ? 'Đang xoá…' : 'Xoá'}</Button>}</td>
           </tr>)}
           {!loading && filteredShops.length === 0 && <tr><td colSpan={6}><EmptyState title={error ? 'Không thể tải danh sách shop.' : filter === 'all' ? 'Chưa có partner shop.' : 'Không có shop trong bộ lọc này.'} /></td></tr>}
         </tbody>
@@ -152,8 +153,8 @@ export function PartnerShops({ requestAdmin, permissions }: { requestAdmin: Admi
         <Field label="Slug" name="slug" required defaultValue={editing?.slug ?? ''} />
         <Field label="Name" name="name" required defaultValue={editing?.name ?? ''} />
         <Field label="Website URL (optional)" name="websiteUrl" type="text" maxLength={2048} defaultValue={editing?.websiteUrl ?? ''} />
-        <label className="partner-shop-active"><input className="studio-checkbox" name="isActive" type="checkbox" defaultChecked={editing?.isActive ?? true} /> Active</label>
-        <div className="partner-shop-modal-switch"><div><b>Hiển thị ở trang chủ</b><small>Bật để shop xuất hiện trong mục Đối tác trên trang chủ.</small></div><Switch checked={showOnHomeDraft} disabled={Boolean(editing && !editing.isActive)} label="Hiển thị ở trang chủ" onChange={setShowOnHomeDraft} />{editing && !editing.isActive && <small>Shop không hoạt động nên không thể hiển thị ở trang chủ.</small>}</div>
+        <label className="partner-shop-active"><input className="studio-checkbox" name="isActive" type="checkbox" checked={isActiveDraft} onChange={event => { const active = event.target.checked; setIsActiveDraft(active); if (!active) setShowOnHomeDraft(false); }} /> Active</label>
+        <div className="partner-shop-modal-switch"><div><b>Hiển thị ở trang chủ</b><small>Bật để shop xuất hiện trong mục Đối tác trên trang chủ.</small></div><Switch checked={showOnHomeDraft} disabled={!isActiveDraft} label="Hiển thị ở trang chủ" onChange={setShowOnHomeDraft} />{!isActiveDraft && <small>Shop không hoạt động nên không thể hiển thị ở trang chủ.</small>}</div>
         <Field label="Thứ tự hiển thị" name="homeDisplayOrder" type="number" min={1} max={99} defaultValue={editing?.homeDisplayOrder ?? ''} />
         <small className="partner-shop-order-help">Số nhỏ hiển thị trước. Chỉ áp dụng khi bật hiển thị.</small>
       </form>

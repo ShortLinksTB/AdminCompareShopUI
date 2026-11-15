@@ -419,6 +419,7 @@ describe('MatchingPage', () => {
     const admin = vi.fn<AdminRequest>().mockImplementation(async path => path.startsWith('/admin/matching?') ? page() : new Response(null, { status: 204 }));
     renderPage(admin);
     await screen.findByRole('heading', { name: 'Laptop source' });
+    await screen.findByRole('button', { name: /Laptop product/ });
     fireEvent.keyDown(window, { key: 'n', ctrlKey: true });
     expect(screen.queryByRole('dialog', { name: 'Tạo sản phẩm mới' })).not.toBeInTheDocument();
     fireEvent.keyDown(window, { key: 's' });
