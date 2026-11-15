@@ -95,6 +95,15 @@ describe('FilesPage thumbnail fallback', () => {
     expect(button.querySelector('img')).toBeNull();
     expect(button).toHaveTextContent('IMG');
   });
+  it('returns focus to the Files thumbnail after closing its lightbox from the backdrop', async () => {
+    render(<FilesPage requestAdmin={requestFor()} permissions={['files.read']} />);
+    const trigger = await screen.findByRole('button', { name: 'Preview banner' });
+    fireEvent.click(trigger);
+    expect(await screen.findByRole('dialog', { name: 'Image preview' })).toBeInTheDocument();
+    fireEvent.mouseDown(document.querySelector('.studio-overlay')!);
+    expect(screen.queryByRole('dialog', { name: 'Image preview' })).not.toBeInTheDocument();
+    await waitFor(() => expect(trigger).toHaveFocus());
+  });
 });
 
 describe('FilesPage details and file actions', () => {

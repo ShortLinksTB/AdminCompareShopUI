@@ -122,6 +122,17 @@ describe('Studio shared components', () => {
     expect(screen.queryByRole('dialog', { name: 'Xem ảnh' })).not.toBeInTheDocument();
     await waitFor(() => expect(trigger).toHaveFocus());
   });
+  it('returns focus to the opener after closing the shared lightbox from its backdrop', async () => {
+    const Demo = () => { const [open, setOpen] = useState(false); return <><button onClick={() => setOpen(true)}>Open preview</button><Lightbox open={open} onClose={() => setOpen(false)}><img alt="Preview" src="/image.png" /></Lightbox></>; };
+    render(<Demo />);
+    const trigger = screen.getByRole('button', { name: 'Open preview' });
+    trigger.focus();
+    fireEvent.click(trigger);
+    const overlay = document.querySelector('.studio-overlay')!;
+    fireEvent.mouseDown(overlay);
+    expect(screen.queryByRole('dialog', { name: 'Xem ảnh' })).not.toBeInTheDocument();
+    await waitFor(() => expect(trigger).toHaveFocus());
+  });
   it('wraps Shift+Tab from the dialog root and keeps focus during lightbox zoom rerenders', () => {
     const close = vi.fn();
     const Demo = () => <><button>Opener</button><Lightbox open onClose={() => close()}><img alt="Zoom image" src="/image.png" /></Lightbox></>;
