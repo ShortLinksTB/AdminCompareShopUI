@@ -2,18 +2,18 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import '@testing-library/jest-dom/vitest';
 import { SyncJobsPage } from './SyncJobsPage';
-import type { AdminRequest } from './sync-jobs-api';
+import type { AdminRequest, SyncJob } from './sync-jobs-api';
 
-const job = { id: '210', dataSource: 'QC-SL1815 Shop A', startedAtUtc: '2026-11-15T03:12:00Z', finishedAtUtc: '2026-11-15T03:15:02Z', queuedAtUtc: '2026-11-15T03:11:00Z', state: 'Failed', seenCount: 0, importedCount: 0, pendingCount: 0, errorCode: 'source_failure', errorSummary: 'Catalog source could not be read or imported.' };
+const job: SyncJob = { id: '210', dataSource: 'QC-SL1815 Shop A', startedAtUtc: '2026-11-15T03:12:00Z', finishedAtUtc: '2026-11-15T03:15:02Z', queuedAtUtc: '2026-11-15T03:11:00Z', state: 'Failed', seenCount: 0, importedCount: 0, pendingCount: 0, errorCode: 'source_failure', errorSummary: 'Catalog source could not be read or imported.' };
 const log = { id: '1', occurredAtUtc: '2026-11-15T03:12:01Z', level: 'Error', step: 'shop_check', message: 'Shop is unavailable', exceptionType: 'TimeoutException', httpStatusCode: 503 };
-function requestMock(withLogs = true): ReturnType<typeof vi.fn<AdminRequest>> {
+function requestMock(withLogs = true, rows: SyncJob[] = [job]): ReturnType<typeof vi.fn<AdminRequest>> {
   return vi.fn<AdminRequest>().mockImplementation(async path => {
     if (path.includes('/logs')) return Response.json({ items: withLogs ? [log] : [], page: 1, pageSize: 500, totalItems: withLogs ? 1 : 0 });
     if (path.includes('/retry')) return new Response(null, { status: 202 });
     const params = new URL(`http://localhost${path}`).searchParams;
     const pageSize = Number(params.get('pageSize') || 25);
     if (pageSize === 1) return Response.json({ items: [], page: 1, pageSize, totalItems: params.get('status') === 'Failed' ? 2 : 4 });
-    return Response.json({ items: [job], page: Number(params.get('page') || 1), pageSize, totalItems: 1 });
+    return Response.json({ items: rows, page: Number(params.get('page') || 1), pageSize, totalItems: rows.length });
   });
 }
 afterEach(cleanup);
@@ -26,6 +26,12 @@ describe('SyncJobsPage', () => {
     expect(screen.getByText('Hiển thị 1–1 trong 1')).toBeInTheDocument();
     await waitFor(() => expect(requestAdmin).toHaveBeenCalledWith(expect.stringContaining('pageSize=1'), expect.anything()));
     expect(screen.getByRole('group', { name: 'Lọc theo trạng thái' })).toHaveTextContent('Failed');
+  });
+  it('shows an empty start time for a queued job even when its queue time exists', async () => {
+    const queued: SyncJob = { id: '211', dataSource: 'Queued source', startedAtUtc: null, queuedAtUtc: '2026-11-15T03:11:00Z', finishedAtUtc: null, state: 'Queued' };
+    render(<SyncJobsPage requestAdmin={requestMock(true, [job, queued])} permissions={['sync_jobs.read']} />);
+    const row = (await screen.findByText('Queued source')).closest('tr');
+    expect(row?.cells[1]).toHaveTextContent('—');
   });
   it('combines search, date and status filters into the API request', async () => {
     const requestAdmin = requestMock();
