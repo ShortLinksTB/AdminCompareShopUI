@@ -2,6 +2,8 @@ import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent } fro
 import { deleteAdminFile, getAdminFile, getAdminFiles, publicFileUrl, uploadAdminFiles, type AdminFile, type AdminFilePage, type AdminFileTypeFilter } from './files-api';
 import type { AdminRequest } from '../products/products-api';
 import { Button, Card, DataTable, EmptyState, ErrorState, Lightbox, Loading, Modal, PageHeader, Pager, Pill, RowMenu, SearchField, Select, Toast, Toolbar } from '../ui';
+import { DerivativeModal } from './DerivativeModal';
+import './files.css';
 
 const PAGE_SIZES = [10, 20, 50];
 const allowed = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'image/svg+xml', 'application/pdf']);
@@ -12,6 +14,8 @@ const formatDate = (value: string, time = false) => {
   return Number.isNaN(date.getTime()) ? value : new Intl.DateTimeFormat('vi-VN', time ? { dateStyle: 'medium', timeStyle: 'short' } : { dateStyle: 'medium' }).format(date);
 };
 const isImage = (file: AdminFile) => file.contentType.startsWith('image/');
+const supportsDerivatives = (file: AdminFile) => ['image/jpeg', 'image/png', 'image/webp', 'image/gif'].includes(file.contentType);
+const presetName = (preset: AdminFile['derivedPreset']) => preset === 'home-600x600' ? 'Trang chủ' : preset === 'product-detail-1000x1000' ? 'Chi tiết sản phẩm' : preset === 'custom' ? 'Tuỳ chọn' : '';
 
 function normalizePage(result: AdminFilePage, requestedPage: number, requestedPageSize: number): AdminFilePage {
   // Keep client pagination state valid even if an older or partial API response
@@ -50,6 +54,8 @@ export function FilesPage({ requestAdmin, permissions = [] }: { requestAdmin: Ad
   const [brokenThumbs, setBrokenThumbs] = useState<Set<string>>(() => new Set());
   const [menuId, setMenuId] = useState<string | null>(null);
   const [lightbox, setLightbox] = useState<AdminFile | null>(null);
+  const [derivativeFile, setDerivativeFile] = useState<AdminFile | null>(null);
+  const derivativeTrigger = useRef<HTMLElement | null>(null);
   const [toast, setToast] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -137,9 +143,9 @@ export function FilesPage({ requestAdmin, permissions = [] }: { requestAdmin: Ad
       <DataTable><thead><tr><th>Preview</th><th>Name</th><th>Type</th><th>Uploaded by</th><th>Uploaded</th><th>Public link</th><th><span className="sr-only">Actions</span></th></tr></thead><tbody>
         {loading ? <tr><td colSpan={7}><Loading label="Loading files" /></td></tr> : error ? <tr><td colSpan={7}><ErrorState title={error} /><Button size="sm" onClick={() => setReload(value => value + 1)}>Retry</Button></td></tr> : files.length === 0 ? <tr><td colSpan={7}><EmptyState title="No files found. Upload a file or adjust your search." /></td></tr> : files.map(file => <tr key={file.id}>
           <td><Button tone="ghost" aria-label={`Preview ${shortName(file.originalFileName)}`} onClick={event => { if (isImage(file)) { event.currentTarget.focus(); setLightbox(file); } }} disabled={!isImage(file)} style={{ width: 44, height: 44, padding: 0, overflow: 'hidden' }}>{isImage(file) && !brokenThumbs.has(file.id) ? <img style={{ width: '100%', height: '100%', objectFit: 'cover' }} src={publicFileUrl(file.id)} alt="" onError={() => setBrokenThumbs(current => new Set(current).add(file.id))} /> : file.contentType === 'application/pdf' ? 'PDF' : isImage(file) ? 'IMG' : 'FILE'}</Button></td>
-          <td><Button tone="ghost" onClick={() => showDetails(file)} style={{ minHeight: 0, padding: 0, border: 0, color: 'var(--studio-text)', textAlign: 'left' }}>{shortName(file.originalFileName)}</Button></td><td><span style={{ color: 'var(--studio-muted)', fontSize: 12 }}>{file.contentType}</span></td><td>{file.uploadedBy || '—'}</td><td>{formatDate(file.uploadedAtUtc)}</td>
+          <td><Button tone="ghost" onClick={() => showDetails(file)} style={{ minHeight: 0, padding: 0, border: 0, color: 'var(--studio-text)', textAlign: 'left' }}>{shortName(file.originalFileName)}</Button>{file.width && file.height && <span className="files-dimension-label">{file.width} × {file.height} px</span>}{file.derivedFrom && <span className="files-derived-label">Bản sao của {file.derivedFrom.originalFileName}{file.derivedPreset ? ` · ${presetName(file.derivedPreset)}` : ''}</span>}</td><td><span style={{ color: 'var(--studio-muted)', fontSize: 12 }}>{file.contentType}</span></td><td>{file.uploadedBy || '—'}</td><td>{formatDate(file.uploadedAtUtc)}</td>
           <td><div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 175 }}><code style={{ maxWidth: 180, overflow: 'hidden', color: 'var(--studio-muted)', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>/files/{file.id}</code><Button size="sm" tone="ghost" aria-label={`Copy link for ${shortName(file.originalFileName)}`} onClick={() => void copyLink(file)}>⧉</Button><a className="studio-button studio-button-ghost studio-button-sm" style={{ display: 'grid', minWidth: 34, placeItems: 'center', padding: 0, textDecoration: 'none' }} href={publicFileUrl(file.id)} target="_blank" rel="noreferrer" aria-label={`Open ${shortName(file.originalFileName)}`}>↗</a></div></td>
-          <td><RowMenu label={`Actions for ${shortName(file.originalFileName)}`} open={menuId === file.id} onOpenChange={open => setMenuId(open ? file.id : null)}><button onClick={() => showDetails(file)}>Details</button><button onClick={() => void copyLink(file)}>Copy public link</button><a href={publicFileUrl(file.id)} target="_blank" rel="noreferrer" onClick={() => setMenuId(null)}>Open file</a><a href={publicFileUrl(file.id)} download={file.originalFileName} onClick={() => setMenuId(null)}>Download</a>{canWrite && <button onClick={() => { setMenuId(null); setDeleteTarget(file); }}>Delete</button>}</RowMenu></td>
+          <td><RowMenu label={`Actions for ${shortName(file.originalFileName)}`} open={menuId === file.id} onOpenChange={open => setMenuId(open ? file.id : null)}><button onClick={() => showDetails(file)}>Details</button><button onClick={() => void copyLink(file)}>Copy public link</button><a href={publicFileUrl(file.id)} target="_blank" rel="noreferrer" onClick={() => setMenuId(null)}>Open file</a><a href={publicFileUrl(file.id)} download={file.originalFileName} onClick={() => setMenuId(null)}>Download</a>{canWrite && <button disabled={!supportsDerivatives(file)} title={!supportsDerivatives(file) ? 'Chỉ áp dụng cho ảnh JPG, PNG, WebP, GIF' : undefined} onClick={event => { derivativeTrigger.current = event.currentTarget.closest('details')?.querySelector('summary') ?? null; setMenuId(null); setDerivativeFile(file); }}>{supportsDerivatives(file) ? 'Tạo bản sao theo kích thước…' : 'Tạo bản sao theo kích thước… · Chỉ JPG, PNG, WebP, GIF'}</button>}{canWrite && <button onClick={() => { setMenuId(null); setDeleteTarget(file); }}>Delete</button>}</RowMenu></td>
         </tr>)}
       </tbody></DataTable>
       <div className="studio-table-footer"><span>Rows per page <Select size="sm" aria-label="Rows per page" value={pageSize} onChange={event => { setPageSize(Number(event.target.value)); setPageNumber(1); }}>{PAGE_SIZES.map(size => <option key={size}>{size}</option>)}</Select> · Total <b>{page.totalItems}</b> files</span><span>Showing {rangeStart}–{rangeEnd} of {page.totalItems} files</span><Pager page={pageNumber} pages={totalPages} onChange={setPageNumber} previousLabel="Previous page" nextLabel="Next page" formatPage={(current, pages) => `Page ${current} of ${pages}`} disabled={loading} /></div>
@@ -157,6 +163,8 @@ export function FilesPage({ requestAdmin, permissions = [] }: { requestAdmin: Ad
     <Modal open={Boolean(deleteTarget)} onClose={() => { setDeleteTarget(null); setActionError(''); }} title="Delete file?" role="alertdialog" actions={<><Button onClick={() => { setDeleteTarget(null); setActionError(''); }}>Cancel</Button><Button tone="danger" onClick={() => void confirmDelete()}>Delete</Button></>}>
       {deleteTarget && <><p>This will remove <b>{shortName(deleteTarget.originalFileName)}</b> and its public link.</p>{actionError && <ErrorState title={actionError} />}</>}
     </Modal>
+
+    {derivativeFile && <DerivativeModal file={derivativeFile} requestAdmin={requestAdmin} existingFiles={files} onClose={() => { setDerivativeFile(null); requestAnimationFrame(() => derivativeTrigger.current?.focus()); }} onCreated={() => { setReload(value => value + 1); setToast('Bản sao đã được tạo.'); }} />}
 
     <Lightbox open={Boolean(lightbox)} onClose={() => setLightbox(null)} label="Image preview" closeLabel="Close preview" toolbar={lightbox?.originalFileName} resetKey={lightbox?.id}>{lightbox && <img src={publicFileUrl(lightbox.id)} alt={shortName(lightbox.originalFileName)} draggable={false} />}</Lightbox>
     {toast && <Toast>{toast}</Toast>}

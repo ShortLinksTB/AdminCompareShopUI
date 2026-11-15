@@ -108,6 +108,54 @@ describe('FilesPage thumbnail fallback', () => {
 });
 
 describe('FilesPage details and file actions', () => {
+  it('offers derivatives only for supported images and submits the selected variant through the API', async () => {
+    const user = userEvent.setup();
+    const request = vi.fn<AdminRequest>().mockImplementation((path, init) => {
+      if (path === '/admin/files?page=1&pageSize=10') return Promise.resolve(pageResponse([image, { ...pdf, id: 'svg-1', originalFileName: 'logo.svg', contentType: 'image/svg+xml' }]));
+      if (path.endsWith('/derivatives')) return Promise.resolve(Response.json({ results: [{ success: true, file: { ...image, id: 'derived-1', originalFileName: 'banner-600x600.webp', width: 600, height: 600, publicUrl: 'https://example.test/files/derived-1' } }] }));
+      if (path === '/admin/files') return Promise.resolve(new Response(null, { status: 201 }));
+      return Promise.resolve(Response.json(image));
+    });
+    render(<FilesPage requestAdmin={request} permissions={['files.read', 'files.write']} />);
+    await screen.findByText('banner');
+    const imageRow = screen.getByText('banner').closest('tr')!;
+    await user.click(within(imageRow).getByText('⋮', { selector: 'summary' }));
+    await user.click(screen.getByRole('button', { name: 'Tạo bản sao theo kích thước…' }));
+    expect(await screen.findByRole('dialog', { name: 'Tạo bản sao theo kích thước' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '600x600' })).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Tạo 1 bản sao' }));
+    await waitFor(() => expect(request).toHaveBeenCalledWith('/admin/files/image-1/derivatives', expect.objectContaining({ method: 'POST' })));
+    const body = JSON.parse(String(request.mock.calls.find(([path]) => path.endsWith('/derivatives'))?.[1]?.body));
+    expect(body.variants).toEqual([expect.objectContaining({ width: 600, height: 600, fit: 'cover', focalX: 0.5, focalY: 0.5, format: 'keep', name: 'banner-600x600' })]);
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Tạo bản sao theo kích thước' })).not.toBeInTheDocument());
+    await waitFor(() => expect(request).toHaveBeenCalledWith('/admin/files?page=1&pageSize=10', expect.any(Object)));
+
+    const svgRow = screen.getByText('logo').closest('tr')!;
+    await user.click(within(svgRow).getByText('⋮', { selector: 'summary' }));
+    expect(screen.getByRole('button', { name: /Chỉ JPG, PNG, WebP, GIF/ })).toBeDisabled();
+  });
+
+  it('keeps independent variant errors visible and retries only the failed variant', async () => {
+    const user = userEvent.setup();
+    const request = vi.fn<AdminRequest>().mockImplementation(path => {
+      if (path === '/admin/files?page=1&pageSize=10') return Promise.resolve(pageResponse([image]));
+      if (path.endsWith('/derivatives')) return Promise.resolve(Response.json({ results: [{ success: true, file: { ...image, id: 'made' } }, { success: false, errorCode: 'encode_failed' }] }));
+      return Promise.resolve(Response.json(image));
+    });
+    render(<FilesPage requestAdmin={request} permissions={['files.read', 'files.write']} />);
+    const row = (await screen.findByText('banner')).closest('tr')!;
+    await user.click(within(row).getByText('⋮', { selector: 'summary' }));
+    await user.click(screen.getByRole('button', { name: 'Tạo bản sao theo kích thước…' }));
+    await user.click(screen.getByRole('checkbox', { name: /1000 × 1000 px/ }));
+    await user.click(screen.getByRole('button', { name: 'Tạo 2 bản sao' }));
+    expect(await screen.findByText(/1000x1000: Không thể tạo ảnh theo định dạng này/)).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Thử lại' }));
+    await waitFor(() => expect(request.mock.calls.filter(([path]) => path.endsWith('/derivatives'))).toHaveLength(2));
+    const retryBody = JSON.parse(String(request.mock.calls.filter(([path]) => path.endsWith('/derivatives'))[1][1]?.body));
+    expect(retryBody.variants).toHaveLength(1);
+    expect(retryBody.variants[0]).toMatchObject({ width: 1000, height: 1000 });
+  });
+
   it('loads full metadata in Details and closes with Escape', async () => {
     const user = userEvent.setup();
     const request = requestFor();

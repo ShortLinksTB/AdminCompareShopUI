@@ -9,6 +9,40 @@ export interface AdminFile {
   height: number | null;
   uploadedBy: string;
   uploadedAtUtc: string;
+  derivedFrom?: { id: string; originalFileName: string } | null;
+  derivedPreset?: 'home-600x600' | 'product-detail-1000x1000' | 'custom' | null;
+  derivativeSpec?: { version: number; [key: string]: unknown } | null;
+}
+
+export interface DerivativeVariantRequest {
+  width: number;
+  height: number;
+  fit: 'cover' | 'contain';
+  focalX?: number;
+  focalY?: number;
+  background: string;
+  format: 'keep' | 'webp' | 'jpg' | 'png';
+  quality: 70 | 80 | 90;
+  name: string;
+}
+
+export interface DerivativeVariantResult {
+  success: boolean;
+  file?: AdminFile & { publicUrl?: string; warnings?: string[] };
+  errorCode?: string;
+  error?: string;
+  warnings?: string[];
+}
+
+export async function createFileDerivatives(request: AdminRequest, id: string, variants: DerivativeVariantRequest[]): Promise<DerivativeVariantResult[]> {
+  const response = await request(`/admin/files/${encodeURIComponent(id)}/derivatives`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ variants }),
+  });
+  if (!response.ok) throw apiError(response, 'create image derivatives');
+  const payload = await response.json() as { results?: DerivativeVariantResult[] } | DerivativeVariantResult[];
+  return Array.isArray(payload) ? payload : Array.isArray(payload.results) ? payload.results : [];
 }
 
 export interface AdminFilePage {
