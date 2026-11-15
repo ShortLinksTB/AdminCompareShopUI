@@ -108,3 +108,8 @@ export async function deleteAdminFile(request: AdminRequest, id: string): Promis
 export function publicFileUrl(id: string, apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'https://api-compareshop-dev.giamha.online'): string {
   return new URL(`/files/${encodeURIComponent(id)}`, apiBaseUrl).toString();
 }
+
+export function resolvePublicFileUrl(url: string): string {
+  const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'https://api-compareshop-dev.giamha.online';
+  return new URL(url, apiBaseUrl).toString();
+}
