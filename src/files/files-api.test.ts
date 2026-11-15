@@ -66,14 +66,18 @@ describe('Files API', () => {
     await expect(deleteAdminFile(request, 'id 1')).rejects.toBeInstanceOf(FilesApiError);
   });
 
-  it('posts derivative variants and reads independent per-variant results', async () => {
-    const variant = { width: 600, height: 600, fit: 'cover' as const, focalX: .4, focalY: .6, background: '#ffffff', format: 'webp' as const, quality: 90, name: 'banner-600x600' };
-    const results = [{ file: { id: 'new-file' } }, { errorCode: 'processing_failed' }];
+  it('posts derivative variants and preserves independent outcomes from the API', async () => {
+    const results = [{ success: true, file: { id: 'new-1' } }, { success: false, errorCode: 'encode_failed' }];
     const request = vi.fn<AdminRequest>().mockResolvedValue(Response.json({ results }));
-    await expect(createFileDerivatives(request, 'source/id', [variant])).resolves.toEqual(results);
-    expect(request).toHaveBeenCalledWith('/admin/files/source%2Fid/derivatives', expect.objectContaining({ method: 'POST', body: JSON.stringify({ variants: [variant] }) }));
-    request.mockResolvedValueOnce(new Response('', { status: 403 }));
-    await expect(createFileDerivatives(request, 'source/id', [variant])).rejects.toThrow('You do not have permission to create image derivatives.');
+    await expect(createFileDerivatives(request, 'source/1', [{ width: 600, height: 600, fit: 'cover', focalX: 0.4, focalY: 0.5, background: '#ffffff', format: 'webp', quality: 90, name: 'banner-600x600' }])).resolves.toEqual(results);
+    expect(request).toHaveBeenCalledWith('/admin/files/source%2F1/derivatives', expect.objectContaining({ method: 'POST', headers: { 'Content-Type': 'application/json' }, body: expect.stringContaining('banner-600x600') }));
+  });
+
+  it('accepts a direct result array and reports derivative permission errors', async () => {
+    const result = [{ success: true }];
+    const request = vi.fn<AdminRequest>().mockResolvedValueOnce(Response.json(result)).mockResolvedValueOnce(new Response('', { status: 403 }));
+    await expect(createFileDerivatives(request, 'source', [])).resolves.toEqual(result);
+    await expect(createFileDerivatives(request, 'source', [])).rejects.toThrow('You do not have permission to create image derivatives.');
   });
 
   it('builds the root public Files route from versioned API bases and encoded ids', () => {
