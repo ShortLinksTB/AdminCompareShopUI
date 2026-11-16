@@ -7,6 +7,8 @@ import { getProductImages, retryProductImageDerivatives, saveProductImages, type
 import './product-images.css';
 
 type DraftImage = ProductImage & { key: string };
+type ImageIdentity = Pick<ProductImage, 'id' | 'fileId' | 'externalUrl'>;
+const matchesImage = (image: ProductImage, identity?: ImageIdentity) => Boolean(identity && ((identity.id && image.id === identity.id) || (identity.fileId && image.fileId === identity.fileId) || (identity.externalUrl && image.externalUrl === identity.externalUrl)));
 const sourceUrl = (image: ProductImage) => { const url = image.sourceUrl || image.originalUrl || image.url || image.externalUrl; return url ? resolvePublicFileUrl(url) : image.fileId ? publicFileUrl(image.fileId) : ''; };
 const preview600 = (image: ProductImage) => { const url = image.url600 || image.card600Url; return url ? resolvePublicFileUrl(url) : (image.card600FileId ? publicFileUrl(image.card600FileId) : '') || sourceUrl(image); };
 const preview1000 = (image: ProductImage) => { const url = image.url1000 || image.detail1000Url; return url ? resolvePublicFileUrl(url) : (image.detail1000FileId ? publicFileUrl(image.detail1000FileId) : '') || sourceUrl(image); };
@@ -43,11 +45,11 @@ export function AdminCompareShopProductImages({ requestAdmin, permissions = [] }
   const [toast, setToast] = useState('');
   const dragIndex = useRef<number | null>(null);
   const fileInput = useRef<HTMLInputElement>(null);
-  const dirty = useMemo(() => JSON.stringify(draft.map(toInput)) !== JSON.stringify(saved.map(toInput)), [draft, saved]);
+  const dirty = useMemo(() => JSON.stringify(draft.map((image, index) => toInput(image, index))) !== JSON.stringify(saved.map((image, index) => toInput(image, index))), [draft, saved]);
   const selectedIndex = draft.findIndex(image => image.key === selectedKey);
   const selected = selectedIndex >= 0 ? draft[selectedIndex] : null;
 
-  const load = useCallback(async (signal?: AbortSignal) => {
+  const load = useCallback(async (signal?: AbortSignal, preferredSelection?: ImageIdentity) => {
     setLoading(true); setError('');
     try {
       const result = await getProductImages(requestAdmin, id, signal);
@@ -60,9 +62,16 @@ export function AdminCompareShopProductImages({ requestAdmin, permissions = [] }
       }
       if (signal?.aborted) return;
       setProductName(name || `Sản phẩm #${id}`);
-      setSaved(images); setDraft(images); setSelectedKey(images[0]?.key ?? '');
+      setSaved(images); setDraft(images);
+      setSelectedKey(images.find(image => matchesImage(image, preferredSelection))?.key ?? images[0]?.key ?? '');
       void Promise.all(images.filter(image => image.fileId && !image.originalFileName).map(async image => {
-        try { const metadata = await getAdminFile(requestAdmin, image.fileId!); if (!signal?.aborted) setDraft(current => current.map(item => item.key === image.key ? { ...item, originalFileName: metadata.originalFileName, width: metadata.width, height: metadata.height } : item)); }
+        try {
+          const metadata = await getAdminFile(requestAdmin, image.fileId!);
+          if (!signal?.aborted) {
+            const withMetadata = (current: DraftImage[]) => current.map(item => item.key === image.key ? { ...item, originalFileName: metadata.originalFileName, width: metadata.width, height: metadata.height } : item);
+            setSaved(withMetadata); setDraft(withMetadata);
+          }
+        }
         catch { /* The API source availability status remains authoritative when Files metadata cannot be loaded. */ }
       }));
     } catch (reason) { if (!signal?.aborted) setError(errorText(reason)); }
@@ -72,8 +81,8 @@ export function AdminCompareShopProductImages({ requestAdmin, permissions = [] }
   useEffect(() => { const controller = new AbortController(); void load(controller.signal); return () => controller.abort(); }, [load]);
   useEffect(() => { if (!toast) return; const timer = window.setTimeout(() => setToast(''), 2800); return () => window.clearTimeout(timer); }, [toast]);
 
-  function toInput(image: DraftImage): ProductImageInput {
-    return { ...(image.id ? { id: image.id } : {}), ...(image.fileId ? { fileId: image.fileId } : {}), ...(image.externalUrl ? { externalUrl: image.externalUrl } : {}), altText: image.altText ?? '', sortOrder: draft.indexOf(image) };
+  function toInput(image: DraftImage, sortOrder = image.sortOrder ?? 0): ProductImageInput {
+    return { ...(image.id ? { id: image.id } : {}), ...(image.fileId ? { fileId: image.fileId } : {}), ...(image.externalUrl ? { externalUrl: image.externalUrl } : {}), altText: image.altText ?? '', sortOrder };
   }
   const updateSelected = (patch: Partial<DraftImage>) => setDraft(current => current.map(image => image.key === selectedKey ? { ...image, ...patch } : image));
   const move = (from: number, to: number) => setDraft(current => { if (to < 0 || to >= current.length || from === to) return current; const next = [...current]; const [image] = next.splice(from, 1); next.splice(to, 0, image); return next; });
@@ -81,7 +90,12 @@ export function AdminCompareShopProductImages({ requestAdmin, permissions = [] }
   async function save() {
     if (!canUpdate || saving) return;
     setSaving(true); setSaveError('');
-    try { await saveProductImages(requestAdmin, id, draft.map((image, index) => ({ ...toInput(image), sortOrder: index })), createDerivatives); setSaved(draft); setToast('Đã lưu thư viện ảnh.'); }
+    try {
+      const preferredSelection = selected ? { id: selected.id, fileId: selected.fileId, externalUrl: selected.externalUrl } : undefined;
+      await saveProductImages(requestAdmin, id, draft.map((image, index) => toInput(image, index)), createDerivatives);
+      await load(undefined, preferredSelection);
+      setToast('Đã lưu thư viện ảnh.');
+    }
     catch (reason) { setSaveError(errorText(reason)); }
     finally { setSaving(false); }
   }
@@ -94,9 +108,14 @@ export function AdminCompareShopProductImages({ requestAdmin, permissions = [] }
   function addFiles(chosen: AdminFile[]) {
     const additions = chosen.filter(file => !draft.some(image => image.fileId === file.id)).slice(0, Math.max(0, 20 - draft.length)).map(file => ({ key: `file-${file.id}`, fileId: file.id, originalFileName: file.originalFileName, width: file.width, height: file.height, altText: '', sortOrder: 0 } as DraftImage));
     if (!additions.length) return;
-    setDraft(current => [...current, ...additions]); setSelectedKey(additions[0].key); setPickerOpen(false); setToast(`Đã thêm ${additions.length} ảnh vào bản nháp.`);
-    setToast(`Đã thêm ${additions.length} ảnh; API sẽ tự tạo bản 600 × 600 và 1000 × 1000 khi lưu.`);
-    if (chosen.filter(file => !draft.some(image => image.fileId === file.id)).length > additions.length) setToast(`Đã thêm ${additions.length} ảnh; giới hạn mỗi sản phẩm là 20 ảnh.`);
+    setDraft(current => [...current, ...additions]); setSelectedKey(additions[0].key); setPickerOpen(false);
+    const addedCount = additions.length;
+    const exceedsLimit = chosen.filter(file => !draft.some(image => image.fileId === file.id)).length > additions.length;
+    setToast(exceedsLimit
+      ? `Đã thêm ${addedCount} ảnh vào bản nháp; giới hạn mỗi sản phẩm là 20 ảnh.`
+      : createDerivatives
+        ? `Đã thêm ${addedCount} ảnh vào bản nháp; bản 600 × 600 và 1000 × 1000 sẽ được yêu cầu khi lưu.`
+        : `Đã thêm ${addedCount} ảnh vào bản nháp; khi lưu chỉ liên kết ảnh gốc.`);
   }
   async function uploadSelected(filesToUpload: FileList | null) {
     if (!filesToUpload?.length) return;

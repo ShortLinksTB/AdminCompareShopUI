@@ -59,7 +59,7 @@ describe('AdminCompareShopProductImages', () => {
     expect(screen.getByRole('listitem', { name: /Ảnh 1.*back.jpg/ })).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Lưu thay đổi' }));
     expect(await screen.findByText('Đã lưu')).toBeInTheDocument();
-    expect(gets).toBe(1);
+    expect(gets).toBe(2);
     const put = request.mock.calls.filter(([, init]) => init?.method === 'PUT').at(-1);
     expect(JSON.parse(String(put?.[1]?.body)).map((image: { fileId: string; sortOrder: number }) => [image.fileId, image.sortOrder])).toEqual([['file-2', 0], ['file-1', 1]]);
   });
@@ -87,7 +87,7 @@ describe('AdminCompareShopProductImages', () => {
     fireEvent.click(screen.getByRole('button', { name: /top.jpg/ }));
     expect(screen.getByRole('button', { name: 'Thêm 2 ảnh' })).toBeEnabled();
     fireEvent.click(screen.getByRole('button', { name: 'Thêm 2 ảnh' }));
-    expect(await screen.findByText('Đã thêm 2 ảnh; API sẽ tự tạo bản 600 × 600 và 1000 × 1000 khi lưu.')).toBeInTheDocument();
+    expect(await screen.findByText('Đã thêm 2 ảnh vào bản nháp; bản 600 × 600 và 1000 × 1000 sẽ được yêu cầu khi lưu.')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Gỡ khỏi sản phẩm' }));
     expect(screen.getByText('Chưa lưu')).toBeInTheDocument();
     expect(request.mock.calls.some(([path, init]) => init?.method === 'DELETE' && path.includes('/files/'))).toBe(false);
@@ -109,9 +109,43 @@ describe('AdminCompareShopProductImages', () => {
     expect(await screen.findByLabelText('Không xem trước được')).toBeInTheDocument();
     fireEvent.click(derivativeOption);
     expect(screen.getByText(/Chỉ liên kết ảnh gốc/)).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: 'Huỷ' }));
+    fireEvent.click(screen.getByRole('button', { name: /side.jpg/ }));
+    fireEvent.click(screen.getByRole('button', { name: 'Thêm 1 ảnh' }));
+    expect(await screen.findByText('Đã thêm 1 ảnh vào bản nháp; khi lưu chỉ liên kết ảnh gốc.')).toBeInTheDocument();
     fireEvent.click(screen.getAllByRole('button', { name: '＋ Thêm ảnh' })[0]);
     expect(await screen.findByRole('checkbox', { name: /Tự tạo bản/ })).toBeChecked();
+  });
+
+  it('refetches saved image IDs and derivative statuses and keeps metadata in sync for retry', async () => {
+    let saved = false;
+    let retryCalls = 0;
+    const persisted = { id: 'gallery-image-3', fileId: 'file-3', sourceUrl: 'https://cdn.test/side.png', altText: '', sortOrder: 0, derivative600Status: 'failed', derivative1000Status: 'failed' };
+    const request = vi.fn<AdminRequest>().mockImplementation((path, init) => {
+      if (path.startsWith('/admin/products/42/images') && init?.method === 'PUT') { saved = true; return Promise.resolve(new Response(null, { status: 204 })); }
+      if (path === '/admin/products/42/images/gallery-image-3/derivatives') {
+        retryCalls += 1;
+        return Promise.resolve(Response.json({ ...persisted, derivative600Status: 'ready', derivative1000Status: 'ready', card600FileId: 'card-600', detail1000FileId: 'detail-1000' }));
+      }
+      if (path === '/admin/products/42/images') return Promise.resolve(Response.json({ productName: 'Phone', images: saved ? [persisted] : [] }));
+      if (path === '/admin/files/file-3') return Promise.resolve(Response.json(files.items[1]));
+      if (path.startsWith('/admin/files?')) return Promise.resolve(Response.json(files));
+      return Promise.resolve(new Response(null, { status: 404 }));
+    });
+    setup(request);
+    await screen.findByText('Chưa có ảnh nào');
+    fireEvent.click(screen.getAllByRole('button', { name: '＋ Thêm ảnh' })[0]);
+    fireEvent.click(await screen.findByRole('button', { name: /side.jpg/ }));
+    fireEvent.click(screen.getByRole('button', { name: 'Thêm 1 ảnh' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Lưu thay đổi' }));
+
+    expect(await screen.findByText('Đã lưu')).toBeInTheDocument();
+    expect(await screen.findByText('1000 × 1000 px')).toBeInTheDocument();
+    expect(screen.getByRole('listitem', { name: /side.jpg/ })).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getAllByRole('button', { name: 'Thử lại' })).toHaveLength(2);
+    fireEvent.click(screen.getAllByRole('button', { name: 'Thử lại' })[0]);
+    expect(await screen.findByText('Đã thử tạo lại các bản ảnh.')).toBeInTheDocument();
+    expect(retryCalls).toBe(1);
+    expect(screen.getByText('Đã lưu')).toBeInTheDocument();
   });
 
   it('shows a retryable load error and renders the empty gallery after a successful retry', async () => {
@@ -146,7 +180,7 @@ describe('AdminCompareShopProductImages', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Thử lại' }));
     expect(await screen.findByText('Đã thử tạo lại các bản ảnh.')).toBeInTheDocument();
     expect(derivativeCalls).toBe(2);
-    expect(screen.getByRole('button', { name: 'Lưu thay đổi' })).toBeEnabled();
+    expect(screen.getByRole('button', { name: 'Lưu thay đổi' })).toBeDisabled();
   });
 
   it('disables edits without products.update and undoes a pending gallery change', async () => {
@@ -204,7 +238,7 @@ describe('AdminCompareShopProductImages', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Tải ảnh mới' }));
     expect(screen.getByRole('checkbox', { name: /Tự tạo bản/ })).toBeEnabled();
     fireEvent.change(document.querySelector('input[type="file"]')!, { target: { files: [upload] } });
-    expect(await screen.findByText(/Đã thêm 1 ảnh/)).toBeInTheDocument();
+    expect(await screen.findByText(/Đã thêm 1 ảnh vào bản nháp/)).toBeInTheDocument();
     expect(request).toHaveBeenCalledWith('/admin/files', expect.objectContaining({ method: 'POST', body: expect.any(FormData) }));
     expect(request.mock.calls.some(([path]) => path.includes('/derivatives'))).toBe(false);
     expect(screen.getByRole('listitem', { name: /new.png/ })).toBeInTheDocument();
