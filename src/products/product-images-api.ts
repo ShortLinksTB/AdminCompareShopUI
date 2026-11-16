@@ -19,6 +19,8 @@ export interface ProductImage {
   detail1000Status?: string | null;
   derivative600Status?: string | null;
   derivative1000Status?: string | null;
+  derivative600Error?: string | null;
+  derivative1000Error?: string | null;
   sourceAvailable?: boolean;
   derivativeStatus?: string | null;
   width?: number | null;

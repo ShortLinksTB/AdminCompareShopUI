@@ -188,7 +188,7 @@ describe('AdminCompareShopProductImages', () => {
       id: 'failed-image', fileId: 'source-file', sourceUrl: 'https://cdn.test/source.jpg',
       url600: 'https://cdn.test/stale-small.jpg', url1000: 'https://cdn.test/stale-large.jpg',
       card600FileId: 'stale-small-id', detail1000FileId: 'stale-large-id',
-      derivative600Status: 'failed', derivative1000Status: 'failed', altText: '', sortOrder: 0,
+      derivative600Status: 'failed', derivative1000Status: 'failed', derivative600Error: 'source_pixel_limit_exceeded', derivative1000Error: 'storage_failed', altText: '', sortOrder: 0,
     }];
     const request = vi.fn<AdminRequest>().mockImplementation(path => Promise.resolve(
       path.endsWith('/derivatives') ? Response.json(failed[0]) : Response.json({ images: failed }),
@@ -197,7 +197,8 @@ describe('AdminCompareShopProductImages', () => {
     await screen.findByRole('listitem', { name: /ảnh sản phẩm/ });
 
     expect(screen.getAllByRole('button', { name: 'Thử lại' })).toHaveLength(2);
-    expect(screen.getAllByText('Tạo bản thất bại · có thể thử lại')).toHaveLength(2);
+    expect(screen.getByText('Ảnh gốc quá lớn (vượt 24 megapixel)')).toBeInTheDocument();
+    expect(screen.getByText('Tạo bản ảnh thất bại · mã lỗi: storage_failed')).toBeInTheDocument();
     fireEvent.click(screen.getAllByRole('button', { name: 'Thử lại' })[0]);
     await waitFor(() => expect(request).toHaveBeenCalledWith('/admin/products/42/images/failed-image/derivatives', expect.objectContaining({ method: 'POST' })));
   });
