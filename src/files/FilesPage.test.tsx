@@ -83,6 +83,66 @@ describe('FilesPage list and permissions', () => {
     expect(screen.queryByRole('button', { name: 'Delete' })).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Details' })).toBeInTheDocument();
   });
+
+  it('shows actual usage labels and keeps in-use and failed selections after a partial bulk delete', async () => {
+    const usedImage = { ...image, usedBy: [{ type: 'product' as const, id: 'product-7', label: 'Sản phẩm #7' }] };
+    const request = vi.fn<AdminRequest>().mockImplementation(path => {
+      if (path.startsWith('/admin/files?')) return Promise.resolve(pageResponse([usedImage, pdf]));
+      if (path === '/admin/files/bulk-delete') return Promise.resolve(Response.json({ results: [
+        { fileId: image.id, status: 'in_use', usedBy: usedImage.usedBy, reason: 'File đang được dùng.' },
+        { fileId: pdf.id, status: 'failed', usedBy: [], reason: 'Storage unavailable.' },
+      ] }));
+      return Promise.resolve(Response.json(usedImage));
+    });
+    const user = userEvent.setup();
+    render(<FilesPage requestAdmin={request} permissions={['files.read', 'files.write']} />);
+    expect(await screen.findByText('Sản phẩm #7')).toBeInTheDocument();
+    await user.click(screen.getByRole('checkbox', { name: 'Chọn tất cả trên trang này' }));
+    expect(screen.getByRole('region', { name: 'Bulk file actions' })).toHaveTextContent('2 đã chọn');
+    await user.click(screen.getByRole('button', { name: /Xoá đã chọn/ }));
+    const confirmation = screen.getByRole('alertdialog', { name: 'Xoá 2 tệp?' });
+    expect(within(confirmation).getByText('Sản phẩm #7')).toBeInTheDocument();
+    expect(within(confirmation).getByRole('button', { name: 'Chỉ xoá 1 tệp không dùng' })).toBeEnabled();
+    await user.click(within(confirmation).getByRole('button', { name: 'Chỉ xoá 1 tệp không dùng' }));
+    expect(await screen.findByRole('dialog', { name: 'Đã xoá 0/2 tệp' })).toHaveTextContent('Storage unavailable.');
+    expect(request).toHaveBeenCalledWith('/admin/files/bulk-delete', expect.objectContaining({
+      method: 'POST', body: JSON.stringify({ fileIds: [image.id, pdf.id] }),
+    }));
+    await user.click(screen.getByRole('dialog', { name: 'Đã xoá 0/2 tệp' }).querySelector('footer button') as HTMLButtonElement);
+    expect(screen.getByRole('checkbox', { name: `Chọn ${image.originalFileName}` })).toBeChecked();
+    expect(screen.getByRole('checkbox', { name: `Chọn ${pdf.originalFileName}` })).toBeChecked();
+  });
+
+  it('supports Shift range selection and clears selection with Escape', async () => {
+    const third = { ...pdf, id: 'pdf-2', originalFileName: 'another.pdf' };
+    const request = vi.fn<AdminRequest>().mockResolvedValue(pageResponse([image, pdf, third]));
+    const user = userEvent.setup();
+    render(<FilesPage requestAdmin={request} permissions={['files.read']} />);
+    await screen.findByText('banner');
+    await user.click(screen.getByRole('checkbox', { name: `Chọn ${image.originalFileName}` }));
+    fireEvent.click(screen.getByRole('checkbox', { name: `Chọn ${third.originalFileName}` }), { shiftKey: true });
+    expect(screen.getByRole('region', { name: 'Bulk file actions' })).toHaveTextContent('3 đã chọn');
+    await user.keyboard('{Escape}');
+    expect(screen.queryByRole('region', { name: 'Bulk file actions' })).not.toBeInTheDocument();
+    expect(screen.getByRole('checkbox', { name: `Chọn ${third.originalFileName}` })).not.toBeChecked();
+  });
+
+  it('selects every filtered result across pages from the page selection banner', async () => {
+    const firstPage = Array.from({ length: 10 }, (_, index) => ({ ...image, id: `file-${index}`, originalFileName: `file-${index}.png` }));
+    const lastFile = { ...pdf, id: 'file-10', originalFileName: 'file-10.pdf' };
+    const request = vi.fn<AdminRequest>().mockImplementation(path => {
+      const params = new URLSearchParams(path.split('?')[1] ?? '');
+      return Promise.resolve(pageResponse(params.get('page') === '2' ? [lastFile] : firstPage, Number(params.get('page') ?? '1'), 10, 11));
+    });
+    const user = userEvent.setup();
+    render(<FilesPage requestAdmin={request} permissions={['files.read']} />);
+    await screen.findByText('file-0');
+    await user.click(screen.getByRole('checkbox', { name: 'Chọn tất cả trên trang này' }));
+    await user.click(screen.getByRole('button', { name: 'Chọn tất cả 11 tệp khớp bộ lọc' }));
+    expect(screen.getByRole('region', { name: 'Bulk file actions' })).toHaveTextContent('11 đã chọn');
+    expect(request).toHaveBeenCalledWith('/admin/files?page=2&pageSize=10', expect.any(Object));
+    expect(screen.queryByRole('button', { name: 'Chọn tất cả 11 tệp khớp bộ lọc' })).not.toBeInTheDocument();
+  });
 });
 
 describe('FilesPage thumbnail fallback', () => {

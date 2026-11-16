@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { createFileDerivatives, deleteAdminFile, getAdminFile, getAdminFiles, publicFileUrl, resolvePublicFileUrl, uploadAdminFiles, FilesApiError } from './files-api';
+import { bulkDeleteAdminFiles, createFileDerivatives, deleteAdminFile, getAdminFile, getAdminFiles, publicFileUrl, resolvePublicFileUrl, uploadAdminFiles, FilesApiError } from './files-api';
 import type { AdminRequest } from '../products/products-api';
 
 describe('Files API', () => {
@@ -64,6 +64,25 @@ describe('Files API', () => {
     expect(request).toHaveBeenCalledWith('/admin/files/id%201', { method: 'DELETE' });
     request.mockResolvedValueOnce(new Response('', { status: 403 }));
     await expect(deleteAdminFile(request, 'id 1')).rejects.toBeInstanceOf(FilesApiError);
+  });
+
+  it('posts bulk file ids and preserves independent per-file outcomes', async () => {
+    const results = [
+      { fileId: 'free', status: 'deleted', usedBy: [] },
+      { fileId: 'used', status: 'in_use', usedBy: [{ type: 'product', id: 'p-1', label: 'Sản phẩm #1' }] },
+      { fileId: 'broken', status: 'failed', usedBy: [], reason: 'Storage unavailable' },
+    ] as const;
+    const request = vi.fn<AdminRequest>().mockResolvedValue(Response.json({ results }));
+    await expect(bulkDeleteAdminFiles(request, ['free', 'used', 'broken'])).resolves.toEqual(results);
+    expect(request).toHaveBeenCalledWith('/admin/files/bulk-delete', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ fileIds: ['free', 'used', 'broken'] }),
+    });
+  });
+
+  it('reports bulk delete permission and server failures', async () => {
+    const request = vi.fn<AdminRequest>().mockResolvedValueOnce(new Response('', { status: 403 })).mockResolvedValueOnce(new Response('', { status: 500 }));
+    await expect(bulkDeleteAdminFiles(request, ['id'])).rejects.toThrow('You do not have permission to delete files.');
+    await expect(bulkDeleteAdminFiles(request, ['id'])).rejects.toThrow('Could not delete files (request failed with status 500).');
   });
 
   it('posts derivative variants and preserves independent outcomes from the API', async () => {
