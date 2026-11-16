@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import type { AdminRequest, Page } from '../bannedItemsApi';
 import { createCategory, deleteCategory, getCategories, updateCategory, type AdminCategory, type CategoryInput } from './categories-api';
+import { AdminCompareShopCategoriesImportExport } from './AdminCompareShopCategoriesImportExport';
 import { Button, Card, DataTable, EmptyState, ErrorState, Field, Loading, Modal, PageHeader, Pager, Pill, RowMenu, SearchField, Select, TableFooter, Toolbar } from '../ui';
 import './categories.css';
 
@@ -121,7 +122,10 @@ export function CategoriesPage({ requestAdmin, permissions }: { requestAdmin: Ad
   const rangeEnd = search.trim() ? filteredTotal : Math.min(page * pageSize, result.totalItems);
 
   return <div className="categories-page">
-    <PageHeader eyebrow="SYSTEM" title="Categories" description="Taxonomy sản phẩm — CRUD qua /admin/categories, theo đúng pattern Partner Shops." actions={canCreate && <Button tone="primary" onClick={openCreate}>+ Thêm category</Button>} />
+    <PageHeader eyebrow="SYSTEM" title="Categories" description="Taxonomy sản phẩm — CRUD qua /admin/categories, theo đúng pattern Partner Shops." actions={<>
+      <AdminCompareShopCategoriesImportExport requestAdmin={requestAdmin} canImport={canCreate && canUpdate && canDelete} onApplied={() => load(page, pageSize)} />
+      {canCreate && <Button tone="primary" onClick={openCreate}>+ Thêm category</Button>}
+    </>} />
 
     {listError && <ErrorState title={listError}><Button size="sm" onClick={() => void load()}>Thử lại</Button></ErrorState>}
     {deleteError && <ErrorState title={deleteError} />}
