@@ -3,6 +3,7 @@ import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-li
 import '@testing-library/jest-dom/vitest';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { AdminCompareShopProductImages } from './AdminCompareShopProductImages';
+import { derivativeFailureMessage } from './derivative-error';
 import type { AdminRequest } from './products-api';
 
 const rows = [
@@ -19,6 +20,23 @@ function setup(request: AdminRequest, permissions = ['products.read', 'products.
   return render(<MemoryRouter initialEntries={['/products/42/images']}><Routes><Route path="/products/:id/images" element={<AdminCompareShopProductImages requestAdmin={request} permissions={permissions} />} /></Routes></MemoryRouter>);
 }
 afterEach(() => { cleanup(); vi.restoreAllMocks(); });
+
+describe('derivativeFailureMessage', () => {
+  it('explains oversized source failures', () => {
+    expect(derivativeFailureMessage('source_pixel_limit_exceeded'))
+      .toBe('Ảnh gốc quá lớn (vượt 24 megapixel)');
+  });
+
+  it('shows a general failure message with unknown raw codes', () => {
+    expect(derivativeFailureMessage('encoder_unavailable'))
+      .toBe('Tạo bản ảnh thất bại · mã lỗi: encoder_unavailable');
+  });
+
+  it('keeps the retryable fallback for failures without a code', () => {
+    expect(derivativeFailureMessage(null))
+      .toBe('Tạo bản ảnh thất bại · có thể thử lại');
+  });
+});
 
 describe('AdminCompareShopProductImages', () => {
   it('uses the actual product images route, renders the gallery/detail/previews, and reorders with keyboard controls', async () => {
@@ -201,6 +219,24 @@ describe('AdminCompareShopProductImages', () => {
     expect(screen.getByText('Tạo bản ảnh thất bại · mã lỗi: storage_failed')).toBeInTheDocument();
     fireEvent.click(screen.getAllByRole('button', { name: 'Thử lại' })[0]);
     await waitFor(() => expect(request).toHaveBeenCalledWith('/admin/products/42/images/failed-image/derivatives', expect.objectContaining({ method: 'POST' })));
+  });
+
+  it('shows each failed derivative error reason beside its own size and keeps retry available', async () => {
+    const failed = [{
+      id: 'failed-image', fileId: 'source-file', sourceUrl: 'https://cdn.test/source.jpg',
+      derivative600Status: 'failed', derivative600Error: 'source_pixel_limit_exceeded',
+      derivative1000Status: 'failed', derivative1000Error: 'encoder_unavailable', altText: '', sortOrder: 0,
+    }];
+    const request = vi.fn<AdminRequest>().mockImplementation(() => Promise.resolve(Response.json({ images: failed })));
+    setup(request);
+    await screen.findByRole('listitem', { name: /ảnh sản phẩm/ });
+
+    const cardRow = screen.getByText('600 × 600 · Trang chủ, danh sách').parentElement?.parentElement;
+    const detailRow = screen.getByText('1000 × 1000 · Trang chi tiết').parentElement?.parentElement;
+    expect(cardRow).toHaveTextContent('Ảnh gốc quá lớn (vượt 24 megapixel)');
+    expect(detailRow).toHaveTextContent('Tạo bản ảnh thất bại · mã lỗi: encoder_unavailable');
+    expect(within(cardRow as HTMLElement).getByRole('button', { name: 'Thử lại' })).toBeEnabled();
+    expect(within(detailRow as HTMLElement).getByRole('button', { name: 'Thử lại' })).toBeEnabled();
   });
 
   it('keeps queued derivatives processing and previews the source until they are ready', async () => {
