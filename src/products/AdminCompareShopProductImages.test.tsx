@@ -183,6 +183,25 @@ describe('AdminCompareShopProductImages', () => {
     expect(screen.getByRole('button', { name: 'Lưu thay đổi' })).toBeDisabled();
   });
 
+  it('treats failed derivative statuses as authoritative even when stale derivative file IDs exist', async () => {
+    const failed = [{
+      id: 'failed-image', fileId: 'source-file', sourceUrl: 'https://cdn.test/source.jpg',
+      url600: 'https://cdn.test/stale-small.jpg', url1000: 'https://cdn.test/stale-large.jpg',
+      card600FileId: 'stale-small-id', detail1000FileId: 'stale-large-id',
+      derivative600Status: 'failed', derivative1000Status: 'failed', altText: '', sortOrder: 0,
+    }];
+    const request = vi.fn<AdminRequest>().mockImplementation(path => Promise.resolve(
+      path.endsWith('/derivatives') ? Response.json(failed[0]) : Response.json({ images: failed }),
+    ));
+    setup(request);
+    await screen.findByRole('listitem', { name: /ảnh sản phẩm/ });
+
+    expect(screen.getAllByRole('button', { name: 'Thử lại' })).toHaveLength(2);
+    expect(screen.getAllByText('Tạo bản thất bại · có thể thử lại')).toHaveLength(2);
+    fireEvent.click(screen.getAllByRole('button', { name: 'Thử lại' })[0]);
+    await waitFor(() => expect(request).toHaveBeenCalledWith('/admin/products/42/images/failed-image/derivatives', expect.objectContaining({ method: 'POST' })));
+  });
+
   it('disables edits without products.update and undoes a pending gallery change', async () => {
     const request = vi.fn<AdminRequest>().mockImplementation(path => Promise.resolve(Response.json(path.includes('/images') ? { images: rows } : files)));
     setup(request, ['products.read']);
