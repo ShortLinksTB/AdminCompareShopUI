@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { createFileDerivatives, deleteAdminFile, getAdminFile, getAdminFiles, publicFileUrl, uploadAdminFiles, FilesApiError } from './files-api';
+import { createFileDerivatives, deleteAdminFile, getAdminFile, getAdminFiles, publicFileUrl, resolvePublicFileUrl, uploadAdminFiles, FilesApiError } from './files-api';
 import type { AdminRequest } from '../products/products-api';
 
 describe('Files API', () => {
@@ -84,5 +84,10 @@ describe('Files API', () => {
     const guid = '6f9619ff-8b86-d011-b42d-00cf4fc964ff';
     expect(publicFileUrl(guid, 'https://api-compareshop-dev.giamha.online/api/v1')).toBe(`https://api-compareshop-dev.giamha.online/files/${guid}`);
     expect(publicFileUrl('id/1', 'https://api.example.com/api/v1/')).toBe('https://api.example.com/files/id%2F1');
+  });
+
+  it('resolves relative public file URLs against the API origin while preserving external URLs', () => {
+    expect(resolvePublicFileUrl('/files/internal-1')).toBe('https://api-compareshop-dev.giamha.online/files/internal-1');
+    expect(resolvePublicFileUrl('https://cdn.example/image.jpg')).toBe('https://cdn.example/image.jpg');
   });
 });

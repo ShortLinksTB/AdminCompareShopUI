@@ -58,10 +58,23 @@ describe('AdminCompareShopProductImages', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent('lỗi 503');
     expect(screen.getByRole('listitem', { name: /Ảnh 1.*back.jpg/ })).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Lưu thay đổi' }));
-    await waitFor(() => expect(gets).toBe(2));
-    expect(screen.getByText('Đã lưu')).toBeInTheDocument();
+    expect(await screen.findByText('Đã lưu')).toBeInTheDocument();
+    expect(gets).toBe(1);
     const put = request.mock.calls.filter(([, init]) => init?.method === 'PUT').at(-1);
     expect(JSON.parse(String(put?.[1]?.body)).map((image: { fileId: string; sortOrder: number }) => [image.fileId, image.sortOrder])).toEqual([['file-2', 0], ['file-1', 1]]);
+  });
+
+  it('resolves API-relative image URLs against the API origin and reports available source dimensions accurately', async () => {
+    const request = vi.fn<AdminRequest>().mockImplementation(() => Promise.resolve(Response.json({ images: [
+      { id: 'relative', fileId: 'internal-id', sourceUrl: '/files/internal-id', sourceAvailable: true, altText: 'Internal image', sortOrder: 0 },
+      { id: 'external', externalUrl: 'https://cdn.test/external.jpg', sourceAvailable: true, altText: 'External image', sortOrder: 1 },
+    ] })));
+    setup(request);
+    await screen.findByRole('listitem', { name: /Internal image/ });
+    expect(screen.getByRole('listitem', { name: /Internal image/ }).querySelector('img')).toHaveAttribute('src', 'https://api-compareshop-dev.giamha.online/files/internal-id');
+    fireEvent.click(screen.getByRole('listitem', { name: /External image/ }));
+    expect(await screen.findByText('Ảnh gốc khả dụng · chưa có thông tin kích thước')).toBeInTheDocument();
+    expect(screen.getByAltText('External image')).toHaveAttribute('src', 'https://cdn.test/external.jpg');
   });
 
   it('selects multiple Files and removes only the product association from the draft', async () => {
