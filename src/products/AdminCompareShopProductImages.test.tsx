@@ -202,6 +202,40 @@ describe('AdminCompareShopProductImages', () => {
     await waitFor(() => expect(request).toHaveBeenCalledWith('/admin/products/42/images/failed-image/derivatives', expect.objectContaining({ method: 'POST' })));
   });
 
+  it('keeps queued derivatives processing and previews the source until they are ready', async () => {
+    const queued = [{
+      id: 'queued-image', fileId: 'source-file', sourceUrl: 'https://cdn.test/source.jpg',
+      url600: 'https://cdn.test/stale-small.jpg', url1000: 'https://cdn.test/stale-large.jpg',
+      card600FileId: 'stale-small-id', detail1000FileId: 'stale-large-id',
+      derivative600Status: 'queued', derivative1000Status: 'processing', altText: '', sortOrder: 0,
+    }];
+    const request = vi.fn<AdminRequest>().mockImplementation(() => Promise.resolve(Response.json({ images: queued })));
+    setup(request);
+    await screen.findByRole('listitem', { name: /ảnh sản phẩm/ });
+
+    expect(screen.getAllByText('Đang tạo bản ảnh…')).toHaveLength(2);
+    expect(screen.getAllByText('Đang xử lý')).toHaveLength(2);
+    expect(screen.getByRole('heading', { name: 'Thẻ trang chủ / danh sách' }).parentElement?.querySelector('img')).toHaveAttribute('src', 'https://cdn.test/source.jpg');
+    expect(screen.getByRole('heading', { name: 'Trang chi tiết sản phẩm' }).parentElement?.querySelector('img')).toHaveAttribute('src', 'https://cdn.test/source.jpg');
+    expect(screen.queryByRole('button', { name: 'Thử lại' })).not.toBeInTheDocument();
+  });
+
+  it('keeps unavailable derivatives retryable', async () => {
+    const unavailable = [{
+      id: 'unavailable-image', fileId: 'source-file', sourceUrl: 'https://cdn.test/source.jpg',
+      card600FileId: 'stale-small-id', detail1000FileId: 'stale-large-id',
+      derivative600Status: 'unavailable', derivative1000Status: 'unavailable', altText: '', sortOrder: 0,
+    }];
+    const request = vi.fn<AdminRequest>().mockImplementation(path => Promise.resolve(
+      path.endsWith('/derivatives') ? Response.json(unavailable[0]) : Response.json({ images: unavailable }),
+    ));
+    setup(request);
+    await screen.findByRole('listitem', { name: /ảnh sản phẩm/ });
+
+    expect(screen.getAllByRole('button', { name: 'Thử lại' })).toHaveLength(2);
+    expect(screen.getAllByRole('button', { name: 'Thử lại' })[0]).toBeEnabled();
+  });
+
   it('disables edits without products.update and undoes a pending gallery change', async () => {
     const request = vi.fn<AdminRequest>().mockImplementation(path => Promise.resolve(Response.json(path.includes('/images') ? { images: rows } : files)));
     setup(request, ['products.read']);
