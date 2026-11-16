@@ -113,6 +113,32 @@ describe('FilesPage list and permissions', () => {
     expect(screen.getByRole('checkbox', { name: `Chọn ${pdf.originalFileName}` })).toBeChecked();
   });
 
+  it('keeps the table in a keyboard-scrollable region and groups multiple usage chips beside the filename', async () => {
+    const source = {
+      ...image,
+      originalFileName: 'product-7074-source-image-with-a-long-descriptive-name.png',
+      usedBy: [
+        { type: 'derivative' as const, id: 'derivative-1', label: 'Bản sao sản phẩm #7074 · 600 × 600' },
+        { type: 'derivative' as const, id: 'derivative-2', label: 'Bản sao sản phẩm #7074 · 1000 × 1000' },
+      ],
+    };
+    const user = userEvent.setup();
+    render(<FilesPage requestAdmin={vi.fn<AdminRequest>().mockResolvedValue(pageResponse([source]))} permissions={['files.read', 'files.write']} />);
+
+    const tableRegion = await screen.findByRole('region', { name: 'Files table; scroll horizontally to see all columns' });
+    expect(tableRegion).toHaveAttribute('tabindex', '0');
+    expect(tableRegion).toHaveClass('files-table-scroll');
+    await user.click(screen.getByRole('checkbox', { name: 'Chọn tất cả trên trang này' }));
+    await user.click(screen.getByRole('button', { name: /Xoá đã chọn/ }));
+
+    const confirmation = screen.getByRole('alertdialog', { name: 'Xoá 1 tệp?' });
+    const item = confirmation.querySelector('.files-bulk-item');
+    expect(item).toHaveTextContent(source.originalFileName);
+    expect(item?.querySelector('.files-bulk-name')).toHaveTextContent(source.originalFileName);
+    expect(item?.querySelector('.files-bulk-usages')?.querySelectorAll('.studio-pill')).toHaveLength(2);
+    expect(within(confirmation).getByRole('button', { name: 'Không có tệp để xoá' })).toBeDisabled();
+  });
+
   it('supports Shift range selection and clears selection with Escape', async () => {
     const third = { ...pdf, id: 'pdf-2', originalFileName: 'another.pdf' };
     const request = vi.fn<AdminRequest>().mockResolvedValue(pageResponse([image, pdf, third]));
