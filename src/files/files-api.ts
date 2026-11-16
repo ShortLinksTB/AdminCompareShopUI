@@ -12,6 +12,20 @@ export interface AdminFile {
   derivedFrom?: { id: string; originalFileName: string } | null;
   derivedPreset?: 'home-600x600' | 'product-detail-1000x1000' | 'custom' | null;
   derivativeSpec?: { version: number; [key: string]: unknown } | null;
+  usedBy?: FileUsage[];
+}
+
+export interface FileUsage {
+  type: 'product' | 'derivative' | 'blog';
+  id: string;
+  label: string;
+}
+
+export interface BulkDeleteFileResult {
+  fileId: string;
+  status: 'deleted' | 'in_use' | 'not_found' | 'failed';
+  usedBy: FileUsage[];
+  reason?: string | null;
 }
 
 export interface DerivativeVariantRequest {
@@ -103,6 +117,17 @@ export async function uploadAdminFiles(request: AdminRequest, files: File[], onF
 export async function deleteAdminFile(request: AdminRequest, id: string): Promise<void> {
   const response = await request(`/admin/files/${encodeURIComponent(id)}`, { method: 'DELETE' });
   if (!response.ok) throw apiError(response, 'delete file');
+}
+
+export async function bulkDeleteAdminFiles(request: AdminRequest, fileIds: string[]): Promise<BulkDeleteFileResult[]> {
+  const response = await request('/admin/files/bulk-delete', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ fileIds }),
+  });
+  if (!response.ok) throw apiError(response, 'delete files');
+  const payload = await response.json() as { results?: BulkDeleteFileResult[] };
+  return Array.isArray(payload.results) ? payload.results : [];
 }
 
 export function publicFileUrl(id: string, apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'https://api-compareshop-dev.giamha.online'): string {

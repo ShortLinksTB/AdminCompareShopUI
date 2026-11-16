@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent } from 'react';
-import { deleteAdminFile, getAdminFile, getAdminFiles, publicFileUrl, uploadAdminFiles, type AdminFile, type AdminFilePage, type AdminFileTypeFilter } from './files-api';
+import { bulkDeleteAdminFiles, deleteAdminFile, getAdminFile, getAdminFiles, publicFileUrl, uploadAdminFiles, type AdminFile, type AdminFilePage, type AdminFileTypeFilter, type BulkDeleteFileResult } from './files-api';
 import type { AdminRequest } from '../products/products-api';
 import { Button, Card, DataTable, EmptyState, ErrorState, Lightbox, Loading, Modal, PageHeader, Pager, Pill, RowMenu, SearchField, Select, Toast, Toolbar } from '../ui';
 import { DerivativeModal } from './DerivativeModal';
@@ -50,6 +50,12 @@ export function FilesPage({ requestAdmin, permissions = [] }: { requestAdmin: Ad
   const [uploads, setUploads] = useState<Array<{ file: File; status: 'queued' | 'uploading' | 'done' | 'failed'; error?: string }>>([]);
   const [uploading, setUploading] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<AdminFile | null>(null);
+  const [selectedFiles, setSelectedFiles] = useState<Record<string, AdminFile>>({});
+  const [allMatchingKey, setAllMatchingKey] = useState<string | null>(null);
+  const [confirmBulkDelete, setConfirmBulkDelete] = useState(false);
+  const [bulkDeleting, setBulkDeleting] = useState(false);
+  const [bulkResults, setBulkResults] = useState<BulkDeleteFileResult[] | null>(null);
+  const [selectionError, setSelectionError] = useState('');
   const [actionError, setActionError] = useState('');
   const [brokenThumbs, setBrokenThumbs] = useState<Set<string>>(() => new Set());
   const [menuId, setMenuId] = useState<string | null>(null);
@@ -58,6 +64,8 @@ export function FilesPage({ requestAdmin, permissions = [] }: { requestAdmin: Ad
   const derivativeTrigger = useRef<HTMLElement | null>(null);
   const [toast, setToast] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
+  const selectPageRef = useRef<HTMLInputElement>(null);
+  const lastSelectedId = useRef<string | null>(null);
 
   useEffect(() => { const timer = window.setTimeout(() => setDebouncedQuery(query), 250); return () => window.clearTimeout(timer); }, [query]);
   useEffect(() => {
@@ -102,8 +110,72 @@ export function FilesPage({ requestAdmin, permissions = [] }: { requestAdmin: Ad
   const rangeStart = page.totalItems ? (pageNumber - 1) * pageSize + 1 : 0;
   const rangeEnd = Math.min(pageNumber * pageSize, page.totalItems);
   const files = useMemo(() => page.items, [page.items]);
+  const selectedIds = Object.keys(selectedFiles);
+  const pageSelectedCount = files.filter(file => selectedFiles[file.id]).length;
+  const allPageSelected = files.length > 0 && pageSelectedCount === files.length;
+  const currentMatchingKey = JSON.stringify([debouncedQuery, type, page.totalItems]);
+  const allMatchingSelected = allMatchingKey === currentMatchingKey;
+  const hasUnusedSelection = selectedIds.some(id => !(selectedFiles[id].usedBy?.length));
+
+  useEffect(() => {
+    if (selectPageRef.current) selectPageRef.current.indeterminate = pageSelectedCount > 0 && !allPageSelected;
+  }, [pageSelectedCount, allPageSelected]);
+
+  useEffect(() => {
+    if (!selectedIds.length || confirmBulkDelete || bulkResults) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') clearSelection();
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [selectedIds.length, confirmBulkDelete, bulkResults]);
 
   const showDetails = useCallback((file: AdminFile) => { setMenuId(null); setDetail(file); }, []);
+  function clearSelection() { setSelectedFiles({}); setAllMatchingKey(null); lastSelectedId.current = null; setSelectionError(''); }
+  function toggleFileSelection(file: AdminFile, shiftKey = false) {
+    setSelectionError('');
+    setAllMatchingKey(null);
+    setSelectedFiles(current => {
+      const next = { ...current };
+      const lastIndex = lastSelectedId.current ? files.findIndex(item => item.id === lastSelectedId.current) : -1;
+      const targetIndex = files.findIndex(item => item.id === file.id);
+      if (shiftKey && lastIndex >= 0 && targetIndex >= 0) {
+        for (let index = Math.min(lastIndex, targetIndex); index <= Math.max(lastIndex, targetIndex); index += 1) next[files[index].id] = files[index];
+      } else if (next[file.id]) delete next[file.id];
+      else next[file.id] = file;
+      lastSelectedId.current = file.id;
+      return next;
+    });
+  }
+  function togglePageSelection(checked: boolean) {
+    setAllMatchingKey(null);
+    setSelectedFiles(current => {
+      const next = { ...current };
+      for (const file of files) {
+        if (checked) next[file.id] = file;
+        else delete next[file.id];
+      }
+      return next;
+    });
+    lastSelectedId.current = null;
+  }
+  async function selectAllMatching() {
+    setSelectionError('');
+    try {
+      const matching = new Map<string, AdminFile>();
+      const firstPage = await getAdminFiles(requestAdmin, 1, pageSize, debouncedQuery, type);
+      firstPage.items.forEach(file => matching.set(file.id, file));
+      const pages = Math.ceil(firstPage.totalItems / pageSize);
+      for (let current = 2; current <= pages; current += 1) {
+        const result = await getAdminFiles(requestAdmin, current, pageSize, debouncedQuery, type);
+        result.items.forEach(file => matching.set(file.id, file));
+      }
+      setSelectedFiles(current => ({ ...current, ...Object.fromEntries(matching) }));
+      setAllMatchingKey(JSON.stringify([debouncedQuery, type, firstPage.totalItems]));
+    } catch (reason) {
+      setSelectionError(reason instanceof Error ? reason.message : 'Could not select matching files.');
+    }
+  }
   function selectFiles(selected: FileList | File[]) {
     const choices = Array.from(selected).map(file => ({ file, status: 'queued' as const, error: allowed.has(file.type) && file.size <= 10 * 1024 * 1024 ? undefined : !allowed.has(file.type) ? 'Unsupported file type.' : 'File exceeds the 10 MB limit.' }));
     setUploads(current => [...current, ...choices]);
@@ -129,6 +201,19 @@ export function FilesPage({ requestAdmin, permissions = [] }: { requestAdmin: Ad
     try { await deleteAdminFile(requestAdmin, deleteTarget.id); setDeleteTarget(null); setDetail(null); setReload(value => value + 1); }
     catch (reason) { setActionError(reason instanceof Error ? reason.message : 'Could not delete file.'); }
   }
+  async function runBulkDelete() {
+    const ids = selectedIds;
+    if (!ids.length || bulkDeleting) return;
+    setBulkDeleting(true); setSelectionError('');
+    try {
+      const results = await bulkDeleteAdminFiles(requestAdmin, ids);
+      setBulkResults(results);
+      setConfirmBulkDelete(false);
+      setReload(value => value + 1);
+    } catch (reason) {
+      setSelectionError(reason instanceof Error ? reason.message : 'Could not delete selected files.');
+    } finally { setBulkDeleting(false); }
+  }
   async function copyLink(file: AdminFile) {
     try { await navigator.clipboard.writeText(publicFileUrl(file.id)); setToast('Public link copied'); }
     catch { setToast('Could not copy link'); }
@@ -138,18 +223,30 @@ export function FilesPage({ requestAdmin, permissions = [] }: { requestAdmin: Ad
 
   return <>
     <PageHeader eyebrow="MEDIA" title="Files" description="Lưu ảnh và tệp dùng chung, mỗi tệp có link công khai để hiển thị." actions={canWrite && <Button tone="primary" onClick={() => { setUploadOpen(true); setUploads([]); }}>⬆ Upload</Button>} />
-    <Toolbar><SearchField label="Search file name" value={query} placeholder="Search file name..." onChange={event => { setQuery(event.target.value); setPageNumber(1); }} /><Select aria-label="Filter by type" value={type} onChange={event => { setType(event.target.value as AdminFileTypeFilter); setPageNumber(1); }}><option value="all">All types</option><option value="image">Images</option><option value="other">Other files</option></Select></Toolbar>
+    {selectedIds.length ? <div className="files-bulkbar" role="region" aria-label="Bulk file actions"><b>{selectedIds.length} đã chọn</b><Button size="sm" tone="ghost" onClick={clearSelection}>Bỏ chọn</Button><span className="files-bulk-hint">{Object.values(selectedFiles).filter(file => file.usedBy?.length).length ? `${Object.values(selectedFiles).filter(file => file.usedBy?.length).length} tệp đang được dùng — sẽ không bị xoá` : ''}</span>{canWrite && <Button className="files-bulk-delete" tone="danger" onClick={() => setConfirmBulkDelete(true)}>🗑 Xoá đã chọn</Button>}</div> : <Toolbar><SearchField label="Search file name" value={query} placeholder="Search file name..." onChange={event => { setQuery(event.target.value); setPageNumber(1); }} /><Select aria-label="Filter by type" value={type} onChange={event => { setType(event.target.value as AdminFileTypeFilter); setPageNumber(1); }}><option value="all">All types</option><option value="image">Images</option><option value="other">Other files</option></Select></Toolbar>}
+    {selectionError && <div className="files-selection-error" role="alert">{selectionError}</div>}
     <Card aria-label="Files list" style={{ overflow: 'hidden' }}>
-      <DataTable><thead><tr><th>Preview</th><th>Name</th><th>Type</th><th>Uploaded by</th><th>Uploaded</th><th>Public link</th><th><span className="sr-only">Actions</span></th></tr></thead><tbody>
-        {loading ? <tr><td colSpan={7}><Loading label="Loading files" /></td></tr> : error ? <tr><td colSpan={7}><ErrorState title={error} /><Button size="sm" onClick={() => setReload(value => value + 1)}>Retry</Button></td></tr> : files.length === 0 ? <tr><td colSpan={7}><EmptyState title="No files found. Upload a file or adjust your search." /></td></tr> : files.map(file => <tr key={file.id}>
+      <DataTable><thead><tr><th className="files-checkbox-cell"><input ref={selectPageRef} type="checkbox" aria-label="Chọn tất cả trên trang này" checked={allPageSelected} onChange={event => togglePageSelection(event.target.checked)} /></th><th>Preview</th><th>Name</th><th>Type</th><th>Uploaded by</th><th>Uploaded</th><th>Dùng bởi</th><th>Public link</th><th><span className="sr-only">Actions</span></th></tr></thead><tbody>
+        {loading ? <tr><td colSpan={9}><Loading label="Loading files" /></td></tr> : error ? <tr><td colSpan={9}><ErrorState title={error} /><Button size="sm" onClick={() => setReload(value => value + 1)}>Retry</Button></td></tr> : files.length === 0 ? <tr><td colSpan={9}><EmptyState title="No files found. Upload a file or adjust your search." /></td></tr> : files.map(file => <tr key={file.id} className={selectedFiles[file.id] ? 'files-row-selected' : undefined}>
+          <td className="files-checkbox-cell"><input type="checkbox" aria-label={`Chọn ${file.originalFileName}`} checked={Boolean(selectedFiles[file.id])} onChange={event => toggleFileSelection(file, event.nativeEvent instanceof MouseEvent && event.nativeEvent.shiftKey)} /></td>
           <td><Button tone="ghost" aria-label={`Preview ${shortName(file.originalFileName)}`} onClick={event => { if (isImage(file)) { event.currentTarget.focus(); setLightbox(file); } }} disabled={!isImage(file)} style={{ width: 44, height: 44, padding: 0, overflow: 'hidden' }}>{isImage(file) && !brokenThumbs.has(file.id) ? <img style={{ width: '100%', height: '100%', objectFit: 'cover' }} src={publicFileUrl(file.id)} alt="" onError={() => setBrokenThumbs(current => new Set(current).add(file.id))} /> : file.contentType === 'application/pdf' ? 'PDF' : isImage(file) ? 'IMG' : 'FILE'}</Button></td>
           <td><Button tone="ghost" onClick={() => showDetails(file)} style={{ minHeight: 0, padding: 0, border: 0, color: 'var(--studio-text)', textAlign: 'left' }}>{shortName(file.originalFileName)}</Button>{file.width && file.height && <span className="files-dimension-label">{file.width} × {file.height} px</span>}{file.derivedFrom && <span className="files-derived-label">Bản sao của {file.derivedFrom.originalFileName}{file.derivedPreset ? ` · ${presetName(file.derivedPreset)}` : ''}</span>}</td><td><span style={{ color: 'var(--studio-muted)', fontSize: 12 }}>{file.contentType}</span></td><td>{file.uploadedBy || '—'}</td><td>{formatDate(file.uploadedAtUtc)}</td>
+          <td><div className="files-usedby">{file.usedBy?.length ? file.usedBy.map((usage, index) => <Pill key={`${usage.type}-${usage.id}-${index}`} tone="warn" size="sm">{usage.label}</Pill>) : <Pill tone="ok" size="sm">Không dùng</Pill>}</div></td>
           <td><div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 175 }}><code style={{ maxWidth: 180, overflow: 'hidden', color: 'var(--studio-muted)', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>/files/{file.id}</code><Button size="sm" tone="ghost" aria-label={`Copy link for ${shortName(file.originalFileName)}`} onClick={() => void copyLink(file)}>⧉</Button><a className="studio-button studio-button-ghost studio-button-sm" style={{ display: 'grid', minWidth: 34, placeItems: 'center', padding: 0, textDecoration: 'none' }} href={publicFileUrl(file.id)} target="_blank" rel="noreferrer" aria-label={`Open ${shortName(file.originalFileName)}`}>↗</a></div></td>
           <td><RowMenu label={`Actions for ${shortName(file.originalFileName)}`} open={menuId === file.id} onOpenChange={open => setMenuId(open ? file.id : null)}><button onClick={() => showDetails(file)}>Details</button><button onClick={() => void copyLink(file)}>Copy public link</button><a href={publicFileUrl(file.id)} target="_blank" rel="noreferrer" onClick={() => setMenuId(null)}>Open file</a><a href={publicFileUrl(file.id)} download={file.originalFileName} onClick={() => setMenuId(null)}>Download</a>{canWrite && <button disabled={!supportsDerivatives(file)} title={!supportsDerivatives(file) ? 'Chỉ áp dụng cho ảnh JPG, PNG, WebP, GIF' : undefined} onClick={event => { derivativeTrigger.current = event.currentTarget.closest('details')?.querySelector('summary') ?? null; setMenuId(null); setDerivativeFile(file); }}>{supportsDerivatives(file) ? 'Tạo bản sao theo kích thước…' : 'Tạo bản sao theo kích thước… · Chỉ JPG, PNG, WebP, GIF'}</button>}{canWrite && <button onClick={() => { setMenuId(null); setDeleteTarget(file); }}>Delete</button>}</RowMenu></td>
         </tr>)}
       </tbody></DataTable>
+      {allPageSelected && page.totalItems > files.length && !allMatchingSelected && <div className="files-select-all-banner">Đã chọn {pageSelectedCount} tệp trên trang này. <Button size="sm" tone="ghost" onClick={() => void selectAllMatching()}>Chọn tất cả {page.totalItems} tệp khớp bộ lọc</Button></div>}
       <div className="studio-table-footer"><span>Rows per page <Select size="sm" aria-label="Rows per page" value={pageSize} onChange={event => { setPageSize(Number(event.target.value)); setPageNumber(1); }}>{PAGE_SIZES.map(size => <option key={size}>{size}</option>)}</Select> · Total <b>{page.totalItems}</b> files</span><span>Showing {rangeStart}–{rangeEnd} of {page.totalItems} files</span><Pager page={pageNumber} pages={totalPages} onChange={setPageNumber} previousLabel="Previous page" nextLabel="Next page" formatPage={(current, pages) => `Page ${current} of ${pages}`} disabled={loading} /></div>
     </Card>
+
+    <Modal open={confirmBulkDelete} onClose={() => { if (!bulkDeleting) setConfirmBulkDelete(false); }} title={`Xoá ${selectedIds.length} tệp?`} role="alertdialog" actions={<><Button disabled={bulkDeleting} onClick={() => setConfirmBulkDelete(false)}>Huỷ</Button><Button tone="danger" disabled={bulkDeleting || !hasUnusedSelection} onClick={() => void runBulkDelete()}>{bulkDeleting ? 'Đang xoá…' : hasUnusedSelection ? `Chỉ xoá ${Object.values(selectedFiles).filter(file => !file.usedBy?.length).length} tệp không dùng` : 'Không có tệp để xoá'}</Button></>}>
+      <p>Hành động này không thể hoàn tác. Link công khai của các tệp bị xoá sẽ ngừng hoạt động.</p><div className="files-bulk-list">{Object.values(selectedFiles).map(file => <div key={file.id}><span>{file.originalFileName}</span>{file.usedBy?.length ? file.usedBy.map((usage, index) => <Pill key={`${usage.type}-${usage.id}-${index}`} tone="warn" size="sm">{usage.label}</Pill>) : <Pill tone="ok" size="sm">Không dùng</Pill>}</div>)}</div>{Object.values(selectedFiles).some(file => file.usedBy?.length) && <div className="files-bulk-warning">{Object.values(selectedFiles).filter(file => file.usedBy?.length).length} tệp đang được sử dụng và sẽ <b>không</b> bị xoá.</div>}
+    </Modal>
+
+    <Modal open={Boolean(bulkResults)} onClose={() => { if (bulkResults) { const finished = new Set(bulkResults.filter(result => result.status === 'deleted' || result.status === 'not_found').map(result => result.fileId)); setSelectedFiles(current => Object.fromEntries(Object.entries(current).filter(([id]) => !finished.has(id)))); } setBulkResults(null); }} title={`Đã xoá ${bulkResults?.filter(result => result.status === 'deleted').length ?? 0}/${bulkResults?.length ?? 0} tệp`} actions={<Button tone="primary" onClick={() => { if (bulkResults) { const finished = new Set(bulkResults.filter(result => result.status === 'deleted' || result.status === 'not_found').map(result => result.fileId)); setSelectedFiles(current => Object.fromEntries(Object.entries(current).filter(([id]) => !finished.has(id)))); } setBulkResults(null); }}>Đóng</Button>}>
+      <div className="files-bulk-list">{bulkResults?.map(result => <div key={result.fileId}><span>{selectedFiles[result.fileId]?.originalFileName ?? result.fileId}</span><span className={result.status === 'deleted' ? 'files-outcome-success' : 'files-outcome-error'}>{result.status === 'deleted' ? 'Đã xoá' : result.status === 'in_use' ? `Đang được dùng${result.usedBy?.length ? ` bởi ${result.usedBy.map(item => item.label).join(', ')}` : ''}` : result.status === 'not_found' ? 'Không tìm thấy tệp' : result.reason || 'Xoá thất bại'}</span></div>)}</div><p>Các tệp không xoá được vẫn đang được chọn để bạn xử lý tiếp.</p>
+    </Modal>
 
     <Modal open={uploadOpen} onClose={() => { if (!uploading) setUploadOpen(false); }} title="Upload files" actions={<><Button disabled={uploading} onClick={() => setUploadOpen(false)}>Close</Button><Button tone="primary" disabled={uploading || !uploads.some(item => item.status === 'queued' && !item.error)} onClick={() => void startUpload()}>{uploading ? 'Uploading…' : 'Upload'}</Button></>}>
       <Button tone="secondary" layout="stacked" style={{ padding: '28px 16px', borderStyle: 'dashed', borderWidth: 2, background: 'var(--studio-bg2)', color: 'var(--studio-muted)' }} onClick={() => inputRef.current?.click()} onDragOver={event => event.preventDefault()} onDrop={onDrop}><b style={{ color: 'var(--studio-text)' }}>Drag files here</b><span>or click to choose · JPG, PNG, WebP, GIF, SVG, PDF · max 10 MB per file</span></Button><input ref={inputRef} type="file" multiple accept="image/jpeg,image/png,image/webp,image/gif,image/svg+xml,application/pdf" hidden onChange={event => { if (event.target.files) selectFiles(event.target.files); event.target.value = ''; }} />
