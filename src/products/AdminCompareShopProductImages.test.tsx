@@ -202,6 +202,29 @@ describe('AdminCompareShopProductImages', () => {
     await waitFor(() => expect(request).toHaveBeenCalledWith('/admin/products/42/images/failed-image/derivatives', expect.objectContaining({ method: 'POST' })));
   });
 
+  it('keeps queued derivatives on the source preview and leaves unavailable variants retryable', async () => {
+    const queuedAndUnavailable = [{
+      id: 'queued-image', fileId: 'source-file', sourceUrl: 'https://cdn.test/source.jpg',
+      url600: 'https://cdn.test/stale-small.jpg', url1000: 'https://cdn.test/stale-large.jpg',
+      card600FileId: 'stale-small-id', detail1000FileId: 'stale-large-id',
+      derivative600Status: 'queued', derivative1000Status: 'unavailable', altText: '', sortOrder: 0,
+    }];
+    const request = vi.fn<AdminRequest>().mockImplementation(path => Promise.resolve(
+      path.endsWith('/derivatives') ? Response.json(queuedAndUnavailable[0]) : Response.json({ images: queuedAndUnavailable }),
+    ));
+    setup(request);
+    await screen.findByRole('listitem', { name: /ảnh sản phẩm/ });
+
+    expect(screen.getByText('Đang tạo bản ảnh…')).toBeInTheDocument();
+    expect(screen.getByText('Chưa khả dụng · website đang dùng ảnh gốc')).toBeInTheDocument();
+    expect(document.querySelector('.product-image-preview-square img')).toHaveAttribute('src', 'https://cdn.test/source.jpg');
+    expect(document.querySelector('.product-image-preview-main img')).toHaveAttribute('src', 'https://cdn.test/source.jpg');
+    const retry = screen.getByRole('button', { name: 'Thử lại' });
+    expect(retry).toBeEnabled();
+    fireEvent.click(retry);
+    await waitFor(() => expect(request).toHaveBeenCalledWith('/admin/products/42/images/queued-image/derivatives', expect.objectContaining({ method: 'POST' })));
+  });
+
   it('disables edits without products.update and undoes a pending gallery change', async () => {
     const request = vi.fn<AdminRequest>().mockImplementation(path => Promise.resolve(Response.json(path.includes('/images') ? { images: rows } : files)));
     setup(request, ['products.read']);
