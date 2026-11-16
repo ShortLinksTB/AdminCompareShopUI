@@ -81,7 +81,7 @@ export function AdminCompareShopProductImages({ requestAdmin, permissions = [] }
   async function save() {
     if (!canUpdate || saving) return;
     setSaving(true); setSaveError('');
-    try { await saveProductImages(requestAdmin, id, draft.map((image, index) => ({ ...toInput(image), sortOrder: index })), createDerivatives); await load(); setToast('Đã lưu thư viện ảnh.'); }
+    try { await saveProductImages(requestAdmin, id, draft.map((image, index) => ({ ...toInput(image), sortOrder: index })), createDerivatives); setSaved(draft); setToast('Đã lưu thư viện ảnh.'); }
     catch (reason) { setSaveError(errorText(reason)); }
     finally { setSaving(false); }
   }
