@@ -79,6 +79,24 @@ describe('AdminCompareShopCategoriesImportExport', () => {
     expect(onApplied).toHaveBeenCalledOnce();
   });
 
+  it('keeps commit success visible and reports refresh failure separately after commit', async () => {
+    const user = userEvent.setup();
+    onApplied.mockRejectedValueOnce(new Error('categories list unavailable'));
+    renderActions();
+    await user.click(screen.getByRole('button', { name: /Import JSON/ }));
+    fireEvent.change(screen.getByLabelText('Chọn file JSON'), { target: { files: [selectedFile()] } });
+    await screen.findByText(/Kiểm tra \(dry-run\)/);
+    await user.click(screen.getByRole('button', { name: 'Tiếp tục' }));
+    await user.type(screen.getByRole('textbox'), 'GHI ĐÈ');
+    await user.click(screen.getByRole('button', { name: 'Ghi đè toàn bộ' }));
+
+    expect(await screen.findByText(/Import thành công/)).toBeInTheDocument();
+    expect(await screen.findByRole('status')).toHaveTextContent('Import đã thành công, nhưng không làm mới được danh sách categories. categories list unavailable');
+    expect(screen.queryByText(/Import thất bại/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/dữ liệu hiện tại không được thay đổi/i)).not.toBeInTheDocument();
+    expect(api.commitCategoryImport).toHaveBeenCalledOnce();
+  });
+
   it('keeps validation errors and product-use blockers distinct and prevents commit', async () => {
     const user = userEvent.setup();
     api.dryRunCategoryImport.mockResolvedValueOnce({ ...validPreview, valid: false, errors: ['Dòng 4: parentSlug không có trong file'] });

@@ -66,12 +66,14 @@ export function AdminCompareShopCategoriesImportExport({ requestAdmin, canImport
   const [confirmation, setConfirmation] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [refreshWarning, setRefreshWarning] = useState<string | null>(null);
   const [failureBlockers, setFailureBlockers] = useState<CategoryImportBlocker[]>([]);
   const [exporting, setExporting] = useState(false);
 
   async function exportJson() {
     setExporting(true);
     setError(null);
+    setRefreshWarning(null);
     setFailureBlockers([]);
     try {
       const { blob, filename } = await exportCategories(requestAdmin);
@@ -98,6 +100,7 @@ export function AdminCompareShopCategoriesImportExport({ requestAdmin, canImport
     setResult(null);
     setConfirmation('');
     setError(null);
+    setRefreshWarning(null);
     setFailureBlockers([]);
     setOpen(true);
   }
@@ -148,13 +151,26 @@ export function AdminCompareShopCategoriesImportExport({ requestAdmin, canImport
     if (!file || !preview?.valid || preview.blocked || confirmation !== CONFIRMATION) return;
     setBusy(true);
     setError(null);
+    setRefreshWarning(null);
+    setFailureBlockers([]);
+
+    let committed: CategoryImportResult;
     try {
-      setResult(await commitCategoryImport(requestAdmin, file, confirmation));
-      setStep(4);
+      committed = await commitCategoryImport(requestAdmin, file, confirmation);
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : 'Không thể xác nhận kết quả import. Kiểm tra trạng thái trước khi thử lại.');
+      setFailureBlockers(reason instanceof CategoriesApiError ? reason.blockers : []);
+      setBusy(false);
+      return;
+    }
+
+    setResult(committed);
+    setStep(4);
+    try {
       await onApplied();
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : 'Import thất bại. Dữ liệu hiện tại không được thay đổi.');
-      setFailureBlockers(reason instanceof CategoriesApiError ? reason.blockers : []);
+      const detail = reason instanceof Error ? ` ${reason.message}` : '';
+      setRefreshWarning(`Import đã thành công, nhưng không làm mới được danh sách categories.${detail}`);
     } finally {
       setBusy(false);
     }
@@ -216,6 +232,7 @@ export function AdminCompareShopCategoriesImportExport({ requestAdmin, canImport
       </>}
       {step === 4 && result && <>
         <div className="category-import-callout success"><b>Import thành công.</b> +{result.summary.create} tạo · ~{result.summary.update} cập nhật · −{result.summary.delete} xoá. Đã ghi Audit Log.</div>
+        {refreshWarning && <div className="category-import-callout warn category-import-refresh-warning" role="status">{refreshWarning}</div>}
         <ChangeList changes={result.changes} />
       </>}
     </Modal>
