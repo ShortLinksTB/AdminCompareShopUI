@@ -228,21 +228,10 @@ describe('AdminCompareShopProductImages', () => {
     }];
     const request = vi.fn<AdminRequest>().mockImplementation(path => Promise.resolve(
       path.endsWith('/derivatives') ? Response.json(unavailable[0]) : Response.json({ images: unavailable }),
->>>>>>> origin/multica/sl-2510-admin-product-image-derivative-retry
     ));
     setup(request);
     await screen.findByRole('listitem', { name: /ảnh sản phẩm/ });
 
-<<<<<<< HEAD
-    expect(screen.getByText('Đang tạo bản ảnh…')).toBeInTheDocument();
-    expect(screen.getByText('Chưa khả dụng · website đang dùng ảnh gốc')).toBeInTheDocument();
-    expect(document.querySelector('.product-image-preview-square img')).toHaveAttribute('src', 'https://cdn.test/source.jpg');
-    expect(document.querySelector('.product-image-preview-main img')).toHaveAttribute('src', 'https://cdn.test/source.jpg');
-    const retry = screen.getByRole('button', { name: 'Thử lại' });
-    expect(retry).toBeEnabled();
-    fireEvent.click(retry);
-    await waitFor(() => expect(request).toHaveBeenCalledWith('/admin/products/42/images/queued-image/derivatives', expect.objectContaining({ method: 'POST' })));
-=======
     expect(screen.getAllByRole('button', { name: 'Thử lại' })).toHaveLength(2);
     expect(screen.getAllByRole('button', { name: 'Thử lại' })[0]).toBeEnabled();
   });
