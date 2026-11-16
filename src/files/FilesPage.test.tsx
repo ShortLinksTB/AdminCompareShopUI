@@ -118,7 +118,7 @@ describe('FilesPage list and permissions', () => {
       ...image,
       originalFileName: 'product-7074-source-image-with-a-long-descriptive-name.png',
       usedBy: [
-        { type: 'derivative' as const, id: 'derivative-1', label: 'Bản sao sản phẩm #7074 · 600 × 600' },
+        { type: 'derivative' as const, id: 'derivative-1', label: 'Bản sao sản phẩm #7074 · derivative-with-an-extraordinarily-long-unbroken-reference-label-that-must-wrap-inside-the-cell · 600 × 600' },
         { type: 'derivative' as const, id: 'derivative-2', label: 'Bản sao sản phẩm #7074 · 1000 × 1000' },
       ],
     };
@@ -128,6 +128,10 @@ describe('FilesPage list and permissions', () => {
     const tableRegion = await screen.findByRole('region', { name: 'Files table; scroll horizontally to see all columns' });
     expect(tableRegion).toHaveAttribute('tabindex', '0');
     expect(tableRegion).toHaveClass('files-table-scroll');
+    const sourceRow = screen.getByRole('checkbox', { name: `Chọn ${source.originalFileName}` }).closest('tr')!;
+    expect(sourceRow.querySelector('.files-usedby')).toHaveTextContent(source.usedBy[0].label);
+    expect(sourceRow.querySelector('.files-usedby > .studio-pill')).toHaveClass('studio-pill-warn');
+    expect(within(sourceRow).getByRole('link', { name: 'Open product-7074-source-image-with-a-long-descriptive-name' })).toBeInTheDocument();
     await user.click(screen.getByRole('checkbox', { name: 'Chọn tất cả trên trang này' }));
     await user.click(screen.getByRole('button', { name: /Xoá đã chọn/ }));
 
