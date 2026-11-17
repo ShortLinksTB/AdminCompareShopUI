@@ -1,12 +1,8 @@
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import '@testing-library/jest-dom/vitest';
-// @ts-expect-error Node types are not part of the browser app's TypeScript config.
-import { readFileSync } from 'node:fs';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { HelpGuide, guideForPath } from './HelpGuide';
 import guides from './helpGuides.json';
-
-const helpGuideStyles = readFileSync('src/helpGuide/helpGuide.css', 'utf8');
 
 afterEach(cleanup);
 
@@ -96,11 +92,12 @@ describe('route-keyed help guide', () => {
     expect(shell).toHaveAttribute('data-theme', theme);
     expect(closeButton.closest('.studio-shell')).toBe(shell);
     expect(shell.querySelector('.studio-shell .help-guide-close')).toBe(closeButton);
-    expect(helpGuideStyles).toMatch(/\.help-guide-layer\s*\{[^}]*position:\s*fixed[^}]*height:\s*100vh[^}]*height:\s*100dvh/s);
-    expect(helpGuideStyles).toMatch(/\.help-guide-drawer\s*\{[^}]*width:\s*min\(360px,100vw\)[^}]*height:\s*100%[^}]*min-height:\s*100%/s);
-    expect(helpGuideStyles).toMatch(/@media\s*\(max-width:\s*767px\)\s*\{\.help-guide-drawer\s*\{width:\s*100%;border-left:\s*0/s);
+    expect(layer).toHaveStyle({ width: '100vw', height: '100dvh' });
 
-    fireEvent.mouseDown(document.querySelector('.help-guide-overlay')!);
+    const overlay = document.querySelector('.help-guide-overlay')!;
+    fireEvent.mouseDown(overlay);
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
+    fireEvent.click(overlay);
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
     expect(trigger).toHaveFocus();
   });

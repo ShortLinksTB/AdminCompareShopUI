@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import guides from './helpGuides.json';
 import './helpGuide.css';
@@ -21,7 +21,7 @@ export function HelpGuide({ pathname }: { pathname: string }) {
   const closeRef = useRef<HTMLButtonElement>(null);
   const wasOpen = useRef(false);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (open) {
       wasOpen.current = true;
       closeRef.current?.focus();
