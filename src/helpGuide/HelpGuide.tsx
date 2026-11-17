@@ -52,7 +52,7 @@ export function HelpGuide({ pathname }: { pathname: string }) {
 
   if (!guide) return null;
 
-  const layer = open && <div className="help-guide-layer">
+  const layer = open && <div className="help-guide-layer" style={{ width: '100vw', height: '100dvh' }}>
     <div className="help-guide-overlay" aria-hidden="true" onMouseDown={() => setOpen(false)} />
     <aside id="admin-help-guide" className="help-guide-drawer" role="dialog" aria-modal="true" aria-labelledby="help-guide-title">
       <header className="help-guide-header">
