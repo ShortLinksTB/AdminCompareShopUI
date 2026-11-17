@@ -1,0 +1,20 @@
+.studio-shell .help-guide-trigger{display:grid;place-items:center;flex:none;width:30px;height:30px;padding:0;border:1px solid var(--studio-border);border-radius:50%;background:var(--studio-surface);color:var(--studio-muted);font-size:13px;font-weight:800}
+.studio-shell .help-guide-trigger:hover,.studio-shell .help-guide-trigger[aria-expanded=true]{border-color:var(--studio-brand);background:var(--studio-brand-soft);color:var(--studio-brand-text)}
+.help-guide-layer{position:fixed;inset:0;z-index:120}
+.help-guide-overlay{position:absolute;inset:0;width:100%;height:100%;border:0;background:rgba(10,16,22,.42)}
+.help-guide-drawer{position:absolute;inset:0 0 0 auto;display:flex;width:min(360px,100vw);flex-direction:column;border-left:1px solid var(--studio-border);background:var(--studio-surface);box-shadow:-18px 0 40px rgba(16,24,33,.18);color:var(--studio-text)}
+.help-guide-header{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;padding:18px;border-bottom:1px solid var(--studio-border)}
+.help-guide-eyebrow{display:block;margin-bottom:5px;color:var(--studio-brand-text);font-size:10px;font-weight:800;letter-spacing:.1em}
+.help-guide-header h2{margin:0;font-size:18px}
+.studio-shell .help-guide-close{display:grid;place-items:center;flex:none;width:30px;height:30px;border:1px solid var(--studio-border);border-radius:8px;background:var(--studio-surface);color:var(--studio-muted);font-size:20px}
+.help-guide-body{flex:1;overflow:auto;padding:18px}
+.help-guide-section{display:flex;align-items:center;gap:8px;margin:0 0 12px;color:var(--studio-muted);font-size:12px;font-weight:800;letter-spacing:.04em;text-transform:uppercase}
+.help-guide-section i{display:grid;width:20px;height:20px;place-items:center;border-radius:6px;background:var(--studio-brand-soft);color:var(--studio-brand-text);font-size:12px;font-style:normal}
+.help-guide-section.notes i{background:var(--studio-warn-soft,var(--studio-surface2));color:var(--studio-warn,var(--studio-muted))}
+.help-guide-steps,.help-guide-notes{display:grid;gap:10px;margin:0 0 22px;padding:0;list-style:none}
+.help-guide-steps li{display:flex;gap:10px;font-size:13px;line-height:1.5}
+.help-guide-steps li b{display:grid;flex:none;width:20px;height:20px;place-items:center;border-radius:50%;background:var(--studio-surface2);color:var(--studio-muted);font-size:11px}
+.help-guide-notes li{padding:10px 11px;border-radius:9px;background:var(--studio-warn-soft,#fff7e8);color:var(--studio-text);font-size:12px;line-height:1.5}
+.help-guide-notes li.danger{background:var(--studio-bad-soft,#fff0f0);color:var(--studio-text)}
+.help-guide-permission{margin:0;padding:10px 11px;border-radius:8px;background:var(--studio-surface2);color:var(--studio-muted);font-size:11px;line-height:1.5}
+@media(max-width:767px){.help-guide-drawer{width:100%;border-left:0}.help-guide-header{padding:18px 20px}.help-guide-body{padding:18px 20px}}
