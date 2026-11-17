@@ -78,6 +78,30 @@ describe('route-keyed help guide', () => {
     expect(trigger).toHaveFocus();
   });
 
+  it.each(['light', 'dark'])('sizes the drawer and preserves %s theme styling through the shell portal', theme => {
+    const { container } = render(<div className="studio-shell" data-theme={theme}><HelpGuide pathname="/affiliate-links" /></div>);
+    const shell = container.querySelector<HTMLElement>('.studio-shell')!;
+    const trigger = screen.getByRole('button', { name: 'Hướng dẫn trang này' });
+    trigger.focus();
+    fireEvent.click(trigger);
+
+    const layer = document.querySelector<HTMLElement>('.help-guide-layer')!;
+    const closeButton = screen.getByRole('button', { name: 'Đóng' });
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
+    expect(layer.parentElement).toBe(shell);
+    expect(shell).toHaveAttribute('data-theme', theme);
+    expect(closeButton.closest('.studio-shell')).toBe(shell);
+    expect(shell.querySelector('.studio-shell .help-guide-close')).toBe(closeButton);
+    expect(layer).toHaveStyle({ width: '100vw', height: '100dvh' });
+
+    const overlay = document.querySelector('.help-guide-overlay')!;
+    fireEvent.mouseDown(overlay);
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
+    fireEvent.click(overlay);
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(trigger).toHaveFocus();
+  });
+
   it('renders danger callouts and closes with the drawer button', () => {
     render(<div className="studio-shell"><HelpGuide pathname="/" /></div>);
     fireEvent.click(screen.getByRole('button', { name: 'Hướng dẫn trang này' }));
