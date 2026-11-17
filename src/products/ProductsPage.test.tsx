@@ -1,7 +1,9 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { cleanup, fireEvent, render as testingRender, screen, waitFor, within } from '@testing-library/react';
 import '@testing-library/jest-dom/vitest';
 import userEvent from '@testing-library/user-event';
+import { MemoryRouter, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
+import type { ReactNode } from 'react';
 import { ProductsPage } from './ProductsPage';
 import type { AdminProduct, AdminRequest } from './products-api';
 
@@ -11,9 +13,27 @@ const categoryList = [{ id: 1006, slug: 'electronics', name: 'Electronics', isAc
 const pageResponse = (items: AdminProduct[] = [phone], pageNumber = 1, pageSize = 10, totalItems = items.length) => Response.json({ items, pageNumber, pageSize, totalItems });
 const matching = { id: 501, name: 'Phone A Global Edition', externalSku: 'SKU-501', dataSourceId: 11, dataSourceDisplayName: 'Shop One', createdAtUtc: '2026-10-12T10:00:00Z' };
 
+function NavigationProbe() {
+  const location = useLocation();
+  const navigate = useNavigate();
+  return <div><output aria-label="Current route">{location.pathname}</output><button type="button" onClick={() => navigate(-1)}>Browser back</button></div>;
+}
+
+function renderProductsWithImageRoute(requestAdmin: AdminRequest) {
+  return testingRender(<MemoryRouter initialEntries={['/products']}><NavigationProbe /><Routes>
+    <Route path="/products" element={<ProductsPage requestAdmin={requestAdmin} permissions={['products.read', 'products.update']} />} />
+    <Route path="/products/:id/images" element={<h1>Product images route</h1>} />
+  </Routes></MemoryRouter>);
+}
+
+function render(ui: ReactNode) {
+  return testingRender(<MemoryRouter>{ui}</MemoryRouter>);
+}
+
 function requestFor(rows = [phone, inactive]): ReturnType<typeof vi.fn<AdminRequest>> {
   return vi.fn<AdminRequest>().mockImplementation(path => {
     if (path.startsWith('/admin/categories')) return Promise.resolve(Response.json({ items: categoryList, pageNumber: 1, pageSize: 100, totalItems: categoryList.length }));
+    if (path.endsWith('/matchings')) return Promise.resolve(Response.json([]));
     const params = new URLSearchParams(path.split('?')[1]);
     const active = params.get('isActive');
     const filtered = active === null ? rows : rows.filter(product => product.isActive === (active === 'true'));
@@ -183,6 +203,45 @@ describe('ProductsPage', () => {
     const dialog = screen.getByRole('dialog', { name: 'Sửa sản phẩm' });
     expect(within(dialog).getByRole('textbox', { name: 'Tên sản phẩm' })).toHaveValue('Phone A');
     expect(within(dialog).getByRole('textbox', { name: 'Slug' })).toHaveValue('phone-a');
+  });
+
+  it('navigates from the row menu without a document reload and supports browser back', async () => {
+    const user = userEvent.setup();
+    const requestAdmin = requestFor([phone]);
+    renderProductsWithImageRoute(requestAdmin);
+    await screen.findByText('Phone A');
+    await user.click(screen.getByLabelText('Actions for Phone A'));
+    const navigation = screen.getByRole('link', { name: 'Quản lý hình ảnh' });
+    expect(navigation).toHaveAttribute('href', '/products/42/images');
+    const requestCountBeforeNavigation = requestAdmin.mock.calls.length;
+
+    await user.click(navigation);
+    expect(await screen.findByRole('heading', { name: 'Product images route' })).toBeInTheDocument();
+    expect(screen.getByLabelText('Current route')).toHaveTextContent('/products/42/images');
+    expect(requestAdmin).toHaveBeenCalledTimes(requestCountBeforeNavigation);
+
+    await user.click(screen.getByRole('button', { name: 'Browser back' }));
+    expect(await screen.findByText('Phone A')).toBeInTheDocument();
+    expect(screen.getByLabelText('Current route')).toHaveTextContent('/products');
+  });
+
+  it('navigates from the edit modal with React Router and supports browser back', async () => {
+    const user = userEvent.setup();
+    const requestAdmin = requestFor([phone]);
+    renderProductsWithImageRoute(requestAdmin);
+    await screen.findByText('Phone A');
+    await user.click(screen.getByLabelText('Actions for Phone A'));
+    await user.click(screen.getByRole('button', { name: 'Sửa' }));
+    const navigation = screen.getByRole('link', { name: /Quản lý hình ảnh sản phẩm/ });
+    expect(navigation).toHaveClass('product-images-modal-link');
+    expect(navigation).toHaveAttribute('href', '/products/42/images');
+
+    await user.click(navigation);
+    expect(await screen.findByRole('heading', { name: 'Product images route' })).toBeInTheDocument();
+    expect(screen.getByLabelText('Current route')).toHaveTextContent('/products/42/images');
+    await user.click(screen.getByRole('button', { name: 'Browser back' }));
+    expect(await screen.findByText('Phone A')).toBeInTheDocument();
+    expect(screen.getByLabelText('Current route')).toHaveTextContent('/products');
   });
 
   it('supports arrow navigation, Enter and Space selection, and Escape focus restoration in the grouped category picker', async () => {
