@@ -481,11 +481,11 @@
     "eyebrow": "SYSTEM",
     "steps": [
       {
-        "text": "Dùng ô tìm kiếm để lọc theo actor (người thao tác), action hoặc resource.",
+        "text": "Xem danh sách thao tác theo thứ tự thời gian: mỗi dòng gồm Time (thời điểm), Actor (người thao tác), Action (hành động) và Resource (đối tượng bị tác động).",
         "danger": false
       },
       {
-        "text": "Đọc cột \"Kết quả\" (Success/Failed) để biết thao tác có thành công hay không.",
+        "text": "Trang hiện chưa có bộ lọc hay ô tìm kiếm; muốn tìm một thao tác cụ thể, hãy đối chiếu theo thời điểm và Actor trong danh sách.",
         "danger": false
       }
     ],
@@ -495,7 +495,7 @@
         "danger": false
       },
       {
-        "text": "Log \"Failed\" liên quan đến sync job nên được đối chiếu thêm ở trang Sync Jobs để xử lý tận gốc, Audit Logs chỉ cho biết đã xảy ra lỗi chứ không cho retry tại đây.",
+        "text": "Nếu cần xử lý sự cố đồng bộ dữ liệu, hãy sang trang Sync Jobs; Audit Logs chỉ ghi nhận thao tác, không cho chạy lại (retry) tại đây.",
         "danger": false
       }
     ]

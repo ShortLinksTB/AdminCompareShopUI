@@ -25,6 +25,18 @@ describe('route-keyed help guide', () => {
     expect(guide?.steps.map(step => step.text).join(' ')).not.toMatch(/Import offers|lọc theo trạng thái/i);
   });
 
+  it('describes the Audit Logs columns, lack of filters, and Sync Jobs retry path', () => {
+    const guide = guideForPath('/audit-logs');
+    expect(guide?.steps.map(step => step.text)).toEqual([
+      'Xem danh sách thao tác theo thứ tự thời gian: mỗi dòng gồm Time (thời điểm), Actor (người thao tác), Action (hành động) và Resource (đối tượng bị tác động).',
+      'Trang hiện chưa có bộ lọc hay ô tìm kiếm; muốn tìm một thao tác cụ thể, hãy đối chiếu theo thời điểm và Actor trong danh sách.',
+    ]);
+    expect(guide?.notes.map(note => note.text)).toEqual([
+      'Audit Logs chỉ ghi lại lịch sử, không có chức năng hoàn tác (rollback) — nếu phát hiện thao tác sai, phải vào đúng trang chức năng (vd Offers, Products) để sửa thủ công.',
+      'Nếu cần xử lý sự cố đồng bộ dữ liệu, hãy sang trang Sync Jobs; Audit Logs chỉ ghi nhận thao tác, không cho chạy lại (retry) tại đây.',
+    ]);
+  });
+
   it('maps supported dynamic and shared routes to their specified guides', () => {
     expect(guideForPath('/products/42')?.title).toBe('Product Detail');
     expect(guideForPath('/products/42/')?.title).toBe('Product Detail');
