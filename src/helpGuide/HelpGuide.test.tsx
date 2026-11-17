@@ -50,7 +50,30 @@ describe('route-keyed help guide', () => {
     expect(trigger).toHaveFocus();
 
     fireEvent.click(trigger);
-    fireEvent.mouseDown(document.querySelector('.help-guide-overlay')!);
+    const overlay = document.querySelector('.help-guide-overlay')!;
+    expect(fireEvent.mouseDown(overlay)).toBe(false);
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
+    fireEvent.click(overlay);
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(trigger).toHaveFocus();
+  });
+
+  it('keeps focus through overlay mousedown and restores the trigger after closing on Audit Logs', () => {
+    render(<div className="studio-shell"><HelpGuide pathname="/audit-logs" /></div>);
+    const trigger = screen.getByRole('button', { name: 'Hướng dẫn trang này' });
+    trigger.focus();
+    fireEvent.click(trigger);
+
+    const overlay = document.querySelector<HTMLElement>('.help-guide-overlay')!;
+    const closeButton = screen.getByRole('button', { name: 'Đóng' });
+    expect(screen.getByRole('dialog')).toHaveAccessibleName('Audit Logs');
+    expect(closeButton).toHaveFocus();
+
+    expect(fireEvent.mouseDown(overlay)).toBe(false);
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
+    expect(closeButton).toHaveFocus();
+
+    fireEvent.click(overlay);
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
     expect(trigger).toHaveFocus();
   });
