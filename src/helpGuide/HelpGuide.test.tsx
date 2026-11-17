@@ -36,6 +36,7 @@ describe('route-keyed help guide', () => {
     const layer = document.querySelector<HTMLElement>('.help-guide-layer')!;
     expect(layer.parentElement).toHaveClass('studio-shell');
     expect(layer).toHaveClass('help-guide-layer');
+    expect(layer).toHaveStyle({ width: '100vw', height: '100dvh' });
     expect(screen.getByText('Hướng dẫn sử dụng')).toBeInTheDocument();
     expect(screen.getByText('Dùng ô tìm kiếm để lọc theo tên sản phẩm, brand hoặc SKU; dùng bộ lọc trạng thái và "Filters" để thu hẹp danh sách.')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Đóng' })).toHaveFocus();
