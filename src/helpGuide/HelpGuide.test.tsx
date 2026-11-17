@@ -1,4 +1,5 @@
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import '@testing-library/jest-dom/vitest';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { HelpGuide, guideForPath } from './HelpGuide';
@@ -26,12 +27,13 @@ describe('route-keyed help guide', () => {
     expect(screen.queryByRole('button', { name: 'Hướng dẫn trang này' })).not.toBeInTheDocument();
   });
 
-  it('opens route-specific copy and returns focus after Escape and overlay close', () => {
+  it('opens route-specific copy and returns focus after Escape and overlay close', async () => {
     const apiCall = vi.fn();
+    const user = userEvent.setup();
     render(<div className="studio-shell"><HelpGuide pathname="/products" /></div>);
     const trigger = screen.getByRole('button', { name: 'Hướng dẫn trang này' });
     trigger.focus();
-    fireEvent.click(trigger);
+    await user.click(trigger);
     expect(screen.getByRole('dialog')).toHaveAccessibleName('Products');
     const layer = document.querySelector<HTMLElement>('.help-guide-layer')!;
     expect(layer.parentElement).toHaveClass('studio-shell');
@@ -49,8 +51,12 @@ describe('route-keyed help guide', () => {
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
     expect(trigger).toHaveFocus();
 
-    fireEvent.click(trigger);
-    fireEvent.mouseDown(document.querySelector('.help-guide-overlay')!);
+    await user.click(trigger);
+    const overlay = document.querySelector('.help-guide-overlay')!;
+    await user.pointer([{ keys: '[MouseLeft>]', target: overlay }]);
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
+    expect(document.body).toHaveFocus();
+    await user.pointer([{ keys: '[/MouseLeft]', target: overlay }]);
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
     expect(trigger).toHaveFocus();
   });
