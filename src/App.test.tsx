@@ -55,6 +55,44 @@ afterEach(() => {
 });
 
 describe('mobile application navigation', () => {
+  it('opens the contextual guide, focuses its close control, and restores focus after Escape or overlay close', () => {
+    renderApp('/affiliate-links');
+    const trigger = screen.getByRole('button', { name: 'Hướng dẫn trang này' });
+    const search = screen.getByRole('button', { name: 'Mở thanh lệnh' });
+    expect(trigger.compareDocumentPosition(search) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+
+    fireEvent.click(trigger);
+    const drawer = screen.getByRole('dialog', { name: 'Affiliate Links' });
+    expect(within(drawer).getByText('AFFILIATE & DATA')).toBeInTheDocument();
+    expect(within(drawer).getByText('🔒 Chưa gắn permission — mọi admin đã đăng nhập đều xem được qua URL trực tiếp.')).toBeInTheDocument();
+    expect(auth.requestAdmin).not.toHaveBeenCalled();
+    const close = within(drawer).getByRole('button', { name: 'Đóng hướng dẫn' });
+    expect(close).toHaveFocus();
+    fireEvent.keyDown(window, { key: 'Tab' });
+    expect(close).toHaveFocus();
+    fireEvent.keyDown(window, { key: 'Tab', shiftKey: true });
+    expect(close).toHaveFocus();
+    fireEvent.keyDown(window, { key: 'Escape' });
+    expect(screen.queryByRole('dialog', { name: 'Affiliate Links' })).not.toBeInTheDocument();
+    expect(trigger).toHaveFocus();
+
+    fireEvent.click(trigger);
+    fireEvent.click(screen.getByRole('button', { name: 'Đóng hướng dẫn bằng lớp phủ' }));
+    expect(screen.queryByRole('dialog', { name: 'Affiliate Links' })).not.toBeInTheDocument();
+    expect(trigger).toHaveFocus();
+
+    fireEvent.click(trigger);
+    fireEvent.click(screen.getByRole('button', { name: 'Đóng hướng dẫn' }));
+    expect(screen.queryByRole('dialog', { name: 'Affiliate Links' })).not.toBeInTheDocument();
+    expect(trigger).toHaveFocus();
+  });
+
+  it('only renders help controls for supported routes', () => {
+    auth.permissions = ['settings.manage'];
+    renderApp('/studio-components');
+    expect(screen.queryByRole('button', { name: 'Hướng dẫn trang này' })).not.toBeInTheDocument();
+  });
+
   it('renders Feature Flags with Studio switches and preserves toggle behavior', () => {
     auth.permissions = ['feature_flags.read'];
     renderApp('/feature-flags');

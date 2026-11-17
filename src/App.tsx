@@ -26,6 +26,7 @@ import { PriceHistory } from './price-history/PriceHistoryPage';
 import { Button, Card, PageHeader as StudioPageHeader, Switch } from './ui';
 import { PriceAlertsPage } from './price-alerts/PriceAlertsPage';
 import { HomeShowcasePage } from './home-showcase/HomeShowcasePage';
+import { HelpGuideDrawer, getHelpGuide } from './help-guide/HelpGuideDrawer';
 import './feature-flags.css';
 import './ui/studio-shell-fixes.css';
 
@@ -79,11 +80,13 @@ function Shell() {
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [paletteQuery, setPaletteQuery] = useState('');
   const [noticeOpen, setNoticeOpen] = useState(false);
+  const [helpOpen, setHelpOpen] = useState(false);
   const [matchingCount, setMatchingCount] = useState<number | null>(null);
   const paletteInput = useRef<HTMLInputElement>(null);
   const paletteReturnFocus = useRef<HTMLElement | null>(null);
   const mobileNavToggleRef = useRef<HTMLButtonElement>(null);
   const mobileNavCloseRef = useRef<HTMLButtonElement>(null);
+  const helpTriggerRef = useRef<HTMLButtonElement>(null);
   const visibleNav = [...nav.filter(item => (!item.flag || flags[item.flag as FeatureKey]) && (!item.permission || permissions.includes(item.permission))), ...(permissions.includes(studioNavItem.permission) ? [studioNavItem] : [])];
   const initials = userName.slice(0, 1).toUpperCase();
   useEffect(() => {
@@ -158,6 +161,7 @@ function Shell() {
         <div className="admin-breadcrumb">GiaTot Admin <span>/</span> {breadcrumbLabel(location.pathname)}</div>
         <div className="admin-header-actions">
           <div className="mobile-theme-controls" role="group" aria-label="Color theme"><button type="button" aria-pressed={!dark} onClick={() => changeTheme(false)}>Light</button><button type="button" aria-pressed={dark} onClick={() => changeTheme(true)}>Dark</button></div>
+          {getHelpGuide(location.pathname) && <button ref={helpTriggerRef} className="studio-help-trigger" type="button" aria-label="Hướng dẫn trang này" title="Hướng dẫn trang này" aria-expanded={helpOpen} aria-controls="admin-help-guide" onClick={() => setHelpOpen(true)}>?</button>}
           <button className="studio-command-trigger" aria-label="Mở thanh lệnh" onClick={openPalette}><span>⌕ Tìm trang...</span><kbd>{navigator.platform.includes('Mac') ? '⌘K' : 'Ctrl K'}</kbd></button>
           <button className="studio-theme-toggle" type="button" aria-label={dark ? 'Chuyển sang giao diện sáng' : 'Chuyển sang giao diện tối'} onClick={() => changeTheme(!dark)}>{dark ? '☼' : '◐'}</button>
           {permissions.includes('matching.read') && <div className="studio-notice-wrap"><button className="studio-theme-toggle studio-bell" aria-label={`Thông báo${matchingCount !== null ? `, ${matchingCount} mục Product Matching đang chờ` : ''}`} aria-expanded={noticeOpen} onClick={() => setNoticeOpen(value => !value)}>♢{matchingCount !== null && matchingCount > 0 && <i>{matchingCount}</i>}</button>{noticeOpen && <div className="studio-notice-pop" role="status">{matchingCount === null ? 'Không tải được hàng chờ. Mở Product Matching để kiểm tra.' : matchingCount ? <><b>{matchingCount} mục đang chờ ghép</b><NavLink to="/matching" onClick={() => setNoticeOpen(false)}>Mở Product Matching →</NavLink></> : 'Không có mục đang chờ.'}</div>}</div>}
@@ -167,6 +171,7 @@ function Shell() {
       <div className="admin-content"><Outlet /></div>
     </main>
     {paletteOpen && <div className="studio-palette-backdrop" onMouseDown={event => { if (event.target === event.currentTarget) setPaletteOpen(false); }}><section className="studio-palette" role="dialog" aria-modal="true" aria-label="Thanh lệnh"><input ref={paletteInput} value={paletteQuery} onChange={event => setPaletteQuery(event.target.value)} placeholder="Tìm trang được phép truy cập..." onKeyDown={event => { if (event.key === 'Enter' && paletteRoutes[0]) { navigate(paletteRoutes[0].to); setPaletteOpen(false); } }} />{paletteRoutes.length ? <ul>{paletteRoutes.map(item => <li key={item.to}><NavLink to={item.to} onClick={() => { setPaletteOpen(false); setPaletteQuery(''); }}><span>{item.icon}</span>{item.label}<kbd>↵</kbd></NavLink></li>)}</ul> : <p>Không tìm thấy trang phù hợp.</p>}</section></div>}
+    <HelpGuideDrawer pathname={location.pathname} open={helpOpen} triggerRef={helpTriggerRef} onClose={() => setHelpOpen(false)} />
   </div>;
 }
 function PageHeader({ eyebrow, title, description, action }: { eyebrow?: string; title: string; description?: string; action?: React.ReactNode }) { return <div className="page-header"><div>{eyebrow && <span className="eyebrow">{eyebrow}</span>}<h1>{title}</h1>{description && <p>{description}</p>}</div>{action}</div>; }
