@@ -1,8 +1,12 @@
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import '@testing-library/jest-dom/vitest';
+// @ts-expect-error Node types are not part of the browser app's TypeScript config.
+import { readFileSync } from 'node:fs';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { HelpGuide, guideForPath } from './HelpGuide';
 import guides from './helpGuides.json';
+
+const helpGuideStyles = readFileSync('src/helpGuide/helpGuide.css', 'utf8');
 
 afterEach(cleanup);
 
@@ -74,6 +78,24 @@ describe('route-keyed help guide', () => {
     expect(closeButton).toHaveFocus();
 
     fireEvent.click(overlay);
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(trigger).toHaveFocus();
+  });
+
+  it('sizes the drawer to the viewport and restores trigger focus after overlay dismissal', () => {
+    render(<div className="studio-shell"><HelpGuide pathname="/affiliate-links" /></div>);
+    const trigger = screen.getByRole('button', { name: 'Hướng dẫn trang này' });
+    trigger.focus();
+    fireEvent.click(trigger);
+
+    const layer = document.querySelector<HTMLElement>('.help-guide-layer')!;
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
+    expect(layer.parentElement).toHaveClass('studio-shell');
+    expect(helpGuideStyles).toMatch(/\.help-guide-layer\s*\{[^}]*position:\s*fixed[^}]*height:\s*100vh[^}]*height:\s*100dvh/s);
+    expect(helpGuideStyles).toMatch(/\.help-guide-drawer\s*\{[^}]*width:\s*min\(360px,100vw\)[^}]*height:\s*100%[^}]*min-height:\s*100%/s);
+    expect(helpGuideStyles).toMatch(/@media\s*\(max-width:\s*767px\)\s*\{\.help-guide-drawer\s*\{width:\s*100%;border-left:\s*0/s);
+
+    fireEvent.mouseDown(document.querySelector('.help-guide-overlay')!);
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
     expect(trigger).toHaveFocus();
   });
