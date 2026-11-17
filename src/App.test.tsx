@@ -55,6 +55,18 @@ afterEach(() => {
 });
 
 describe('mobile application navigation', () => {
+  it('adds route-specific help before Search in the shared header', () => {
+    renderApp('/affiliate-links');
+
+    const help = screen.getByRole('button', { name: 'Hướng dẫn trang này' });
+    const search = screen.getByRole('button', { name: 'Mở thanh lệnh' });
+    expect(help.compareDocumentPosition(search) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(auth.requestAdmin).not.toHaveBeenCalled();
+    fireEvent.click(help);
+    expect(screen.getByRole('dialog')).toHaveAccessibleName('Affiliate Links');
+    expect(screen.getByText('🔒 Chưa gắn permission — mọi admin đã đăng nhập đều xem được qua URL trực tiếp.')).toBeInTheDocument();
+  });
+
   it('renders Feature Flags with Studio switches and preserves toggle behavior', () => {
     auth.permissions = ['feature_flags.read'];
     renderApp('/feature-flags');

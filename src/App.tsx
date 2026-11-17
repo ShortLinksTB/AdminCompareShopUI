@@ -26,6 +26,7 @@ import { PriceHistory } from './price-history/PriceHistoryPage';
 import { Button, Card, PageHeader as StudioPageHeader, Switch } from './ui';
 import { PriceAlertsPage } from './price-alerts/PriceAlertsPage';
 import { HomeShowcasePage } from './home-showcase/HomeShowcasePage';
+import { HelpGuide } from './helpGuide/HelpGuide';
 import './feature-flags.css';
 import './ui/studio-shell-fixes.css';
 
@@ -158,6 +159,7 @@ function Shell() {
         <div className="admin-breadcrumb">GiaTot Admin <span>/</span> {breadcrumbLabel(location.pathname)}</div>
         <div className="admin-header-actions">
           <div className="mobile-theme-controls" role="group" aria-label="Color theme"><button type="button" aria-pressed={!dark} onClick={() => changeTheme(false)}>Light</button><button type="button" aria-pressed={dark} onClick={() => changeTheme(true)}>Dark</button></div>
+          <HelpGuide pathname={location.pathname} />
           <button className="studio-command-trigger" aria-label="Mở thanh lệnh" onClick={openPalette}><span>⌕ Tìm trang...</span><kbd>{navigator.platform.includes('Mac') ? '⌘K' : 'Ctrl K'}</kbd></button>
           <button className="studio-theme-toggle" type="button" aria-label={dark ? 'Chuyển sang giao diện sáng' : 'Chuyển sang giao diện tối'} onClick={() => changeTheme(!dark)}>{dark ? '☼' : '◐'}</button>
           {permissions.includes('matching.read') && <div className="studio-notice-wrap"><button className="studio-theme-toggle studio-bell" aria-label={`Thông báo${matchingCount !== null ? `, ${matchingCount} mục Product Matching đang chờ` : ''}`} aria-expanded={noticeOpen} onClick={() => setNoticeOpen(value => !value)}>♢{matchingCount !== null && matchingCount > 0 && <i>{matchingCount}</i>}</button>{noticeOpen && <div className="studio-notice-pop" role="status">{matchingCount === null ? 'Không tải được hàng chờ. Mở Product Matching để kiểm tra.' : matchingCount ? <><b>{matchingCount} mục đang chờ ghép</b><NavLink to="/matching" onClick={() => setNoticeOpen(false)}>Mở Product Matching →</NavLink></> : 'Không có mục đang chờ.'}</div>}</div>}
