@@ -104,15 +104,15 @@
     "eyebrow": "CATALOG & PRICING",
     "steps": [
       {
-        "text": "Dùng Toolbar để tìm theo sản phẩm/shop và lọc theo trạng thái (Active, Stale, Outlier).",
+        "text": "Dùng ô tìm kiếm để tìm theo sản phẩm, cửa hàng hoặc SKU; chọn cửa hàng và cách sắp xếp ở thanh công cụ.",
         "danger": false
       },
       {
-        "text": "Bấm \"+ Import offers\" để nạp offer hàng loạt từ nguồn dữ liệu.",
+        "text": "Dùng bộ lọc nhanh để xem giá bất thường, offer lâu chưa cập nhật, hết hàng hoặc đang ẩn.",
         "danger": false
       },
       {
-        "text": "Xem từng dòng offer: giá cuối, giá gốc, tồn kho, nguồn dữ liệu (source).",
+        "text": "Xem giá bán, mức so với giá thấp nhất, tồn kho, trạng thái và thời điểm cập nhật của từng offer.",
         "danger": false
       }
     ],
@@ -481,11 +481,11 @@
     "eyebrow": "SYSTEM",
     "steps": [
       {
-        "text": "Dùng ô tìm kiếm để lọc theo actor (người thao tác), action hoặc resource.",
+        "text": "Xem danh sách thao tác theo thứ tự thời gian: mỗi dòng gồm Time (thời điểm), Actor (người thao tác), Action (hành động) và Resource (đối tượng bị tác động).",
         "danger": false
       },
       {
-        "text": "Đọc cột \"Kết quả\" (Success/Failed) để biết thao tác có thành công hay không.",
+        "text": "Trang hiện chưa có bộ lọc hay ô tìm kiếm; muốn tìm một thao tác cụ thể, hãy đối chiếu theo thời điểm và Actor trong danh sách.",
         "danger": false
       }
     ],
@@ -495,7 +495,7 @@
         "danger": false
       },
       {
-        "text": "Log \"Failed\" liên quan đến sync job nên được đối chiếu thêm ở trang Sync Jobs để xử lý tận gốc, Audit Logs chỉ cho biết đã xảy ra lỗi chứ không cho retry tại đây.",
+        "text": "Nếu cần xử lý sự cố đồng bộ dữ liệu, hãy sang trang Sync Jobs; Audit Logs chỉ ghi nhận thao tác, không cho chạy lại (retry) tại đây.",
         "danger": false
       }
     ]
