@@ -33,6 +33,9 @@ describe('route-keyed help guide', () => {
     trigger.focus();
     fireEvent.click(trigger);
     expect(screen.getByRole('dialog')).toHaveAccessibleName('Products');
+    const layer = document.querySelector<HTMLElement>('.help-guide-layer')!;
+    expect(layer.parentElement).toHaveClass('studio-shell');
+    expect(layer).toHaveClass('help-guide-layer');
     expect(screen.getByText('Hướng dẫn sử dụng')).toBeInTheDocument();
     expect(screen.getByText('Dùng ô tìm kiếm để lọc theo tên sản phẩm, brand hoặc SKU; dùng bộ lọc trạng thái và "Filters" để thu hẹp danh sách.')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Đóng' })).toHaveFocus();
@@ -46,26 +49,26 @@ describe('route-keyed help guide', () => {
     expect(trigger).toHaveFocus();
 
     fireEvent.click(trigger);
-    fireEvent.click(document.querySelector('.help-guide-overlay')!);
+    fireEvent.mouseDown(document.querySelector('.help-guide-overlay')!);
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
     expect(trigger).toHaveFocus();
   });
 
-  it.each(['light', 'dark'])('preserves %s theme and close-button styling in the portaled drawer', theme => {
+  it.each(['light', 'dark'])('preserves %s theme tokens and close-button selector through the portal', theme => {
     const { container } = render(<div className="studio-shell" data-theme={theme}><HelpGuide pathname="/affiliate-links" /></div>);
+    const shell = container.querySelector<HTMLElement>('.studio-shell')!;
     const trigger = screen.getByRole('button', { name: 'Hướng dẫn trang này' });
     fireEvent.click(trigger);
 
-    const layer = document.querySelector('.help-guide-layer');
-    const portal = layer?.parentElement;
+    const layer = document.querySelector<HTMLElement>('.help-guide-layer')!;
     const closeButton = screen.getByRole('button', { name: 'Đóng' });
-    expect(portal?.parentElement).toBe(document.body);
-    expect(portal).toHaveClass('studio-shell');
-    expect(portal).toHaveAttribute('data-theme', theme);
-    expect(closeButton.closest('.studio-shell')).toBe(portal);
-    expect(portal?.querySelector('.studio-shell .help-guide-close')).toBe(closeButton);
-    expect(container.querySelector('.help-guide-layer')).not.toBeInTheDocument();
+    expect(layer.parentElement).toBe(shell);
+    expect(shell).toHaveAttribute('data-theme', theme);
+    expect(closeButton.closest('.studio-shell')).toBe(shell);
+    expect(shell.querySelector('.studio-shell .help-guide-close')).toBe(closeButton);
+    expect(shell.querySelector(':scope > .help-guide-layer')).toBe(layer);
 
-    fireEvent.click(document.querySelector('.help-guide-overlay')!);
+    fireEvent.mouseDown(document.querySelector('.help-guide-overlay')!);
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
     expect(trigger).toHaveFocus();
   });
