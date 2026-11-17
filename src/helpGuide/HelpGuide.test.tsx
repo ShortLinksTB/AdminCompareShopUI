@@ -50,14 +50,19 @@ describe('route-keyed help guide', () => {
     expect(trigger).toHaveFocus();
   });
 
-  it('renders the fixed viewport layer outside the app shell and restores focus after overlay click', () => {
-    const { container } = render(<div className="studio-shell"><HelpGuide pathname="/affiliate-links" /></div>);
+  it.each(['light', 'dark'])('preserves %s theme and close-button styling in the portaled drawer', theme => {
+    const { container } = render(<div className="studio-shell" data-theme={theme}><HelpGuide pathname="/affiliate-links" /></div>);
     const trigger = screen.getByRole('button', { name: 'Hướng dẫn trang này' });
     fireEvent.click(trigger);
 
     const layer = document.querySelector('.help-guide-layer');
-    screen.getByRole('dialog');
-    expect(layer?.parentElement).toBe(document.body);
+    const portal = layer?.parentElement;
+    const closeButton = screen.getByRole('button', { name: 'Đóng' });
+    expect(portal?.parentElement).toBe(document.body);
+    expect(portal).toHaveClass('studio-shell');
+    expect(portal).toHaveAttribute('data-theme', theme);
+    expect(closeButton.closest('.studio-shell')).toBe(portal);
+    expect(portal?.querySelector('.studio-shell .help-guide-close')).toBe(closeButton);
     expect(container.querySelector('.help-guide-layer')).not.toBeInTheDocument();
 
     fireEvent.click(document.querySelector('.help-guide-overlay')!);

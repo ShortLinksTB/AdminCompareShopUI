@@ -62,7 +62,8 @@ export function HelpGuide({ pathname }: { pathname: string }) {
       aria-controls="admin-help-guide"
       onClick={() => setOpen(true)}
     >?</button>
-    {open && createPortal(<div className="help-guide-layer">
+    {open && createPortal(<div className="studio-shell help-guide-portal" data-theme={triggerRef.current?.closest<HTMLElement>('.studio-shell')?.dataset.theme ?? 'dark'}>
+      <div className="help-guide-layer">
       <div className="help-guide-overlay" aria-hidden="true" onClick={closeGuide} />
       <aside id="admin-help-guide" className="help-guide-drawer" role="dialog" aria-modal="true" aria-labelledby="help-guide-title">
         <header className="help-guide-header">
@@ -77,6 +78,7 @@ export function HelpGuide({ pathname }: { pathname: string }) {
           {guide.permission && <p className="help-guide-permission">{guide.permission}</p>}
         </div>
       </aside>
+      </div>
     </div>, document.body)}
   </>;
 }
