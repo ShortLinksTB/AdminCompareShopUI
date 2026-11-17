@@ -82,15 +82,20 @@ describe('route-keyed help guide', () => {
     expect(trigger).toHaveFocus();
   });
 
-  it('sizes the drawer to the viewport and restores trigger focus after overlay dismissal', () => {
-    render(<div className="studio-shell"><HelpGuide pathname="/affiliate-links" /></div>);
+  it.each(['light', 'dark'])('sizes the drawer and preserves %s theme styling through the shell portal', theme => {
+    const { container } = render(<div className="studio-shell" data-theme={theme}><HelpGuide pathname="/affiliate-links" /></div>);
+    const shell = container.querySelector<HTMLElement>('.studio-shell')!;
     const trigger = screen.getByRole('button', { name: 'Hướng dẫn trang này' });
     trigger.focus();
     fireEvent.click(trigger);
 
     const layer = document.querySelector<HTMLElement>('.help-guide-layer')!;
+    const closeButton = screen.getByRole('button', { name: 'Đóng' });
     expect(screen.getByRole('dialog')).toBeInTheDocument();
-    expect(layer.parentElement).toHaveClass('studio-shell');
+    expect(layer.parentElement).toBe(shell);
+    expect(shell).toHaveAttribute('data-theme', theme);
+    expect(closeButton.closest('.studio-shell')).toBe(shell);
+    expect(shell.querySelector('.studio-shell .help-guide-close')).toBe(closeButton);
     expect(helpGuideStyles).toMatch(/\.help-guide-layer\s*\{[^}]*position:\s*fixed[^}]*height:\s*100vh[^}]*height:\s*100dvh/s);
     expect(helpGuideStyles).toMatch(/\.help-guide-drawer\s*\{[^}]*width:\s*min\(360px,100vw\)[^}]*height:\s*100%[^}]*min-height:\s*100%/s);
     expect(helpGuideStyles).toMatch(/@media\s*\(max-width:\s*767px\)\s*\{\.help-guide-drawer\s*\{width:\s*100%;border-left:\s*0/s);
