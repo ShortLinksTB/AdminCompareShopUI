@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import guides from './helpGuides.json';
 import './helpGuide.css';
 
@@ -18,24 +19,23 @@ export function HelpGuide({ pathname }: { pathname: string }) {
   const [open, setOpen] = useState(false);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const closeRef = useRef<HTMLButtonElement>(null);
-  const wasOpen = useRef(false);
-
   useEffect(() => {
     if (open) {
-      wasOpen.current = true;
       closeRef.current?.focus();
-    } else if (wasOpen.current) {
-      wasOpen.current = false;
-      triggerRef.current?.focus();
     }
   }, [open]);
+
+  const closeGuide = () => {
+    setOpen(false);
+    triggerRef.current?.focus();
+  };
 
   useEffect(() => {
     if (!open) return;
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
         event.preventDefault();
-        setOpen(false);
+        closeGuide();
         return;
       }
       if (event.key !== 'Tab') return;
@@ -62,12 +62,12 @@ export function HelpGuide({ pathname }: { pathname: string }) {
       aria-controls="admin-help-guide"
       onClick={() => setOpen(true)}
     >?</button>
-    {open && <div className="help-guide-layer">
-      <div className="help-guide-overlay" aria-hidden="true" onMouseDown={() => setOpen(false)} />
+    {open && createPortal(<div className="help-guide-layer">
+      <div className="help-guide-overlay" aria-hidden="true" onClick={closeGuide} />
       <aside id="admin-help-guide" className="help-guide-drawer" role="dialog" aria-modal="true" aria-labelledby="help-guide-title">
         <header className="help-guide-header">
           <div><span className="help-guide-eyebrow">{guide.eyebrow}</span><h2 id="help-guide-title">{guide.title}</h2></div>
-          <button ref={closeRef} className="help-guide-close" type="button" aria-label="Đóng" onClick={() => setOpen(false)}>×</button>
+          <button ref={closeRef} className="help-guide-close" type="button" aria-label="Đóng" onClick={closeGuide}>×</button>
         </header>
         <div className="help-guide-body">
           <h3 className="help-guide-section guide"><i aria-hidden="true">?</i>Hướng dẫn sử dụng</h3>
@@ -77,6 +77,6 @@ export function HelpGuide({ pathname }: { pathname: string }) {
           {guide.permission && <p className="help-guide-permission">{guide.permission}</p>}
         </div>
       </aside>
-    </div>}
+    </div>, document.body)}
   </>;
 }

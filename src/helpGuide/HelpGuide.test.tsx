@@ -46,7 +46,22 @@ describe('route-keyed help guide', () => {
     expect(trigger).toHaveFocus();
 
     fireEvent.click(trigger);
-    fireEvent.mouseDown(document.querySelector('.help-guide-overlay')!);
+    fireEvent.click(document.querySelector('.help-guide-overlay')!);
+    expect(trigger).toHaveFocus();
+  });
+
+  it('renders the fixed viewport layer outside the app shell and restores focus after overlay click', () => {
+    const { container } = render(<div className="studio-shell"><HelpGuide pathname="/affiliate-links" /></div>);
+    const trigger = screen.getByRole('button', { name: 'Hướng dẫn trang này' });
+    fireEvent.click(trigger);
+
+    const layer = document.querySelector('.help-guide-layer');
+    screen.getByRole('dialog');
+    expect(layer?.parentElement).toBe(document.body);
+    expect(container.querySelector('.help-guide-layer')).not.toBeInTheDocument();
+
+    fireEvent.click(document.querySelector('.help-guide-overlay')!);
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
     expect(trigger).toHaveFocus();
   });
 
