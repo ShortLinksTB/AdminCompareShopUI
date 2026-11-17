@@ -15,6 +15,16 @@ describe('route-keyed help guide', () => {
     expect(guideForPath('/products/42/images')).toBeUndefined();
   });
 
+  it('describes the search, toolbar, quick filters, and fields available on Offers & Prices', () => {
+    const guide = guideForPath('/offers');
+    expect(guide?.steps.map(step => step.text)).toEqual([
+      'Dùng ô tìm kiếm để tìm theo sản phẩm, cửa hàng hoặc SKU; chọn cửa hàng và cách sắp xếp ở thanh công cụ.',
+      'Dùng bộ lọc nhanh để xem giá bất thường, offer lâu chưa cập nhật, hết hàng hoặc đang ẩn.',
+      'Xem giá bán, mức so với giá thấp nhất, tồn kho, trạng thái và thời điểm cập nhật của từng offer.',
+    ]);
+    expect(guide?.steps.map(step => step.text).join(' ')).not.toMatch(/Import offers|lọc theo trạng thái/i);
+  });
+
   it('maps supported dynamic and shared routes to their specified guides', () => {
     expect(guideForPath('/products/42')?.title).toBe('Product Detail');
     expect(guideForPath('/products/42/')?.title).toBe('Product Detail');

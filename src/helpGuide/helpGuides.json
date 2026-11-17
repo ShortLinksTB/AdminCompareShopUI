@@ -104,15 +104,15 @@
     "eyebrow": "CATALOG & PRICING",
     "steps": [
       {
-        "text": "Dùng Toolbar để tìm theo sản phẩm/shop và lọc theo trạng thái (Active, Stale, Outlier).",
+        "text": "Dùng ô tìm kiếm để tìm theo sản phẩm, cửa hàng hoặc SKU; chọn cửa hàng và cách sắp xếp ở thanh công cụ.",
         "danger": false
       },
       {
-        "text": "Bấm \"+ Import offers\" để nạp offer hàng loạt từ nguồn dữ liệu.",
+        "text": "Dùng bộ lọc nhanh để xem giá bất thường, offer lâu chưa cập nhật, hết hàng hoặc đang ẩn.",
         "danger": false
       },
       {
-        "text": "Xem từng dòng offer: giá cuối, giá gốc, tồn kho, nguồn dữ liệu (source).",
+        "text": "Xem giá bán, mức so với giá thấp nhất, tồn kho, trạng thái và thời điểm cập nhật của từng offer.",
         "danger": false
       }
     ],
