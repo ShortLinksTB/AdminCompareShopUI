@@ -128,11 +128,28 @@ describe('Partner Shops page', () => {
     renderShops();
     await user.click(await screen.findByRole('button', { name: 'Sửa' }));
     expect(screen.getByRole('dialog', { name: 'Sửa shop · CellphoneS' })).toBeInTheDocument();
+    expect(screen.getByLabelText('Slug (Không bắt buộc)')).toHaveValue('cellphones');
     await user.click(screen.getByRole('switch', { name: 'Hiển thị ở trang chủ' }));
     await user.type(screen.getByLabelText('Thứ tự hiển thị'), '4');
     await user.click(screen.getByRole('button', { name: 'Save shop' }));
-    await waitFor(() => expect(api.updatePartnerShop).toHaveBeenCalledWith(requestAdmin, 42, expect.objectContaining({ showOnHome: true, homeDisplayOrder: 4 })));
+    await waitFor(() => expect(api.updatePartnerShop).toHaveBeenCalledWith(requestAdmin, 42, expect.objectContaining({ slug: 'cellphones', showOnHome: true, homeDisplayOrder: 4 })));
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+  });
+
+  it('generates a slug from the shop name when an existing slug is cleared on edit', async () => {
+    const user = userEvent.setup();
+    renderShops();
+    await user.click(await screen.findByRole('button', { name: 'Sửa' }));
+    const slugInput = screen.getByLabelText('Slug (Không bắt buộc)');
+    await user.clear(slugInput);
+    await user.clear(screen.getByLabelText('Name'));
+    await user.type(screen.getByLabelText('Name'), 'Bách Hóa Xanh – Đợt 2!');
+    await user.click(screen.getByRole('button', { name: 'Save shop' }));
+
+    await waitFor(() => expect(api.updatePartnerShop).toHaveBeenCalledWith(requestAdmin, 42, expect.objectContaining({
+      slug: 'bach-hoa-xanh-dot-2',
+      name: 'Bách Hóa Xanh – Đợt 2!',
+    })));
   });
 
   it('disables homepage visibility immediately when Active is unchecked in the edit modal', async () => {
@@ -156,7 +173,8 @@ describe('Partner Shops page', () => {
     const dialog = screen.getByRole('dialog', { name: 'Add shop' });
     expect(dialog).toHaveClass('studio-modal', 'partner-shop-modal');
     expect(screen.getByText('Enter the partner shop details.')).toBeInTheDocument();
-    expect(screen.getByLabelText('Slug')).toBeRequired();
+    expect(screen.getByLabelText('Slug (Không bắt buộc)')).not.toBeRequired();
+    expect(screen.getByLabelText('Slug (Không bắt buộc)')).toHaveAttribute('placeholder', 'tu-dong-sinh-tu-ten-neu-de-trong');
     expect(screen.getByLabelText('Name')).toBeRequired();
     expect(screen.getByLabelText('Website URL (optional)')).toHaveAttribute('maxLength', '2048');
     expect(screen.getByRole('checkbox', { name: 'Active' })).toBeChecked();
@@ -165,6 +183,19 @@ describe('Partner Shops page', () => {
 
     await user.keyboard('{Escape}');
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+  });
+
+  it('creates a shop with only its name and generates a normalized Vietnamese slug', async () => {
+    const user = userEvent.setup();
+    renderShops();
+    await user.click(await screen.findByRole('button', { name: '+ Add shop' }));
+    await user.type(screen.getByLabelText('Name'), 'Bách Hóa Xanh – Đợt 2!');
+    await user.click(screen.getByRole('button', { name: 'Save shop' }));
+
+    await waitFor(() => expect(api.createPartnerShop).toHaveBeenCalledWith(requestAdmin, expect.objectContaining({
+      slug: 'bach-hoa-xanh-dot-2',
+      name: 'Bách Hóa Xanh – Đợt 2!',
+    })));
   });
 
   it('uses 1-based pagination and allows supported page sizes', async () => {
@@ -195,11 +226,11 @@ describe('Partner Shops page', () => {
     api.createPartnerShop.mockRejectedValueOnce(new Error('Slug already exists.'));
     renderShops();
     await user.click(await screen.findByRole('button', { name: /Add shop/ }));
-    await user.type(screen.getByLabelText('Slug'), 'new-shop');
+    await user.type(screen.getByLabelText('Slug (Không bắt buộc)'), 'new-shop');
     await user.type(screen.getByLabelText('Name'), 'New Shop');
     await user.click(screen.getByRole('button', { name: 'Save shop' }));
     expect(await screen.findByRole('alert')).toHaveTextContent('Slug already exists.');
-    expect(screen.getByLabelText('Slug')).toHaveValue('new-shop');
+    expect(screen.getByLabelText('Slug (Không bắt buộc)')).toHaveValue('new-shop');
     expect(screen.getByLabelText('Name')).toHaveValue('New Shop');
   });
 
@@ -208,13 +239,13 @@ describe('Partner Shops page', () => {
     api.createPartnerShop.mockRejectedValueOnce(new Error('You do not have permission to manage partner shops.'));
     renderShops();
     await user.click(await screen.findByRole('button', { name: /Add shop/ }));
-    await user.type(screen.getByLabelText('Slug'), 'restricted-shop');
+    await user.type(screen.getByLabelText('Slug (Không bắt buộc)'), 'restricted-shop');
     await user.type(screen.getByLabelText('Name'), 'Restricted Shop');
     await user.click(screen.getByRole('button', { name: 'Save shop' }));
 
     expect(await screen.findByRole('alert')).toHaveTextContent('You do not have permission');
     expect(screen.getByRole('dialog')).toBeInTheDocument();
-    expect(screen.getByLabelText('Slug')).toHaveValue('restricted-shop');
+    expect(screen.getByLabelText('Slug (Không bắt buộc)')).toHaveValue('restricted-shop');
     expect(screen.getByLabelText('Name')).toHaveValue('Restricted Shop');
     expect(screen.getByText('CellphoneS')).toBeInTheDocument();
   });
