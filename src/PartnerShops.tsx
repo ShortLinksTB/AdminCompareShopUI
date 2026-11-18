@@ -10,6 +10,11 @@ const emptyPage: Page<PartnerShop> = { items: [], pageNumber: 1, pageSize: 20, t
 type VisibilityFilter = 'all' | 'shown' | 'hidden';
 type PartnerShopToast = { message: string; variant: 'success' | 'error' };
 
+function generateShopSlug(name: string) {
+  return name.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[đĐ]/g, match => match === 'đ' ? 'd' : 'D')
+    .toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+}
+
 export function PartnerShops({ requestAdmin, permissions }: { requestAdmin: AdminRequest; permissions: string[] }) {
   const [result, setResult] = useState(emptyPage);
   const [page, setPage] = useState(1);
@@ -86,9 +91,11 @@ export function PartnerShops({ requestAdmin, permissions }: { requestAdmin: Admi
     if (editing === undefined) return;
     const form = new FormData(event.currentTarget);
     const orderValue = String(form.get('homeDisplayOrder') ?? '').trim();
+    const name = String(form.get('name') ?? '').trim();
+    const submittedSlug = String(form.get('slug') ?? '').trim();
     const input: ShopInput = {
-      slug: String(form.get('slug') ?? '').trim(),
-      name: String(form.get('name') ?? '').trim(),
+      slug: submittedSlug || generateShopSlug(name),
+      name,
       websiteUrl: String(form.get('websiteUrl') ?? '').trim() || undefined,
       isActive: isActiveDraft,
       showOnHome: showOnHomeDraft,
@@ -166,7 +173,7 @@ export function PartnerShops({ requestAdmin, permissions }: { requestAdmin: Admi
     {editing !== undefined && <Modal open onClose={() => !saving && setEditing(undefined)} title={editing ? `Sửa shop · ${editing.name}` : 'Add shop'} className="partner-shop-modal" actions={<><Button tone="ghost" type="button" disabled={saving} onClick={() => setEditing(undefined)}>Cancel</Button><Button tone="primary" type="submit" form="partner-shop-form" disabled={saving}>{saving ? 'Saving…' : 'Save shop'}</Button></>}>
       <form id="partner-shop-form" className="partner-shop-form" onSubmit={event => void submit(event)}>
         <p>Enter the partner shop details.</p>
-        <Field label="Slug" name="slug" required defaultValue={editing?.slug ?? ''} />
+        <Field label="Slug (Không bắt buộc)" name="slug" placeholder="Tự động sinh từ tên nếu để trống" defaultValue={editing?.slug ?? ''} />
         <Field label="Name" name="name" required defaultValue={editing?.name ?? ''} />
         <Field label="Website URL (optional)" name="websiteUrl" type="text" maxLength={2048} defaultValue={editing?.websiteUrl ?? ''} />
         <label className="partner-shop-active"><input className="studio-checkbox" name="isActive" type="checkbox" checked={isActiveDraft} onChange={event => { const active = event.target.checked; setIsActiveDraft(active); if (!active) setShowOnHomeDraft(false); }} /> Active</label>

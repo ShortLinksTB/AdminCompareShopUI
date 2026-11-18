@@ -128,6 +128,7 @@ describe('Partner Shops page', () => {
     renderShops();
     await user.click(await screen.findByRole('button', { name: 'Sửa' }));
     expect(screen.getByRole('dialog', { name: 'Sửa shop · CellphoneS' })).toBeInTheDocument();
+    expect(screen.getByLabelText('Slug (Không bắt buộc)')).toHaveValue('cellphones');
     await user.click(screen.getByRole('switch', { name: 'Hiển thị ở trang chủ' }));
     await user.type(screen.getByLabelText('Thứ tự hiển thị'), '4');
     await user.click(screen.getByRole('button', { name: 'Save shop' }));
@@ -156,7 +157,8 @@ describe('Partner Shops page', () => {
     const dialog = screen.getByRole('dialog', { name: 'Add shop' });
     expect(dialog).toHaveClass('studio-modal', 'partner-shop-modal');
     expect(screen.getByText('Enter the partner shop details.')).toBeInTheDocument();
-    expect(screen.getByLabelText('Slug')).toBeRequired();
+    expect(screen.getByLabelText('Slug (Không bắt buộc)')).not.toBeRequired();
+    expect(screen.getByLabelText('Slug (Không bắt buộc)')).toHaveAttribute('placeholder', 'Tự động sinh từ tên nếu để trống');
     expect(screen.getByLabelText('Name')).toBeRequired();
     expect(screen.getByLabelText('Website URL (optional)')).toHaveAttribute('maxLength', '2048');
     expect(screen.getByRole('checkbox', { name: 'Active' })).toBeChecked();
@@ -195,12 +197,40 @@ describe('Partner Shops page', () => {
     api.createPartnerShop.mockRejectedValueOnce(new Error('Slug already exists.'));
     renderShops();
     await user.click(await screen.findByRole('button', { name: /Add shop/ }));
-    await user.type(screen.getByLabelText('Slug'), 'new-shop');
+    await user.type(screen.getByLabelText('Slug (Không bắt buộc)'), 'new-shop');
     await user.type(screen.getByLabelText('Name'), 'New Shop');
     await user.click(screen.getByRole('button', { name: 'Save shop' }));
     expect(await screen.findByRole('alert')).toHaveTextContent('Slug already exists.');
-    expect(screen.getByLabelText('Slug')).toHaveValue('new-shop');
+    expect(screen.getByLabelText('Slug (Không bắt buộc)')).toHaveValue('new-shop');
     expect(screen.getByLabelText('Name')).toHaveValue('New Shop');
+  });
+
+  it('creates a shop with only its name and generates a Vietnamese slug', async () => {
+    const user = userEvent.setup();
+    renderShops();
+    await user.click(await screen.findByRole('button', { name: /Add shop/ }));
+    await user.type(screen.getByLabelText('Name'), 'Bách Hóa Xanh');
+    await user.click(screen.getByRole('button', { name: 'Save shop' }));
+
+    await waitFor(() => expect(api.createPartnerShop).toHaveBeenCalledWith(requestAdmin, expect.objectContaining({
+      name: 'Bách Hóa Xanh', slug: 'bach-hoa-xanh',
+    })));
+    expect(await screen.findByRole('status')).toHaveTextContent('Đã thêm shop.');
+  });
+
+  it('keeps the existing edit slug unless the field is cleared', async () => {
+    const user = userEvent.setup();
+    renderShops();
+    await user.click(await screen.findByRole('button', { name: 'Sửa' }));
+    expect(screen.getByLabelText('Slug (Không bắt buộc)')).toHaveValue('cellphones');
+    await user.clear(screen.getByLabelText('Slug (Không bắt buộc)'));
+    await user.clear(screen.getByLabelText('Name'));
+    await user.type(screen.getByLabelText('Name'), 'Bách Hóa Xanh');
+    await user.click(screen.getByRole('button', { name: 'Save shop' }));
+
+    await waitFor(() => expect(api.updatePartnerShop).toHaveBeenCalledWith(requestAdmin, 42, expect.objectContaining({
+      slug: 'bach-hoa-xanh', name: 'Bách Hóa Xanh',
+    })));
   });
 
   it('retains the add form and shop list after a create permission failure', async () => {
@@ -208,13 +238,13 @@ describe('Partner Shops page', () => {
     api.createPartnerShop.mockRejectedValueOnce(new Error('You do not have permission to manage partner shops.'));
     renderShops();
     await user.click(await screen.findByRole('button', { name: /Add shop/ }));
-    await user.type(screen.getByLabelText('Slug'), 'restricted-shop');
+    await user.type(screen.getByLabelText('Slug (Không bắt buộc)'), 'restricted-shop');
     await user.type(screen.getByLabelText('Name'), 'Restricted Shop');
     await user.click(screen.getByRole('button', { name: 'Save shop' }));
 
     expect(await screen.findByRole('alert')).toHaveTextContent('You do not have permission');
     expect(screen.getByRole('dialog')).toBeInTheDocument();
-    expect(screen.getByLabelText('Slug')).toHaveValue('restricted-shop');
+    expect(screen.getByLabelText('Slug (Không bắt buộc)')).toHaveValue('restricted-shop');
     expect(screen.getByLabelText('Name')).toHaveValue('Restricted Shop');
     expect(screen.getByText('CellphoneS')).toBeInTheDocument();
   });
