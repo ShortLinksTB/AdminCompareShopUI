@@ -1,20 +1,22 @@
 import '@testing-library/jest-dom/vitest';
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { BrowserRouter } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { getAdminProducts } from '../products/products-api';
 import { getAdminOffers, type AdminOfferPage } from '../offers/offers-api';
+import { getDashboardPartnerShopTotal, getDashboardSyncSuccessRate } from './dashboard-api';
 import { Dashboard } from './Dashboard';
 
 vi.mock('../products/products-api', () => ({ getAdminProducts: vi.fn() }));
 vi.mock('../offers/offers-api', () => ({ getAdminOffers: vi.fn() }));
+vi.mock('./dashboard-api', () => ({ getDashboardPartnerShopTotal: vi.fn(), getDashboardSyncSuccessRate: vi.fn() }));
 
 const offerPage: AdminOfferPage = {
   items: [], pageNumber: 1, pageSize: 1, totalItems: 2,
   counts: { all: 2, outlier: 1, stale: 0, outOfStock: 0, inactive: 0 },
 };
 
-function renderDashboard(permissions = ['products.read', 'offers.read'], requestAdmin = vi.fn()) {
+function renderDashboard(permissions = ['products.read', 'offers.read', 'shops.read', 'sync_jobs.read'], requestAdmin = vi.fn()) {
   return render(<BrowserRouter><Dashboard permissions={permissions} requestAdmin={requestAdmin} /></BrowserRouter>);
 }
 
@@ -25,14 +27,18 @@ describe('Dashboard', () => {
     vi.clearAllMocks();
     vi.mocked(getAdminProducts).mockResolvedValue({ items: [], pageNumber: 1, pageSize: 20, totalItems: 12480 });
     vi.mocked(getAdminOffers).mockResolvedValue(offerPage);
+    vi.mocked(getDashboardPartnerShopTotal).mockResolvedValue(24);
+    vi.mocked(getDashboardSyncSuccessRate).mockResolvedValue(0.982);
   });
 
   it('renders only the approved header and four KPI cards and uses a minimal offers query', async () => {
     const requestAdmin = vi.fn();
-    renderDashboard(['products.read', 'offers.read'], requestAdmin);
+    renderDashboard(['products.read', 'offers.read', 'shops.read', 'sync_jobs.read'], requestAdmin);
 
     expect(await screen.findByText('12,480')).toBeInTheDocument();
     expect(await screen.findByText('of 2 offers')).toBeInTheDocument();
+    expect(await screen.findByText('24')).toBeInTheDocument();
+    expect(await screen.findByText('98.2%')).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Dashboard' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: '+ Tạo sản phẩm' })).toBeInTheDocument();
     expect(screen.getAllByRole('article')).toHaveLength(4);
@@ -45,6 +51,8 @@ describe('Dashboard', () => {
     }
     expect(getAdminProducts).toHaveBeenCalledWith(requestAdmin, 1, 20, expect.any(AbortSignal));
     expect(getAdminOffers).toHaveBeenCalledWith(requestAdmin, { page: 1, pageSize: 1, q: '', shopId: null, filter: 'all', sort: 'attention' }, expect.any(AbortSignal));
+    expect(getDashboardPartnerShopTotal).toHaveBeenCalledWith(requestAdmin, expect.any(AbortSignal));
+    expect(getDashboardSyncSuccessRate).toHaveBeenCalledWith(requestAdmin, expect.any(AbortSignal));
   });
 
   it('keeps KPI loading and empty states', async () => {
@@ -74,6 +82,43 @@ describe('Dashboard', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent('You do not have permission to view products.');
     expect(getAdminProducts).not.toHaveBeenCalled();
     expect(getAdminOffers).not.toHaveBeenCalled();
+    expect(getDashboardPartnerShopTotal).not.toHaveBeenCalled();
+    expect(getDashboardSyncSuccessRate).not.toHaveBeenCalled();
     expect(screen.getAllByRole('article')).toHaveLength(4);
+  });
+
+  it('shows zero shops and N/A when there are no terminal sync jobs', async () => {
+    vi.mocked(getDashboardPartnerShopTotal).mockResolvedValue(0);
+    vi.mocked(getDashboardSyncSuccessRate).mockResolvedValue(null);
+    renderDashboard();
+    expect(await screen.findByText('No partner shops found')).toBeInTheDocument();
+    expect(await screen.findByText('N/A')).toBeInTheDocument();
+    expect(screen.getByText('No completed sync jobs')).toBeInTheDocument();
+  });
+
+  it('shows unavailable for metric errors and retries only the failed metric', async () => {
+    vi.mocked(getDashboardPartnerShopTotal).mockRejectedValueOnce(new Error('Shop read failed'));
+    vi.mocked(getDashboardPartnerShopTotal).mockResolvedValueOnce(6);
+    renderDashboard();
+    expect(await screen.findByRole('alert')).toHaveTextContent('Shop read failed');
+    expect(screen.getAllByText('Unavailable')).toHaveLength(1);
+    fireEvent.click(screen.getByRole('button', { name: 'Retry partner shops' }));
+    expect(await screen.findByText('6')).toBeInTheDocument();
+    expect(getDashboardSyncSuccessRate).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps each new KPI unavailable while its request is pending, then reflects resolved data', async () => {
+    let resolveShop!: (value: number) => void;
+    let resolveRate!: (value: number | null) => void;
+    vi.mocked(getDashboardPartnerShopTotal).mockReturnValueOnce(new Promise(resolve => { resolveShop = resolve; }));
+    vi.mocked(getDashboardSyncSuccessRate).mockReturnValueOnce(new Promise(resolve => { resolveRate = resolve; }));
+    renderDashboard();
+    const cards = screen.getAllByRole('article');
+    expect(within(cards[2]).getByText('—')).toBeInTheDocument();
+    expect(within(cards[3]).getByText('—')).toBeInTheDocument();
+    resolveShop(0);
+    resolveRate(null);
+    expect(await screen.findByText('No partner shops found')).toBeInTheDocument();
+    expect(await screen.findByText('N/A')).toBeInTheDocument();
   });
 });
