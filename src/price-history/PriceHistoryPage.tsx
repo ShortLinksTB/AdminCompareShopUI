@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import type { AdminRequest } from '../products/products-api';
 import { getAdminProducts, type AdminProduct } from '../products/products-api';
 import { getAdminProductOffers, getOfferPriceHistory, type AdminOffer, type PriceHistoryPoint } from '../offers/offers-api';
@@ -36,6 +36,8 @@ export function PriceHistory({ requestAdmin }: { requestAdmin: AdminRequest }) {
   const [offersLoading, setOffersLoading] = useState(false);
   const [offersError, setOffersError] = useState('');
   const [selectedOfferId, setSelectedOfferId] = useState<number | null>(null);
+  const selectedOfferIdRef = useRef<number | null>(null);
+  const historyRequestVersion = useRef(0);
   const [history, setHistory] = useState<PriceHistoryPoint[]>([]);
   const [historyLoading, setHistoryLoading] = useState(false);
   const [historyError, setHistoryError] = useState('');
@@ -71,6 +73,7 @@ export function PriceHistory({ requestAdmin }: { requestAdmin: AdminRequest }) {
       setOffersLoading(true);
       setOffersError('');
       setOffers([]);
+      selectedOfferIdRef.current = null;
       setSelectedOfferId(null);
       setHistory([]);
       setHistoryError('');
@@ -78,7 +81,9 @@ export function PriceHistory({ requestAdmin }: { requestAdmin: AdminRequest }) {
         const result = await getAdminProductOffers(requestAdmin, selectedProduct.id, controller.signal);
         if (!controller.signal.aborted) {
           setOffers(result);
-          setSelectedOfferId(result[0]?.id ?? null);
+          const defaultOfferId = result[0]?.id ?? null;
+          selectedOfferIdRef.current = defaultOfferId;
+          setSelectedOfferId(defaultOfferId);
         }
       } catch (reason) {
         if (!controller.signal.aborted) setOffersError(reason instanceof Error ? reason.message : 'Could not load product offers.');
@@ -92,17 +97,21 @@ export function PriceHistory({ requestAdmin }: { requestAdmin: AdminRequest }) {
   useEffect(() => {
     if (selectedOfferId === null) return;
     const controller = new AbortController();
+    const requestVersion = ++historyRequestVersion.current;
+    const isCurrentRequest = () => !controller.signal.aborted
+      && requestVersion === historyRequestVersion.current
+      && selectedOfferIdRef.current === selectedOfferId;
     void (async () => {
       setHistoryLoading(true);
       setHistoryError('');
       setHistory([]);
       try {
         const points = await getOfferPriceHistory(requestAdmin, selectedOfferId, controller.signal, 180);
-        if (!controller.signal.aborted) setHistory([...points].sort((a, b) => Date.parse(a.dateUtc) - Date.parse(b.dateUtc)));
+        if (isCurrentRequest()) setHistory([...points].sort((a, b) => Date.parse(a.dateUtc) - Date.parse(b.dateUtc)));
       } catch (reason) {
-        if (!controller.signal.aborted) setHistoryError(reason instanceof Error ? reason.message : 'Could not load price history.');
+        if (isCurrentRequest()) setHistoryError(reason instanceof Error ? reason.message : 'Could not load price history.');
       } finally {
-        if (!controller.signal.aborted) setHistoryLoading(false);
+        if (isCurrentRequest()) setHistoryLoading(false);
       }
     })();
     return () => controller.abort();
@@ -116,6 +125,12 @@ export function PriceHistory({ requestAdmin }: { requestAdmin: AdminRequest }) {
   const line = chartPath(history);
 
   const chooseProduct = (product: AdminProduct) => {
+    historyRequestVersion.current += 1;
+    selectedOfferIdRef.current = null;
+    setSelectedOfferId(null);
+    setHistory([]);
+    setHistoryLoading(false);
+    setHistoryError('');
     setSelectedProduct(product);
     setSearch(product.name);
     setShowMatches(false);
@@ -128,12 +143,12 @@ export function PriceHistory({ requestAdmin }: { requestAdmin: AdminRequest }) {
     {exportNotice && <p className="price-history-export-notice" role="status">{exportNotice}</p>}
     <Toolbar className="price-history-toolbar" role="search">
       <div className="price-history-product-search">
-        <SearchField label="Search product" type="search" value={search} onFocus={() => setShowMatches(true)} onChange={event => { setSearch(event.target.value); setSelectedProduct(null); setOffers([]); setOffersError(''); setHistory([]); setHistoryError(''); setShowMatches(true); }} placeholder="Search product..." autoComplete="off" />
+        <SearchField label="Search product" type="search" value={search} onFocus={() => setShowMatches(true)} onChange={event => { historyRequestVersion.current += 1; selectedOfferIdRef.current = null; setSelectedOfferId(null); setSearch(event.target.value); setSelectedProduct(null); setOffers([]); setOffersError(''); setHistory([]); setHistoryLoading(false); setHistoryError(''); setShowMatches(true); }} placeholder="Search product..." autoComplete="off" />
         {showMatches && search.trim() && <div className="price-history-product-results" role="listbox" aria-label="Products">
           {productsLoading ? <Loading label="Loading products" /> : productsError ? <ErrorState title="Could not search products">{productsError}</ErrorState> : matchingProducts.length ? matchingProducts.map(product => <button type="button" role="option" aria-selected={selectedProduct?.id === product.id} key={product.id} onClick={() => chooseProduct(product)}>{product.name}{product.brand && <small>{product.brand}</small>}</button>) : <EmptyState title="No products found" />}
         </div>}
       </div>
-      {selectedProduct && <Select aria-label="Product offer" value={selectedOfferId ?? ''} disabled={offersLoading || offers.length === 0} onChange={event => setSelectedOfferId(Number(event.target.value))}>
+      {selectedProduct && <Select aria-label="Product offer" value={selectedOfferId ?? ''} disabled={offersLoading || offers.length === 0} onChange={event => { const offerId = Number(event.target.value); selectedOfferIdRef.current = offerId; setSelectedOfferId(offerId); }}>
         {offersLoading && <option value="">Loading shops…</option>}
         {!offersLoading && offers.length === 0 && <option value="">No shop offers</option>}
         {offers.map(offer => <option key={offer.id} value={offer.id}>{offer.partnerShopName || 'Shop'} · {formatPrice(offer.priceVnd)}</option>)}

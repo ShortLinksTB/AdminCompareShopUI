@@ -64,6 +64,34 @@ describe('PriceHistory', () => {
     expect(screen.queryByText('iPhone 15 128GB')).not.toBeInTheDocument();
   });
 
+  it('ignores history that resolves after the product search is edited', async () => {
+    const user = userEvent.setup();
+    let resolveHistory!: (response: Response) => void;
+    const pendingHistory = new Promise<Response>(resolve => { resolveHistory = resolve; });
+    const requestAdmin = vi.fn(async (path: string) => {
+      if (path.startsWith('/admin/products?')) return Response.json(products);
+      if (path.startsWith('/admin/offers?')) return Response.json({ items: offers });
+      if (path.includes('/price-history')) return pendingHistory;
+      return new Response('not found', { status: 404 });
+    });
+    render(<PriceHistory requestAdmin={requestAdmin} />);
+
+    const search = screen.getByRole('searchbox', { name: 'Search product' });
+    await user.type(search, 'Real');
+    await user.click(await screen.findByRole('option', { name: /Real Laptop/ }));
+    await waitFor(() => expect(requestAdmin).toHaveBeenCalledWith('/admin/offers/7/price-history?days=180', expect.anything()));
+
+    await user.clear(search);
+    await user.type(search, 'Unknown product');
+    resolveHistory(Response.json(points));
+
+    const records = screen.getByRole('region', { name: 'Price history records' });
+    await waitFor(() => expect(records).toHaveTextContent('0 price records'));
+    expect(within(records).queryByText('150.000 ₫')).not.toBeInTheDocument();
+    expect(document.querySelector('.price-history-chart path')).not.toBeInTheDocument();
+    expect(screen.getByText('No products found')).toBeInTheDocument();
+  });
+
   it('loads additional product pages and shows a no-offers state', async () => {
     const user = userEvent.setup();
     const requestAdmin = vi.fn(async (path: string) => {
