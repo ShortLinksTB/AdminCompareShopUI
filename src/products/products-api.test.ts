@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { deleteAdminProduct, getAdminCategories, getAdminProducts, ProductsApiError, updateAdminProduct, type AdminProduct } from './products-api';
+import { createAdminProduct, deleteAdminProduct, getAdminCategories, getAdminProducts, ProductsApiError, productSlugFromName, updateAdminProduct, type AdminProduct } from './products-api';
 
 const product: AdminProduct = {
   id: 42, slug: 'phone-a', name: 'Phone A', brand: 'Brand A', description: null,
@@ -31,6 +31,28 @@ describe('getAdminProducts', () => {
 });
 
 describe('product mutations and categories', () => {
+  it('posts the create payload and returns the created product', async () => {
+    const created = { ...product, id: 43 };
+    const requestAdmin = vi.fn().mockResolvedValue(Response.json(created, { status: 201 }));
+    const input = { slug: 'phone-a', name: 'Phone A', brand: null, description: null, seoTitle: null, seoDescription: null, categoryId: 7, isActive: true, imageUrl: null };
+    await expect(createAdminProduct(requestAdmin, input)).resolves.toEqual(created);
+    expect(requestAdmin).toHaveBeenCalledWith('/admin/products', expect.objectContaining({ method: 'POST', body: JSON.stringify(input) }));
+  });
+
+  it('returns null for successful empty responses and surfaces actionable API errors', async () => {
+    const requestAdmin = vi.fn().mockResolvedValue(new Response(null, { status: 204 }));
+    const input = { slug: 'phone-a', name: 'Phone A', brand: null, description: null, seoTitle: null, seoDescription: null, categoryId: 7, isActive: true, imageUrl: null };
+    await expect(createAdminProduct(requestAdmin, input)).resolves.toBeNull();
+    requestAdmin.mockResolvedValueOnce(Response.json({ errors: { Slug: ['Slug already exists.'] } }, { status: 400 }));
+    await expect(createAdminProduct(requestAdmin, input)).rejects.toMatchObject({ status: 400, message: 'Slug already exists.' });
+    requestAdmin.mockResolvedValueOnce(new Response('', { status: 403 }));
+    await expect(createAdminProduct(requestAdmin, input)).rejects.toMatchObject({ status: 403, message: 'You do not have permission to create products.' });
+  });
+
+  it('generates a URL slug from Vietnamese product names', () => {
+    expect(productSlugFromName('Điện thoại Đẹp 2026')).toBe('dien-thoai-dep-2026');
+  });
+
   it('loads category labels from the existing category API', async () => {
     const requestAdmin = vi.fn().mockResolvedValue(Response.json({ items: [{ id: 7, name: 'Phones', slug: 'phones', isActive: true }] }));
     await expect(getAdminCategories(requestAdmin)).resolves.toEqual([{ id: 7, name: 'Phones', slug: 'phones', isActive: true }]);
