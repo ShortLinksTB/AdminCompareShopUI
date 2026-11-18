@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { getAdminProducts } from '../products/products-api';
 import { getAdminOffers, type AdminOfferPage } from '../offers/offers-api';
+import { getDashboardPartnerShopTotal, getDashboardSyncJobTotals } from './dashboard-api';
 import { Button, Card, PageHeader } from '../ui';
 import './dashboard.css';
 
@@ -23,6 +24,15 @@ export function Dashboard({ requestAdmin, permissions }: { requestAdmin: (path: 
   const [offersLoading, setOffersLoading] = useState(true);
   const [offersError, setOffersError] = useState('');
   const [offersReload, setOffersReload] = useState(0);
+  const [shopsTotal, setShopsTotal] = useState<number | null>(null);
+  const [shopsLoading, setShopsLoading] = useState(true);
+  const [shopsError, setShopsError] = useState('');
+  const [shopsReload, setShopsReload] = useState(0);
+  const [syncRate, setSyncRate] = useState<number | null>(null);
+  const [syncHasTerminalJobs, setSyncHasTerminalJobs] = useState(false);
+  const [syncLoading, setSyncLoading] = useState(true);
+  const [syncError, setSyncError] = useState('');
+  const [syncReload, setSyncReload] = useState(0);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -58,6 +68,46 @@ export function Dashboard({ requestAdmin, permissions }: { requestAdmin: (path: 
     return () => controller.abort();
   }, [requestAdmin, permissions, offersReload]);
 
+  useEffect(() => {
+    const controller = new AbortController();
+    setShopsLoading(true);
+    setShopsError('');
+    setShopsTotal(null);
+    if (!permissions.includes('shops.read')) {
+      setShopsError('You do not have permission to view partner shops.');
+      setShopsLoading(false);
+      return () => controller.abort();
+    }
+    getDashboardPartnerShopTotal(requestAdmin, controller.signal)
+      .then(total => { if (!controller.signal.aborted) setShopsTotal(total); })
+      .catch(reason => { if (!controller.signal.aborted) setShopsError(reason instanceof Error ? reason.message : 'Could not load partner shops. Please try again.'); })
+      .finally(() => { if (!controller.signal.aborted) setShopsLoading(false); });
+    return () => controller.abort();
+  }, [requestAdmin, permissions, shopsReload]);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    setSyncLoading(true);
+    setSyncError('');
+    setSyncRate(null);
+    setSyncHasTerminalJobs(false);
+    if (!permissions.includes('sync_jobs.read')) {
+      setSyncError('You do not have permission to view Sync Jobs.');
+      setSyncLoading(false);
+      return () => controller.abort();
+    }
+    getDashboardSyncJobTotals(requestAdmin, controller.signal)
+      .then(({ successful, terminal }) => {
+        if (!controller.signal.aborted) {
+          setSyncHasTerminalJobs(terminal > 0);
+          setSyncRate(terminal > 0 ? successful / terminal * 100 : null);
+        }
+      })
+      .catch(reason => { if (!controller.signal.aborted) setSyncError(reason instanceof Error ? reason.message : 'Could not load Sync Jobs. Please try again.'); })
+      .finally(() => { if (!controller.signal.aborted) setSyncLoading(false); });
+    return () => controller.abort();
+  }, [requestAdmin, permissions, syncReload]);
+
   return <div className="studio-dashboard">
     <PageHeader eyebrow="OVERVIEW" title="Dashboard" description="Tổng quan sức khỏe catalog, giá và affiliate data."
       actions={<Button tone="primary">+ Tạo sản phẩm</Button>} />
@@ -65,10 +115,14 @@ export function Dashboard({ requestAdmin, permissions }: { requestAdmin: (path: 
     <section className="dashboard-kpi-grid" aria-label="Chỉ số tổng quan">
       <DashboardKpi label="Products total" value={productsLoading || productsError ? '—' : (productTotal ?? 0).toLocaleString()} change={productsLoading ? 'Loading…' : productsError ? 'Unavailable' : productTotal === 0 ? 'No products found' : 'All catalog products'} tone="orange" />
       <DashboardKpi label="Offers active" value={offersLoading || offersError ? '—' : (offersData ? offersData.totalItems - offersData.counts.inactive : 0).toLocaleString()} change={offersLoading ? 'Loading…' : offersError ? 'Unavailable' : `of ${(offersData?.totalItems ?? 0).toLocaleString()} offers`} tone="green" />
-      <DashboardKpi label="Partner shops" value="24" change="+3 shop mới" tone="blue" />
-      <DashboardKpi label="Sync success rate" value="98.2%" change="-1.1% trong 24 giờ" tone="purple" />
+      <DashboardKpi label="Partner shops" value={shopsLoading || shopsError ? '—' : (shopsTotal ?? 0).toLocaleString()} change={shopsLoading ? 'Loading…' : shopsError ? 'Unavailable' : 'All partner shops'} tone="blue" />
+      <DashboardKpi label="Sync success rate" value={syncLoading || syncError ? '—' : syncHasTerminalJobs && syncRate !== null ? `${syncRate.toFixed(1)}%` : 'N/A'} change={syncLoading ? 'Loading…' : syncError ? 'Unavailable' : syncHasTerminalJobs ? 'Terminal jobs only' : 'No terminal jobs'} tone="purple" />
     </section>
 
-    {productsLoading || offersLoading ? <span className="sr-only" role="status">Loading dashboard metrics…</span> : productsError || offersError ? <div className="dashboard-error" role="alert">{productsError || offersError}{productsError && <Button size="sm" onClick={() => setProductsReload(value => value + 1)}>Retry products</Button>}{offersError && <Button size="sm" onClick={() => setOffersReload(value => value + 1)}>Retry offers</Button>}</div> : null}
+    {productsLoading || offersLoading || shopsLoading || syncLoading ? <span className="sr-only" role="status">Loading dashboard metrics…</span> : null}
+    {productsError && <div className="dashboard-error" role="alert">{productsError}<Button size="sm" onClick={() => setProductsReload(value => value + 1)}>Retry products</Button></div>}
+    {offersError && <div className="dashboard-error" role="alert">{offersError}<Button size="sm" onClick={() => setOffersReload(value => value + 1)}>Retry offers</Button></div>}
+    {shopsError && <div className="dashboard-error" role="alert">{shopsError}<Button size="sm" onClick={() => setShopsReload(value => value + 1)}>Retry partner shops</Button></div>}
+    {syncError && <div className="dashboard-error" role="alert">{syncError}<Button size="sm" onClick={() => setSyncReload(value => value + 1)}>Retry Sync Jobs</Button></div>}
   </div>;
 }
