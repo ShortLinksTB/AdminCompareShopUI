@@ -49,6 +49,16 @@ describe('product mutations and categories', () => {
     await expect(createAdminProduct(requestAdmin, input)).rejects.toMatchObject({ status: 403, message: 'You do not have permission to create products.' });
   });
 
+  it('replaces rejected create requests with stable actionable network guidance', async () => {
+    const requestAdmin = vi.fn().mockRejectedValue(new TypeError('Failed to fetch'));
+    const input = { slug: 'phone-a', name: 'Phone A', brand: null, description: null, seoTitle: null, seoDescription: null, categoryId: 7, isActive: true, imageUrl: null };
+
+    await expect(createAdminProduct(requestAdmin, input)).rejects.toMatchObject({
+      name: 'ProductsApiError', status: 0,
+      message: 'Could not reach the server to create this product. Check your connection and try again.',
+    });
+  });
+
   it('generates a URL slug from Vietnamese product names', () => {
     expect(productSlugFromName('Điện thoại Đẹp 2026')).toBe('dien-thoai-dep-2026');
   });
