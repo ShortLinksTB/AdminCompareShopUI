@@ -5,7 +5,7 @@
     "eyebrow": "OVERVIEW",
     "steps": [
       {
-        "text": "Xem 4 chỉ số chính ở đầu trang: Products active, Offers active, Partner shops, Sync success rate.",
+        "text": "Xem 3 chỉ số chính ở đầu trang: Products total, Offers active và Partner shops.",
         "danger": false
       },
       {
@@ -22,10 +22,6 @@
       }
     ],
     "notes": [
-      {
-        "text": "Sync success rate giảm mạnh (dưới ~95%) là dấu hiệu nhiều nguồn dữ liệu đang lỗi — vào Sync Jobs kiểm tra ngay, đừng chỉ nhìn số trên Dashboard.",
-        "danger": false
-      },
       {
         "text": "Data health dưới 90% nghĩa là đang có incident ảnh hưởng dữ liệu hiển thị cho người dùng cuối — ưu tiên xử lý trước các việc khác trong ca trực.",
         "danger": true

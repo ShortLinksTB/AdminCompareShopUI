@@ -440,11 +440,13 @@ describe('dashboard API integration', () => {
     items: [{ id: 7, slug: 'catalog-phone', name: 'Catalog Phone', brand: null, description: null, seoTitle: null, seoDescription: null, categoryId: 3, isActive: true }],
     pageNumber: 1, pageSize: 20, totalItems,
   });
-  it('renders the four KPIs and never requests data for the removed Dashboard blocks', async () => {
-    auth.permissions = ['products.read', 'offers.read'];
+  it('renders exactly three KPIs and never requests sync-job data for the removed metric', async () => {
+    auth.permissions = ['products.read', 'offers.read', 'shops.read'];
     auth.requestAdmin.mockImplementation(async path => path.startsWith('/admin/products')
       ? productPage(5)
-      : Response.json({ items: [], pageNumber: 1, pageSize: 1, totalItems: 3, counts: { all: 3, outlier: 1, stale: 0, outOfStock: 0, inactive: 1 } }));
+      : path.startsWith('/admin/shops')
+        ? Response.json({ items: [], pageNumber: 1, pageSize: 1, totalItems: 3 })
+        : Response.json({ items: [], pageNumber: 1, pageSize: 1, totalItems: 3, counts: { all: 3, outlier: 1, stale: 0, outOfStock: 0, inactive: 1 } }));
 
     renderApp('/');
 
@@ -454,14 +456,17 @@ describe('dashboard API integration', () => {
     expect(within(productsCard).getByText('5')).toBeInTheDocument();
     expect(within(offersCard).getByText('2')).toBeInTheDocument();
     expect(within(offersCard).getByText('of 3 offers')).toBeInTheDocument();
-    expect(screen.getAllByRole('article')).toHaveLength(4);
+    expect(await screen.findByText('All partner shops')).toBeInTheDocument();
+    expect(screen.getAllByRole('article')).toHaveLength(3);
     expect(screen.queryByRole('heading', { name: 'Traffic & affiliate clicks' })).not.toBeInTheDocument();
     expect(screen.queryByRole('heading', { name: 'Data health' })).not.toBeInTheDocument();
     expect(screen.queryByRole('heading', { name: 'Offers flagged as outlier' })).not.toBeInTheDocument();
     expect(screen.queryByRole('heading', { name: 'Matching queue' })).not.toBeInTheDocument();
     expect(auth.requestAdmin).toHaveBeenCalledWith('/admin/products?page=1&pageSize=20', expect.objectContaining({ signal: expect.any(AbortSignal) }));
     expect(auth.requestAdmin).toHaveBeenCalledWith('/admin/offers?page=1&pageSize=1&sort=attention&staleHours=72', expect.objectContaining({ signal: expect.any(AbortSignal) }));
+    expect(auth.requestAdmin).toHaveBeenCalledWith('/admin/shops?page=1&pageSize=1', expect.objectContaining({ signal: expect.any(AbortSignal) }));
     expect(auth.requestAdmin.mock.calls.some(([path]) => path.includes('pageSize=100'))).toBe(false);
+    expect(auth.requestAdmin.mock.calls.some(([path]) => path.startsWith('/admin/sync-jobs'))).toBe(false);
   });
 
   it('shows denied states without requesting datasets when their read permissions are absent', async () => {

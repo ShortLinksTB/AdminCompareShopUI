@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { getAdminProducts } from '../products/products-api';
 import { getAdminOffers, type AdminOfferPage } from '../offers/offers-api';
-import { getDashboardPartnerShopTotal, getDashboardSyncSuccessRate } from './dashboard-api';
+import { getDashboardPartnerShopTotal } from './dashboard-api';
 import { Button, Card, PageHeader } from '../ui';
 import './dashboard.css';
 
@@ -28,8 +28,6 @@ export function Dashboard({ requestAdmin, permissions }: { requestAdmin: (path: 
   const [offersReload, setOffersReload] = useState(0);
   const [partnerShops, setPartnerShops] = useState<MetricState<number>>({ value: null, loading: true, error: '' });
   const [partnerShopsReload, setPartnerShopsReload] = useState(0);
-  const [syncSuccessRate, setSyncSuccessRate] = useState<MetricState<number>>({ value: null, loading: true, error: '' });
-  const [syncReload, setSyncReload] = useState(0);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -78,19 +76,6 @@ export function Dashboard({ requestAdmin, permissions }: { requestAdmin: (path: 
     return () => controller.abort();
   }, [requestAdmin, permissions, partnerShopsReload]);
 
-  useEffect(() => {
-    const controller = new AbortController();
-    setSyncSuccessRate({ value: null, loading: true, error: '' });
-    if (!permissions.includes('sync_jobs.read')) {
-      setSyncSuccessRate({ value: null, loading: false, error: 'You do not have permission to view Sync Jobs.' });
-      return () => controller.abort();
-    }
-    getDashboardSyncSuccessRate(requestAdmin, controller.signal)
-      .then(value => { if (!controller.signal.aborted) setSyncSuccessRate({ value, loading: false, error: '' }); })
-      .catch(reason => { if (!controller.signal.aborted) setSyncSuccessRate({ value: null, loading: false, error: reason instanceof Error ? reason.message : 'Could not load Sync Jobs. Please try again.' }); });
-    return () => controller.abort();
-  }, [requestAdmin, permissions, syncReload]);
-
   return <div className="studio-dashboard">
     <PageHeader eyebrow="OVERVIEW" title="Dashboard" description="Tổng quan sức khỏe catalog, giá và affiliate data."
       actions={<Button tone="primary">+ Tạo sản phẩm</Button>} />
@@ -99,16 +84,14 @@ export function Dashboard({ requestAdmin, permissions }: { requestAdmin: (path: 
       <DashboardKpi label="Products total" value={productsLoading || productsError ? '—' : (productTotal ?? 0).toLocaleString()} change={productsLoading ? 'Loading…' : productsError ? 'Unavailable' : productTotal === 0 ? 'No products found' : 'All catalog products'} tone="orange" />
       <DashboardKpi label="Offers active" value={offersLoading || offersError ? '—' : (offersData ? offersData.totalItems - offersData.counts.inactive : 0).toLocaleString()} change={offersLoading ? 'Loading…' : offersError ? 'Unavailable' : `of ${(offersData?.totalItems ?? 0).toLocaleString()} offers`} tone="green" />
       <DashboardKpi label="Partner shops" value={partnerShops.loading || partnerShops.error ? '—' : (partnerShops.value ?? 0).toLocaleString()} change={partnerShops.loading ? 'Loading…' : partnerShops.error ? 'Unavailable' : partnerShops.value === 0 ? 'No partner shops found' : 'All partner shops'} tone="blue" />
-      <DashboardKpi label="Sync success rate" value={syncSuccessRate.loading || syncSuccessRate.error ? '—' : syncSuccessRate.value === null ? 'N/A' : `${(syncSuccessRate.value * 100).toFixed(1)}%`} change={syncSuccessRate.loading ? 'Loading…' : syncSuccessRate.error ? 'Unavailable' : syncSuccessRate.value === null ? 'No completed sync jobs' : 'Completed sync jobs'} tone="purple" />
     </section>
 
-    {productsLoading || offersLoading || partnerShops.loading || syncSuccessRate.loading ? <span className="sr-only" role="status">Loading dashboard metrics…</span> : null}
-    {productsError || offersError || partnerShops.error || syncSuccessRate.error ? <div className="dashboard-error" role="alert">
-      {productsError || offersError || partnerShops.error || syncSuccessRate.error}
+    {productsLoading || offersLoading || partnerShops.loading ? <span className="sr-only" role="status">Loading dashboard metrics…</span> : null}
+    {productsError || offersError || partnerShops.error ? <div className="dashboard-error" role="alert">
+      {productsError || offersError || partnerShops.error}
       {productsError && <Button size="sm" onClick={() => setProductsReload(value => value + 1)}>Retry products</Button>}
       {offersError && <Button size="sm" onClick={() => setOffersReload(value => value + 1)}>Retry offers</Button>}
       {partnerShops.error && <Button size="sm" onClick={() => setPartnerShopsReload(value => value + 1)}>Retry partner shops</Button>}
-      {syncSuccessRate.error && <Button size="sm" onClick={() => setSyncReload(value => value + 1)}>Retry Sync Jobs</Button>}
     </div> : null}
   </div>;
 }
