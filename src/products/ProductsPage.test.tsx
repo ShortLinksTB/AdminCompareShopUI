@@ -66,6 +66,7 @@ describe('ProductsPage', () => {
     render(<ProductsPage requestAdmin={requestAdmin} permissions={['products.create']} />);
     await user.click(await screen.findByRole('button', { name: '+ New product' }));
     const dialog = screen.getByRole('dialog', { name: 'Tạo sản phẩm mới' });
+    expect(within(dialog).getByRole('textbox', { name: 'Slug (Không bắt buộc)' })).not.toBeRequired();
     await user.type(within(dialog).getByRole('textbox', { name: 'Tên sản phẩm' }), 'Điện thoại Đẹp');
     await user.click(within(dialog).getByRole('button', { name: /Category/ }));
     await user.click(within(dialog).getByRole('option', { name: 'Phones' }));
