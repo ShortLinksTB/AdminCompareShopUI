@@ -110,9 +110,14 @@ export async function updateAdminProduct(requestAdmin: AdminRequest, id: number,
 }
 
 export async function createAdminProduct(requestAdmin: AdminRequest, input: ProductInput): Promise<AdminProduct | null> {
-  const response = await requestAdmin('/admin/products', {
-    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(input),
-  });
+  let response: Response;
+  try {
+    response = await requestAdmin('/admin/products', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(input),
+    });
+  } catch {
+    throw new ProductsApiError('Could not reach the server to create this product. Check your connection and try again.', 0);
+  }
   if (!response.ok) throw await mutationError(response, 'Could not create product', 'You do not have permission to create products.');
   if (response.status === 204) return null;
   try { return await response.json() as AdminProduct; }

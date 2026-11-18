@@ -102,6 +102,27 @@ describe('ProductsPage', () => {
     expect(await within(dialog).findByRole('alert')).toHaveTextContent('Slug already exists.');
   });
 
+  it('shows stable network guidance in the create dialog when fetch rejects', async () => {
+    const user = userEvent.setup();
+    const requestAdmin = requestFor();
+    requestAdmin.mockImplementation((path, init) => {
+      if (path.startsWith('/admin/categories')) return Promise.resolve(Response.json({ items: categoryList }));
+      if (path === '/admin/products' && init?.method === 'POST') return Promise.reject(new TypeError('Failed to fetch'));
+      if (path.endsWith('/matchings')) return Promise.resolve(Response.json([]));
+      return Promise.resolve(pageResponse([phone, inactive]));
+    });
+    render(<ProductsPage requestAdmin={requestAdmin} permissions={['products.create']} />);
+    await user.click(await screen.findByRole('button', { name: '+ New product' }));
+    const dialog = screen.getByRole('dialog', { name: 'Tạo sản phẩm mới' });
+    await user.type(within(dialog).getByRole('textbox', { name: 'Tên sản phẩm' }), 'Phone A');
+    await user.click(within(dialog).getByRole('button', { name: /Category/ }));
+    await user.click(within(dialog).getByRole('option', { name: 'Phones' }));
+    await user.click(within(dialog).getByRole('button', { name: 'Tạo sản phẩm' }));
+
+    expect(await within(dialog).findByRole('alert')).toHaveTextContent('Could not reach the server to create this product. Check your connection and try again.');
+    expect(within(dialog).getByRole('textbox', { name: 'Tên sản phẩm' })).toHaveValue('Phone A');
+  });
+
   it('loads paged products and category names with the default page size of 10', async () => {
     const requestAdmin = requestFor();
     render(<ProductsPage requestAdmin={requestAdmin} permissions={['products.read']} />);
