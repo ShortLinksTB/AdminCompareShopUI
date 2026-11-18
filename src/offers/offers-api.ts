@@ -83,8 +83,8 @@ export async function getAdminOffers(
   return response.json() as Promise<AdminOfferPage>;
 }
 
-export async function getOfferPriceHistory(requestAdmin: AdminRequest, id: number, signal?: AbortSignal): Promise<PriceHistoryPoint[]> {
-  const response = await requestAdmin(`/admin/offers/${encodeURIComponent(id)}/price-history?days=30`, { signal });
+export async function getOfferPriceHistory(requestAdmin: AdminRequest, id: number, signal?: AbortSignal, days = 30): Promise<PriceHistoryPoint[]> {
+  const response = await requestAdmin(`/admin/offers/${encodeURIComponent(id)}/price-history?days=${encodeURIComponent(days)}`, { signal });
   await ensureOk(response, 'Could not load price history');
   return response.json() as Promise<PriceHistoryPoint[]>;
 }

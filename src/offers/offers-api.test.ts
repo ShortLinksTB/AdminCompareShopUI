@@ -36,6 +36,12 @@ describe('offers API', () => {
     expect(request).toHaveBeenCalledWith('/admin/offers/7/price-history?days=30', { signal: undefined });
   });
 
+  it('requests price history for the requested range', async () => {
+    const request = vi.fn().mockResolvedValue(Response.json([]));
+    await expect(getOfferPriceHistory(request, 7, undefined, 180)).resolves.toEqual([]);
+    expect(request).toHaveBeenCalledWith('/admin/offers/7/price-history?days=180', { signal: undefined });
+  });
+
   it('updates the existing OfferInput contract with all required fields', async () => {
     const request = vi.fn().mockResolvedValue(new Response(null, { status: 204 }));
     await updateAdminOffer(request, 7, { priceVnd: 120000, url: null, isActive: false, isOutlier: true });
