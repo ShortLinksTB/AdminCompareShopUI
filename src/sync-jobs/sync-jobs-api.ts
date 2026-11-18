@@ -34,7 +34,7 @@ export interface SyncJobFilters {
   page: number;
   pageSize: number;
   q?: string;
-  status?: SyncJobState;
+  status?: SyncJobState | 'Success,Partial,Failed';
   startedFrom?: string;
   startedTo?: string;
 }
