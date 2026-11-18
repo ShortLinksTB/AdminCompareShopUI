@@ -162,6 +162,15 @@ describe('mobile application navigation', () => {
     expect(auth.requestAdmin).toHaveBeenCalledWith('/admin/files?page=1&pageSize=10', expect.objectContaining({ signal: expect.any(AbortSignal) }));
   });
 
+  it('loads Price History on the existing /price-history route with the authenticated API client', async () => {
+    auth.requestAdmin.mockResolvedValue(Response.json({ items: [], pageNumber: 1, pageSize: 100, totalItems: 0 }));
+    renderApp('/price-history');
+
+    expect(screen.getByRole('heading', { name: 'Price History' })).toBeInTheDocument();
+    expect(await screen.findByText('Choose a product and shop to view price history')).toBeInTheDocument();
+    expect(auth.requestAdmin).toHaveBeenCalledWith('/admin/products?page=1&pageSize=100', expect.objectContaining({ signal: expect.any(AbortSignal) }));
+  });
+
   it('shows the product details breadcrumb for a nested product route', () => {
     auth.permissions = ['products.read'];
     renderApp('/products/42');
