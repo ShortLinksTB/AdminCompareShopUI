@@ -15,6 +15,13 @@ describe('route-keyed help guide', () => {
     expect(guideForPath('/products/42/images')).toBeUndefined();
   });
 
+  it('describes the three Dashboard metrics without a Sync success rate warning', () => {
+    const guide = guideForPath('/');
+    expect(guide?.steps[0].text).toBe('Xem 3 chỉ số chính ở đầu trang: Products total, Offers active và Partner shops.');
+    expect(guide?.steps.map(step => step.text).join(' ')).not.toMatch(/Sync success rate|4 chỉ số/);
+    expect(guide?.notes.map(note => note.text).join(' ')).not.toMatch(/Sync success rate|95%/);
+  });
+
   it('describes the search, toolbar, quick filters, and fields available on Offers & Prices', () => {
     const guide = guideForPath('/offers');
     expect(guide?.steps.map(step => step.text)).toEqual([
