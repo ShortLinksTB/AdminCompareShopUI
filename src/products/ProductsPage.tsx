@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type KeyboardEvent as ReactKeyboardEvent } from 'react';
 import { Link } from 'react-router-dom';
-import { deleteAdminProduct, getAdminCategories, getAdminProductMatchings, getAdminProducts, unlinkAdminProductMatching, updateAdminProduct, type AdminCategory, type AdminProduct, type AdminProductMatching, type AdminRequest, type ProductInput } from './products-api';
-import { Button, Card, Checkbox, DataTable, EmptyState, ErrorState, Field, FilterChips, Lightbox, Loading, Modal, PageHeader, Pager, Pill, RowMenu, SearchField, Switch, TableFooter, Toolbar } from '../ui';
+import { createAdminProduct, deleteAdminProduct, getAdminCategories, getAdminProductMatchings, getAdminProducts, productSlugFromName, unlinkAdminProductMatching, updateAdminProduct, type AdminCategory, type AdminProduct, type AdminProductMatching, type AdminRequest, type ProductInput } from './products-api';
+import { Button, Card, Checkbox, DataTable, EmptyState, ErrorState, Field, FilterChips, Lightbox, Loading, Modal, PageHeader, Pager, Pill, RowMenu, SearchField, Switch, TableFooter, Toast, Toolbar } from '../ui';
 import './products.css';
 
 type StatusFilter = 'all' | 'active' | 'inactive' | 'missing-image';
-type Editor = { product: AdminProduct; input: ProductInput } | null;
+type Editor = { product: AdminProduct | null; input: ProductInput } | null;
 const PAGE_SIZES = [10, 20, 50];
 const initialInput = (product: AdminProduct): ProductInput => ({
   name: product.name, slug: product.slug, categoryId: product.categoryId,
@@ -13,6 +13,7 @@ const initialInput = (product: AdminProduct): ProductInput => ({
   seoDescription: product.seoDescription, isActive: product.isActive,
   imageUrl: product.imageUrl ?? null,
 });
+const emptyInput = (): ProductInput => ({ slug: '', name: '', categoryId: 0, brand: null, description: null, seoTitle: null, seoDescription: null, isActive: true, imageUrl: null });
 const formatAttachedDate = (value: string) => {
   const date = new Date(value);
   return Number.isNaN(date.getTime()) ? value : new Intl.DateTimeFormat('vi-VN').format(date);
@@ -41,6 +42,7 @@ export function ProductsPage({ requestAdmin, permissions = [] }: { requestAdmin:
   const [reloadKey, setReloadKey] = useState(0);
   const [openMenu, setOpenMenu] = useState<number | null>(null);
   const [editor, setEditor] = useState<Editor>(null);
+  const [success, setSuccess] = useState('');
   const [matchings, setMatchings] = useState<AdminProductMatching[]>([]);
   const [matchingsLoading, setMatchingsLoading] = useState(false);
   const [matchingsError, setMatchingsError] = useState('');
@@ -55,6 +57,7 @@ export function ProductsPage({ requestAdmin, permissions = [] }: { requestAdmin:
   const editorReturnFocus = useRef<HTMLElement | null>(null);
   const canUpdate = permissions.includes('products.update');
   const canDelete = permissions.includes('products.delete');
+  const canCreate = permissions.includes('products.create');
 
   const loadMatchings = useCallback(async (productId: number, signal?: AbortSignal) => {
     setMatchingsLoading(true);
@@ -73,11 +76,11 @@ export function ProductsPage({ requestAdmin, permissions = [] }: { requestAdmin:
   }, [requestAdmin]);
 
   useEffect(() => {
-    if (!editor) { setMatchings([]); setMatchingsError(''); setMatchingActionError(''); setMatchingsLoading(false); setMatchingMenu(null); return; }
+    if (!editor?.product) { setMatchings([]); setMatchingsError(''); setMatchingActionError(''); setMatchingsLoading(false); setMatchingMenu(null); return; }
     const controller = new AbortController();
     void loadMatchings(editor.product.id, controller.signal);
     return () => controller.abort();
-  }, [editor?.product.id, loadMatchings]);
+  }, [editor?.product?.id, loadMatchings]);
 
   useEffect(() => {
     if (editor || !editorReturnFocus.current) return;
@@ -228,6 +231,7 @@ export function ProductsPage({ requestAdmin, permissions = [] }: { requestAdmin:
     setFilterCounts({ all: products.length, active: products.filter(product => product.isActive).length, inactive: products.filter(product => !product.isActive).length, missingImage: products.filter(product => !product.imageUrl).length });
   }
   function openEditor(product: AdminProduct) { editorReturnFocus.current = document.activeElement?.closest('details')?.querySelector<HTMLElement>('summary') ?? null; setOpenMenu(null); setCategoryPickerOpen(false); setEditor({ product, input: initialInput(product) }); }
+  function openCreate() { setSuccess(''); setError(''); setCategoryPickerOpen(false); setEditor({ product: null, input: emptyInput() }); }
   function updateInput<K extends keyof ProductInput>(key: K, value: ProductInput[K]) {
     setEditor(current => current ? { ...current, input: { ...current.input, [key]: value } } : current);
   }
@@ -278,13 +282,30 @@ export function ProductsPage({ requestAdmin, permissions = [] }: { requestAdmin:
 
   async function save(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!editor || !canUpdate) return;
+    if (!editor) return;
+    if (editor.product ? !canUpdate : !canCreate) return;
+    if (!editor.input.name.trim()) { setError('Tên sản phẩm là bắt buộc.'); return; }
+    if (!editor.input.categoryId) { setError('Vui lòng chọn Category.'); return; }
+    const input = { ...editor.input, name: editor.input.name.trim(), slug: editor.input.slug.trim() || productSlugFromName(editor.input.name), imageUrl: editor.input.imageUrl || null };
+    if (!input.slug) { setError('Không thể tạo slug từ tên này. Vui lòng nhập slug.'); return; }
     setSaving(true); setError('');
     try {
-      await updateAdminProduct(requestAdmin, editor.product.id, { ...editor.input, imageUrl: editor.input.imageUrl ?? editor.product.imageUrl ?? null });
-      const savedProduct = { ...editor.product, ...editor.input, imageUrl: editor.input.imageUrl ?? editor.product.imageUrl ?? null };
-      updateCatalog(catalogItems.map(product => product.id === savedProduct.id ? savedProduct : product));
-      setEditor(null); setReloadKey(value => value + 1);
+      if (editor.product) {
+        await updateAdminProduct(requestAdmin, editor.product.id, { ...input, imageUrl: input.imageUrl ?? editor.product.imageUrl ?? null });
+        const savedProduct = { ...editor.product, ...input, imageUrl: input.imageUrl ?? editor.product.imageUrl ?? null };
+        updateCatalog(catalogItems.map(product => product.id === savedProduct.id ? savedProduct : product));
+        setEditor(null); setReloadKey(value => value + 1);
+      } else {
+        const created = await createAdminProduct(requestAdmin, input);
+        if (created) {
+          setItems(current => [created, ...current.filter(product => product.id !== created.id)]);
+          updateCatalog([created, ...catalogItems.filter(product => product.id !== created.id)]);
+          setTotalItems(value => value + 1);
+        }
+        setEditor(null);
+        setSuccess('Đã tạo sản phẩm.');
+        setReloadKey(value => value + 1);
+      }
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : 'Could not save this product. Please try again.');
     } finally { setSaving(false); }
@@ -307,7 +328,8 @@ export function ProductsPage({ requestAdmin, permissions = [] }: { requestAdmin:
   }
 
   return <div className="products-page">
-    <PageHeader eyebrow="CATALOG" title="Products" description="Danh mục sản phẩm chuẩn và trạng thái hoạt động." />
+    <PageHeader eyebrow="CATALOG" title="Products" description="Danh mục sản phẩm chuẩn và trạng thái hoạt động." actions={canCreate && <Button tone="primary" onClick={openCreate}>+ New product</Button>} />
+    {success && <Toast onClose={() => setSuccess('')}>{success}</Toast>}
     <FilterChips items={[{ value: 'all', label: 'All', count: countProps.all }, { value: 'active', label: 'Visible', count: countProps.active }, { value: 'inactive', label: 'Hidden', count: countProps.inactive }, { value: 'missing-image', label: 'Needs standard image', count: countProps.missingImage }]} value={status} onChange={value => changeStatus(value as StatusFilter)} />
     {categoryError && <p className="products-category-note" role="status">Category names could not be loaded. Product records are still available.</p>}
     <Card className="products-card" aria-label="Products list">
@@ -331,20 +353,21 @@ export function ProductsPage({ requestAdmin, permissions = [] }: { requestAdmin:
       {!loading && !error && !(status === 'missing-image' && catalogError) && <TableFooter start={displayedTotal ? (page - 1) * pageSize + 1 : 0} end={Math.min(page * pageSize, displayedTotal)} total={displayedTotal} center={<label className="products-page-size">Rows <select aria-label="Rows per page" value={pageSize} onChange={event => changePageSize(Number(event.target.value))}>{PAGE_SIZES.map(size => <option key={size} value={size}>{size}</option>)}</select> / page</label>}><Pager page={page} pages={Math.max(1, Math.ceil(displayedTotal / pageSize))} onChange={setPage} /></TableFooter>}
     </Card>
 
-    {editor && <Modal open title="Sửa sản phẩm" onClose={() => { if (!saving) setEditor(null); }} actions={<><Button disabled={saving} onClick={() => setEditor(null)}>Huỷ</Button><Button tone="primary" type="submit" form="product-edit-form" disabled={saving}>{saving ? 'Đang lưu…' : 'Lưu thay đổi'}</Button></>}>
+    {editor && <Modal open title={editor.product ? 'Sửa sản phẩm' : 'Tạo sản phẩm mới'} onClose={() => { if (!saving) setEditor(null); }} actions={<><Button disabled={saving} onClick={() => setEditor(null)}>Huỷ</Button><Button tone="primary" type="submit" form="product-edit-form" disabled={saving}>{saving ? (editor.product ? 'Đang lưu…' : 'Đang tạo…') : (editor.product ? 'Lưu thay đổi' : 'Tạo sản phẩm')}</Button></>}>
       <form id="product-edit-form" onSubmit={event => void save(event)}>
       <div className="product-modal-body">
-        <Link className="product-images-modal-link" to={`/products/${editor.product.id}/images`}>▧ Quản lý hình ảnh sản phẩm →</Link>
+        {error && <p className="products-form-error" role="alert">{error}</p>}
+        {editor.product && <Link className="product-images-modal-link" to={`/products/${editor.product.id}/images`}>▧ Quản lý hình ảnh sản phẩm →</Link>}
         <div className="product-image-field">{editor.input.imageUrl ? <button className="product-image-preview" type="button" aria-label="View product preview" onClick={() => setLightbox({ src: editor.input.imageUrl!, alt: editor.input.name })}><img key={editor.input.imageUrl} src={editor.input.imageUrl} alt="Product preview" /></button> : <div className="product-image-preview"><span>No image</span></div>}<Field label="Image URL" type="url" value={editor.input.imageUrl ?? ''} onChange={event => updateInput('imageUrl', event.target.value || null)} placeholder="https://..." /></div>
         <Field label="Tên sản phẩm" required value={editor.input.name} onChange={event => updateInput('name', event.target.value)} />
-        <div className="product-form-row"><Field label="Slug" required value={editor.input.slug} onChange={event => updateInput('slug', event.target.value)} /><div className="product-category-field"><span id="product-category-label">Category</span><div className={`product-category-picker${categoryPickerOpen ? ' open' : ''}`} onBlur={event => { if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setCategoryPickerOpen(false); }}><button ref={categoryPickerTrigger} type="button" className="product-category-button" aria-labelledby="product-category-label product-category-value" aria-haspopup="listbox" aria-expanded={categoryPickerOpen} aria-controls="product-category-options" onClick={() => categoryPickerOpen ? setCategoryPickerOpen(false) : openCategoryPicker()} onKeyDown={event => { if (event.key === 'ArrowDown' || event.key === 'ArrowUp') { event.preventDefault(); openCategoryPicker(event.key === 'ArrowUp'); } else if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); if (!categoryPickerOpen) openCategoryPicker(); } }}><span id="product-category-value">{categoryNames.get(editor.input.categoryId) ?? 'Select category'}</span><span aria-hidden="true">▾</span></button>{categoryPickerOpen && <div ref={categoryPickerOptions} id="product-category-options" className="product-category-options" role="listbox" aria-label="Choose a Level 2 category">{categoryGroups.length === 0 ? <div className="product-category-empty" role="status">{categoryError ? 'Categories could not be loaded.' : 'No Level 2 categories available.'}</div> : categoryGroups.map(group => <div key={group.parentId} role="group" aria-label={group.name}><div className="product-category-group" aria-hidden="true">{group.name}</div>{group.items.map(category => <button key={category.id} type="button" role="option" data-category-id={category.id} tabIndex={activeCategoryId === category.id ? 0 : -1} aria-selected={editor.input.categoryId === category.id} className={`${editor.input.categoryId === category.id ? 'selected ' : ''}${activeCategoryId === category.id ? 'focused' : ''}`} onFocus={() => setActiveCategoryId(category.id)} onKeyDown={event => handleCategoryOptionKeyDown(event, category.id)} onClick={() => selectCategory(category.id)}>{category.name}<span aria-hidden="true">✓</span></button>)}</div>)}</div>}</div></div></div>
+        <div className="product-form-row"><Field label="Slug" required={!!editor.product} value={editor.input.slug} onChange={event => updateInput('slug', event.target.value)} /><div className="product-category-field"><span id="product-category-label">Category{!editor.product ? ' *' : ''}</span><div className={`product-category-picker${categoryPickerOpen ? ' open' : ''}`} onBlur={event => { if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setCategoryPickerOpen(false); }}><button ref={categoryPickerTrigger} type="button" className="product-category-button" aria-labelledby="product-category-label product-category-value" aria-required={!editor.product || undefined} aria-invalid={!editor.input.categoryId || undefined} aria-haspopup="listbox" aria-expanded={categoryPickerOpen} aria-controls="product-category-options" onClick={() => categoryPickerOpen ? setCategoryPickerOpen(false) : openCategoryPicker()} onKeyDown={event => { if (event.key === 'ArrowDown' || event.key === 'ArrowUp') { event.preventDefault(); openCategoryPicker(event.key === 'ArrowUp'); } else if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); if (!categoryPickerOpen) openCategoryPicker(); } }}><span id="product-category-value">{categoryNames.get(editor.input.categoryId) ?? 'Select category'}</span><span aria-hidden="true">▾</span></button>{categoryPickerOpen && <div ref={categoryPickerOptions} id="product-category-options" className="product-category-options" role="listbox" aria-label="Choose a Level 2 category">{categoryGroups.length === 0 ? <div className="product-category-empty" role="status">{categoryError ? 'Categories could not be loaded.' : 'No Level 2 categories available.'}</div> : categoryGroups.map(group => <div key={group.parentId} role="group" aria-label={group.name}><div className="product-category-group" aria-hidden="true">{group.name}</div>{group.items.map(category => <button key={category.id} type="button" role="option" data-category-id={category.id} tabIndex={activeCategoryId === category.id ? 0 : -1} aria-selected={editor.input.categoryId === category.id} className={`${editor.input.categoryId === category.id ? 'selected ' : ''}${activeCategoryId === category.id ? 'focused' : ''}`} onFocus={() => setActiveCategoryId(category.id)} onKeyDown={event => handleCategoryOptionKeyDown(event, category.id)} onClick={() => selectCategory(category.id)}>{category.name}<span aria-hidden="true">✓</span></button>)}</div>)}</div>}</div></div></div>
         <Field label="Brand" value={editor.input.brand ?? ''} onChange={event => updateInput('brand', event.target.value || null)} placeholder="Không bắt buộc" />
         <label className="product-textarea-field">Mô tả<textarea value={editor.input.description ?? ''} onChange={event => updateInput('description', event.target.value || null)} placeholder="Không bắt buộc" /></label>
         <label className="product-active-toggle"><span>Trạng thái hoạt động</span><Switch label="Trạng thái hoạt động" checked={editor.input.isActive} onChange={checked => updateInput('isActive', checked)} /></label>
-        <section className="matching-section" aria-labelledby="product-matching-title">
+        {editor.product && <section className="matching-section" aria-labelledby="product-matching-title">
           <div className="matching-head"><h3 id="product-matching-title">Product matching</h3>{!matchingsLoading && !matchingsError && <span>{matchings.length} bản ghi</span>}</div>
           {matchingsLoading ? <div className="matching-state" role="status">Đang tải product matching…</div>
-            : matchingsError ? <div className="matching-error" role="alert">{matchingsError}<button type="button" onClick={() => void loadMatchings(editor.product.id)}>Thử lại</button></div>
+            : matchingsError ? <div className="matching-error" role="alert">{matchingsError}<button type="button" onClick={() => void loadMatchings(editor.product!.id)}>Thử lại</button></div>
               : <>{matchingActionError && <div className="matching-error" role="alert">{matchingActionError}</div>}{matchings.length === 0 ? <div className="matching-state">Chưa có product matching nào được gắn.</div>
                 : <div className="matching-list">{matchings.map(matching => <div className="matching-row" key={matching.id}>
                   <span className="matching-badge">{matching.dataSourceDisplayName || matching.dataSourceId || '—'}</span>
@@ -354,7 +377,8 @@ export function ProductsPage({ requestAdmin, permissions = [] }: { requestAdmin:
                     {matchingMenu === matching.id && <div className="matching-menu-pop"><button type="button" disabled={unlinkingId === matching.id} onClick={() => void unlinkMatching(matching.id)}>{unlinkingId === matching.id ? 'Đang xoá…' : 'Xoá'}</button></div>}
                   </div>
                 </div>)}</div>}</>}
-        </section>
+        </section>}
+        {!editor.product && <p className="products-create-note">Sản phẩm tạo thủ công tại đây tách biệt với luồng Sync/Product Matching — dùng khi cần nhập tay sản phẩm chưa có trong nguồn dữ liệu nào.</p>}
       </div>
       </form>
     </Modal>}

@@ -46,6 +46,61 @@ function requestFor(rows = [phone, inactive]): ReturnType<typeof vi.fn<AdminRequ
 afterEach(() => { cleanup(); vi.restoreAllMocks(); });
 
 describe('ProductsPage', () => {
+  it('shows the create action only with products.create', async () => {
+    render(<ProductsPage requestAdmin={requestFor()} permissions={['products.read', 'products.update']} />);
+    expect(await screen.findByText('Phone A')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: '+ New product' })).not.toBeInTheDocument();
+  });
+
+  it('creates a product with a generated slug, refreshes the list, and shows success', async () => {
+    const user = userEvent.setup();
+    let rows = [phone, inactive];
+    const created: AdminProduct = { ...phone, id: 44, name: 'Điện thoại Đẹp', slug: 'dien-thoai-dep', categoryId: 7, brand: null, description: null, imageUrl: null };
+    const requestAdmin = vi.fn<AdminRequest>().mockImplementation((path, init) => {
+      if (path === '/admin/categories?page=1&pageSize=100') return Promise.resolve(Response.json({ items: categoryList }));
+      if (path === '/admin/products' && init?.method === 'POST') { rows = [created, ...rows]; return Promise.resolve(Response.json(created, { status: 201 })); }
+      if (path.endsWith('/matchings')) return Promise.resolve(Response.json([]));
+      const params = new URLSearchParams(path.split('?')[1]);
+      return Promise.resolve(pageResponse(rows.slice(0, Number(params.get('pageSize') ?? 10))));
+    });
+    render(<ProductsPage requestAdmin={requestAdmin} permissions={['products.create']} />);
+    await user.click(await screen.findByRole('button', { name: '+ New product' }));
+    const dialog = screen.getByRole('dialog', { name: 'Tạo sản phẩm mới' });
+    await user.type(within(dialog).getByRole('textbox', { name: 'Tên sản phẩm' }), 'Điện thoại Đẹp');
+    await user.click(within(dialog).getByRole('button', { name: /Category/ }));
+    await user.click(within(dialog).getByRole('option', { name: 'Phones' }));
+    await user.click(within(dialog).getByRole('button', { name: 'Tạo sản phẩm' }));
+    expect(await screen.findByRole('status')).toHaveTextContent('Đã tạo sản phẩm.');
+    expect(requestAdmin).toHaveBeenCalledWith('/admin/products', expect.objectContaining({ method: 'POST', body: expect.stringContaining('"slug":"dien-thoai-dep"') }));
+    expect(await screen.findByText('dien-thoai-dep')).toBeInTheDocument();
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+  });
+
+  it('requires name and category and displays server validation errors in the create dialog', async () => {
+    const user = userEvent.setup();
+    const requestAdmin = requestFor();
+    requestAdmin.mockImplementation((path, init) => {
+      if (path.startsWith('/admin/categories')) return Promise.resolve(Response.json({ items: categoryList }));
+      if (path === '/admin/products' && init?.method === 'POST') return Promise.resolve(Response.json({ detail: 'Slug already exists.' }, { status: 409 }));
+      if (path.endsWith('/matchings')) return Promise.resolve(Response.json([]));
+      return Promise.resolve(pageResponse([phone, inactive]));
+    });
+    render(<ProductsPage requestAdmin={requestAdmin} permissions={['products.create']} />);
+    await user.click(await screen.findByRole('button', { name: '+ New product' }));
+    let dialog = screen.getByRole('dialog', { name: 'Tạo sản phẩm mới' });
+    expect(within(dialog).getByRole('textbox', { name: 'Tên sản phẩm' })).toBeRequired();
+    fireEvent.submit(dialog.querySelector('form')!);
+    expect(within(dialog).getByRole('alert')).toHaveTextContent('Tên sản phẩm là bắt buộc.');
+    await user.type(within(dialog).getByRole('textbox', { name: 'Tên sản phẩm' }), 'Phone A');
+    await user.click(within(dialog).getByRole('button', { name: 'Tạo sản phẩm' }));
+    expect(within(dialog).getByRole('alert')).toHaveTextContent('Vui lòng chọn Category.');
+    await user.click(within(dialog).getByRole('button', { name: /Category/ }));
+    await user.click(within(dialog).getByRole('option', { name: 'Phones' }));
+    await user.click(within(dialog).getByRole('button', { name: 'Tạo sản phẩm' }));
+    dialog = screen.getByRole('dialog', { name: 'Tạo sản phẩm mới' });
+    expect(await within(dialog).findByRole('alert')).toHaveTextContent('Slug already exists.');
+  });
+
   it('loads paged products and category names with the default page size of 10', async () => {
     const requestAdmin = requestFor();
     render(<ProductsPage requestAdmin={requestAdmin} permissions={['products.read']} />);

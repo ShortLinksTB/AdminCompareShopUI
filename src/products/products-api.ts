@@ -56,6 +56,25 @@ export class ProductsApiError extends Error {
   }
 }
 
+export function productSlugFromName(value: string): string {
+  return value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/đ/g, 'd').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+}
+
+async function mutationError(response: Response, action: string, permissionMessage: string): Promise<ProductsApiError> {
+  const fallback = response.status === 401 || response.status === 403
+    ? permissionMessage
+    : `${action} (request failed with status ${response.status}).`;
+  let detail = '';
+  try {
+    const body = await response.json() as { message?: unknown; detail?: unknown; title?: unknown; errors?: unknown };
+    const errors = body.errors && typeof body.errors === 'object'
+      ? Object.values(body.errors as Record<string, unknown>).flatMap(value => Array.isArray(value) ? value : [value]).filter(value => typeof value === 'string').join(' ')
+      : '';
+    detail = [body.message, body.detail, errors, body.title].find(value => typeof value === 'string' && value.trim()) as string | undefined ?? '';
+  } catch { /* Use the actionable status fallback for empty/non-JSON responses. */ }
+  return new ProductsApiError(detail || fallback, response.status);
+}
+
 export async function getAdminProducts(
   requestAdmin: AdminRequest,
   page: number,
@@ -87,7 +106,17 @@ export async function updateAdminProduct(requestAdmin: AdminRequest, id: number,
   const response = await requestAdmin(`/admin/products/${encodeURIComponent(id)}`, {
     method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(input),
   });
-  if (!response.ok) throw new ProductsApiError(`Could not save product (request failed with status ${response.status}).`, response.status);
+  if (!response.ok) throw await mutationError(response, 'Could not save product', 'You do not have permission to update products.');
+}
+
+export async function createAdminProduct(requestAdmin: AdminRequest, input: ProductInput): Promise<AdminProduct | null> {
+  const response = await requestAdmin('/admin/products', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(input),
+  });
+  if (!response.ok) throw await mutationError(response, 'Could not create product', 'You do not have permission to create products.');
+  if (response.status === 204) return null;
+  try { return await response.json() as AdminProduct; }
+  catch { return null; }
 }
 
 export async function deleteAdminProduct(requestAdmin: AdminRequest, id: number): Promise<void> {
