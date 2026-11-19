@@ -259,6 +259,7 @@ describe('mobile application navigation', () => {
     auth.requestAdmin.mockResolvedValue(Response.json([]));
     renderApp('/affiliate-platforms');
     expect(await screen.findByRole('heading', { name: 'Affiliate Platforms' })).toBeInTheDocument();
+    expect(document.querySelector('.admin-breadcrumb')).toHaveTextContent('GiaTot Admin / Affiliate Platforms');
     expect(screen.getByRole('link', { name: /Affiliate Platforms/ })).toHaveAttribute('href', '/affiliate-platforms');
     expect(auth.requestAdmin).toHaveBeenCalledWith('/admin/affiliate-platforms', expect.objectContaining({ signal: expect.any(AbortSignal) }));
   });

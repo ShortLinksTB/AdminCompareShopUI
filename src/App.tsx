@@ -50,6 +50,7 @@ const studioNavItem = { to: '/studio-components', label: 'Studio components', ic
 const breadcrumbRoutes: { path: string; label: string }[] = [
   ...nav.map(({ to, label }) => ({ path: to, label })),
   { path: studioNavItem.to, label: studioNavItem.label },
+  { path: '/affiliate-platforms', label: 'Affiliate Platforms' },
   { path: '/affiliate-links', label: 'Affiliate Links' },
   { path: '/seo', label: 'SEO' },
 ];
