@@ -24,6 +24,7 @@ describe('Affiliate Platforms page', () => {
   });
 
   it('keeps all page actions grouped in the header toolbar', async () => {
+    const user = userEvent.setup();
     const request: AdminRequest = vi.fn().mockResolvedValue(Response.json(records));
     renderPage(request);
     await screen.findByText('AccessTrade');
@@ -35,6 +36,8 @@ describe('Affiliate Platforms page', () => {
     expect(within(toolbar as HTMLElement).getByRole('button', { name: /Export JSON/ })).toBeInTheDocument();
     expect(within(toolbar as HTMLElement).getByRole('button', { name: /Import JSON/ })).toBeInTheDocument();
     expect(within(toolbar as HTMLElement).getByRole('button', { name: /Add platform/ })).toBeInTheDocument();
+    await user.click(within(toolbar as HTMLElement).getByRole('button', { name: /Add platform/ }));
+    expect(screen.getByRole('dialog', { name: 'Add platform' })).toBeVisible();
   });
 
   it('validates and creates a platform, then refreshes the full list', async () => {
