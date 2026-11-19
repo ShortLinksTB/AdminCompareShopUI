@@ -23,6 +23,20 @@ describe('Affiliate Platforms page', () => {
     expect(screen.queryByRole('button', { name: /Import JSON|Add platform|Edit|Delete/ })).not.toBeInTheDocument();
   });
 
+  it('keeps all page actions grouped in the header toolbar', async () => {
+    const request: AdminRequest = vi.fn().mockResolvedValue(Response.json(records));
+    renderPage(request);
+    await screen.findByText('AccessTrade');
+
+    const header = screen.getByRole('heading', { name: 'Affiliate Platforms' }).closest('header');
+    const toolbar = header?.querySelector('.affiliate-platforms-head-actions');
+    expect(toolbar).toBeInTheDocument();
+    expect(within(toolbar as HTMLElement).getAllByRole('button')).toHaveLength(3);
+    expect(within(toolbar as HTMLElement).getByRole('button', { name: /Export JSON/ })).toBeInTheDocument();
+    expect(within(toolbar as HTMLElement).getByRole('button', { name: /Import JSON/ })).toBeInTheDocument();
+    expect(within(toolbar as HTMLElement).getByRole('button', { name: /Add platform/ })).toBeInTheDocument();
+  });
+
   it('validates and creates a platform, then refreshes the full list', async () => {
     const user = userEvent.setup();
     let reads = 0;
