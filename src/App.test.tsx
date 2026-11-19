@@ -33,9 +33,29 @@ vi.mock('./BannedItems', () => ({
   },
 }));
 
+vi.mock('./countries/countries-api', async () => ({
+  ...(await vi.importActual<typeof import('./countries/countries-api')>('./countries/countries-api')),
+  getCountries: vi.fn().mockResolvedValue([]),
+}));
+
 function renderApp(initialEntry = '/') {
   return render(<MemoryRouter initialEntries={[initialEntry]}><App /></MemoryRouter>);
 }
+
+describe('Countries route', () => {
+  it('shows Countries in navigation and renders the page for countries.read', async () => {
+    auth.permissions = ['countries.read'];
+    renderApp('/countries');
+    expect(screen.getByRole('link', { name: /Countries/ })).toHaveAttribute('href', '/countries');
+    expect(await screen.findByRole('heading', { name: 'Countries' })).toBeInTheDocument();
+    expect(await screen.findByText('No countries yet')).toBeInTheDocument();
+  });
+
+  it('denies direct page access when countries.read is missing', () => {
+    renderApp('/countries');
+    expect(screen.queryByRole('heading', { name: 'Countries' })).not.toBeInTheDocument();
+  });
+});
 
 function RouteProbe() {
   const location = useLocation();
