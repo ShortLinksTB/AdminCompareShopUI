@@ -254,6 +254,21 @@ describe('mobile application navigation', () => {
     expect(auth.requestAdmin).toHaveBeenCalledWith('/admin/home-showcase', expect.objectContaining({ signal: expect.any(AbortSignal) }));
   });
 
+  it('loads Affiliate Platforms on /affiliate-platforms and adds its permission-gated Dữ liệu navigation link', async () => {
+    auth.permissions = ['affiliate_platforms.read'];
+    auth.requestAdmin.mockResolvedValue(Response.json([]));
+    renderApp('/affiliate-platforms');
+    expect(await screen.findByRole('heading', { name: 'Affiliate Platforms' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /Affiliate Platforms/ })).toHaveAttribute('href', '/affiliate-platforms');
+    expect(auth.requestAdmin).toHaveBeenCalledWith('/admin/affiliate-platforms', expect.objectContaining({ signal: expect.any(AbortSignal) }));
+  });
+
+  it('does not request Affiliate Platforms when affiliate_platforms.read is absent', () => {
+    renderApp('/affiliate-platforms');
+    expect(auth.requestAdmin).not.toHaveBeenCalled();
+    expect(screen.queryByRole('heading', { name: 'Affiliate Platforms' })).not.toBeInTheDocument();
+  });
+
   it('does not request Home Showcase without its read permission', () => {
     renderApp('/home-showcase');
     expect(auth.requestAdmin).not.toHaveBeenCalled();
