@@ -158,7 +158,7 @@ function Shell() {
           <button ref={mobileNavToggleRef} className="mobile-nav-toggle" aria-label={mobileNavOpen ? 'Close navigation' : 'Open navigation'} aria-controls="admin-navigation" aria-expanded={mobileNavOpen} onClick={() => setMobileNavOpen(value => !value)}>☰</button>
           <span className="admin-brand-mark">G</span> GiaTot Admin
         </div>
-        <div className="admin-breadcrumb">GiaTot Admin <span>/</span> {breadcrumbLabel(location.pathname)}</div>
+        {location.pathname !== '/affiliate-platforms' && <div className="admin-breadcrumb">GiaTot Admin <span>/</span> {breadcrumbLabel(location.pathname)}</div>}
         <div className="admin-header-actions">
           <div className="mobile-theme-controls" role="group" aria-label="Color theme"><button type="button" aria-pressed={!dark} onClick={() => changeTheme(false)}>Light</button><button type="button" aria-pressed={dark} onClick={() => changeTheme(true)}>Dark</button></div>
           <HelpGuide pathname={location.pathname} />
