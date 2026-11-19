@@ -1,0 +1,21 @@
+.countries-guidance{max-width:76ch;margin:-8px 0 18px;color:var(--studio-muted);font-size:13px}
+.countries-notice{margin:0 0 14px;padding:10px 14px;border:1px solid var(--studio-border);border-radius:12px;color:var(--studio-text);background:var(--studio-surface)}
+.countries-state{display:grid;justify-items:start;gap:12px;padding:24px}
+.countries-card{overflow:hidden}
+.countries-table-wrap{overflow-x:auto}
+.countries-table-wrap table{width:100%;min-width:460px}
+.countries-table-wrap th,.countries-table-wrap td{padding:14px 20px;vertical-align:middle}
+.countries-code-col,.countries-active-col{width:110px}
+.countries-code{display:inline-flex;align-items:center;justify-content:center;min-width:42px;padding:3px 8px;border-radius:8px;background:var(--studio-cool-soft);color:var(--studio-cool);font:700 12px ui-monospace,monospace;letter-spacing:.04em}
+.countries-name{font-weight:650;color:var(--studio-text)}
+.countries-actions{width:90px;text-align:right;white-space:nowrap}
+.countries-empty{padding:48px 20px;text-align:center;color:var(--studio-muted)}
+.countries-modal{width:min(480px,calc(100vw - 32px))}
+.countries-form{display:grid;gap:14px}
+.countries-form>label{display:grid;gap:6px;color:var(--studio-muted);font-size:12.5px;font-weight:650}
+.countries-form input{min-height:42px;padding:0 13px;border:1px solid var(--studio-border2);border-radius:10px;background:var(--studio-bg);color:var(--studio-text);font:inherit}
+.countries-form input:disabled{opacity:.7;cursor:not-allowed}
+.countries-form small{color:var(--studio-muted);font-size:11.5px;font-weight:400}
+.countries-form-active{display:flex;align-items:center;justify-content:space-between;color:var(--studio-muted);font-size:12.5px;font-weight:650}
+.countries-error{padding:10px 13px;border:1px solid var(--studio-bad);border-radius:10px;color:var(--studio-bad);font-size:12.5px}
+@media(max-width:620px){.countries-table-wrap th,.countries-table-wrap td{padding:12px}.countries-code-col,.countries-active-col{width:80px}.countries-guidance{margin-top:0}}
