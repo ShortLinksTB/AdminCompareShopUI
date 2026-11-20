@@ -27,6 +27,14 @@ describe('Countries page', () => {
   });
   afterEach(() => cleanup());
 
+  it('keeps the approved page header without an extra explanatory paragraph', async () => {
+    renderPage();
+
+    expect(screen.getByRole('heading', { name: 'Countries' })).toBeInTheDocument();
+    expect(await screen.findByRole('table')).toBeInTheDocument();
+    expect(screen.queryByText(/single source of truth for catalog assignment/)).not.toBeInTheDocument();
+  });
+
   it('shows loading then the Code, Name, Active, and Edit list from the API', async () => {
     let resolve!: (items: Country[]) => void;
     api.getCountries.mockReturnValueOnce(new Promise<Country[]>(done => { resolve = done; }));

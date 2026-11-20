@@ -225,6 +225,16 @@ describe('mobile application navigation', () => {
     expect(auth.requestAdmin).not.toHaveBeenCalled();
   });
 
+  it('shows Countries in the breadcrumb on the Countries route', async () => {
+    auth.permissions = ['countries.read'];
+    auth.requestAdmin.mockResolvedValue(Response.json({ items: [] }));
+    renderApp('/countries');
+
+    expect(screen.getByRole('heading', { name: 'Countries' })).toBeInTheDocument();
+    expect(document.querySelector('.admin-breadcrumb')).toHaveTextContent('GiaTot Admin / Countries');
+    expect(await screen.findByText('No countries yet')).toBeInTheDocument();
+  });
+
   it('loads the existing Offers route for admins with offers.read', async () => {
     auth.permissions = ['offers.read'];
     auth.requestAdmin.mockResolvedValue(new Response('', { status: 500 }));

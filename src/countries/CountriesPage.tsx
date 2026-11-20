@@ -65,7 +65,6 @@ export function CountriesPage({ requestAdmin, permissions }: { requestAdmin: Adm
   return <div className="countries-page">
     <PageHeader eyebrow="DỮ LIỆU" title="Countries" description="Manage the central country list used by Partner Shops, Categories, and country-specific catalog settings."
       actions={canManage ? <Button type="button" tone="primary" onClick={openCreate}>+ Add country</Button> : undefined} />
-    <p className="countries-guidance">Countries are the single source of truth for catalog assignment. Deactivating a country keeps existing references intact and removes it from new assignments.</p>
     {notice && <div className="countries-notice" role="status">{notice}</div>}
     {loadError ? <div className="countries-state"><ErrorState title={loadError} /><Button size="sm" onClick={refresh}>Retry</Button></div>
       : loading ? <Card className="countries-state"><Loading label="Loading countries">Loading countries…</Loading></Card>
