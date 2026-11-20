@@ -8,14 +8,19 @@ import type { AdminRequest } from './bannedItemsApi';
 import type { PartnerShop } from './shopsApi';
 
 const api = vi.hoisted(() => ({
-  getPartnerShops: vi.fn(), createPartnerShop: vi.fn(), updatePartnerShop: vi.fn(), deletePartnerShop: vi.fn(),
+  getPartnerShops: vi.fn(), createPartnerShop: vi.fn(), updatePartnerShop: vi.fn(), deletePartnerShop: vi.fn(), getCountries: vi.fn(),
 }));
 vi.mock('./shopsApi', async () => {
   const actual = await vi.importActual<typeof import('./shopsApi')>('./shopsApi');
   return { ...actual, ...api };
 });
+vi.mock('./countries/countries-api', async () => {
+  const actual = await vi.importActual<typeof import('./countries/countries-api')>('./countries/countries-api');
+  return { ...actual, getCountries: api.getCountries };
+});
 
-const shop: PartnerShop = { id: 42, slug: 'cellphones', name: 'CellphoneS', websiteUrl: 'https://cellphones.com.vn', isActive: true, showOnHome: false, homeDisplayOrder: null };
+const shop: PartnerShop = { id: 42, slug: 'cellphones', name: 'CellphoneS', countryId: 1, countryCode: 'VN', countryName: 'Vietnam', websiteUrl: 'https://cellphones.com.vn', isActive: true, showOnHome: false, homeDisplayOrder: null };
+const countries = [{ id: 1, code: 'VN', name: 'Vietnam', isActive: true }, { id: 2, code: 'ID', name: 'Indonesia', isActive: false }];
 const page = (items = [shop], pageNumber = 1, totalItems = items.length, pageSize = 20) => ({ items, pageNumber, pageSize, totalItems });
 const requestAdmin: AdminRequest = vi.fn();
 
@@ -27,6 +32,7 @@ describe('Partner Shops page', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     api.getPartnerShops.mockResolvedValue(page());
+    api.getCountries.mockResolvedValue(countries);
     api.createPartnerShop.mockResolvedValue(shop);
     api.updatePartnerShop.mockResolvedValue(shop);
     api.deletePartnerShop.mockResolvedValue(undefined);
@@ -43,6 +49,7 @@ describe('Partner Shops page', () => {
     expect(screen.getByText(/#42/)).toBeInTheDocument();
     expect(document.querySelector('.partner-shop-name small')).toHaveTextContent('cellphones');
     expect(screen.getByText('Active')).toBeInTheDocument();
+    expect(screen.getByText('VN · Vietnam')).toBeInTheDocument();
     expect(document.querySelector('.studio-page-header')).toBeInTheDocument();
     expect(document.querySelector('.studio-table')).toBeInTheDocument();
     expect(document.querySelector('.studio-pill-ok')).toHaveTextContent('Active');
@@ -199,6 +206,7 @@ describe('Partner Shops page', () => {
     await user.click(await screen.findByRole('button', { name: /Add shop/ }));
     await user.type(screen.getByLabelText('Slug (Không bắt buộc)'), 'new-shop');
     await user.type(screen.getByLabelText('Name'), 'New Shop');
+    await user.selectOptions(screen.getByLabelText('Country'), '1');
     await user.click(screen.getByRole('button', { name: 'Save shop' }));
     expect(await screen.findByRole('alert')).toHaveTextContent('Slug already exists.');
     expect(screen.getByLabelText('Slug (Không bắt buộc)')).toHaveValue('new-shop');
@@ -209,28 +217,62 @@ describe('Partner Shops page', () => {
     const user = userEvent.setup();
     renderShops();
     await user.click(await screen.findByRole('button', { name: /Add shop/ }));
+    expect(screen.getByLabelText('Country')).toHaveValue('');
+    expect(screen.queryByRole('option', { name: /Indonesia/ })).not.toBeInTheDocument();
     await user.type(screen.getByLabelText('Name'), 'Bách Hóa Xanh');
+    await user.selectOptions(screen.getByLabelText('Country'), '1');
     await user.click(screen.getByRole('button', { name: 'Save shop' }));
 
     await waitFor(() => expect(api.createPartnerShop).toHaveBeenCalledWith(requestAdmin, expect.objectContaining({
-      name: 'Bách Hóa Xanh', slug: 'bach-hoa-xanh',
+      name: 'Bách Hóa Xanh', slug: 'bach-hoa-xanh', countryId: 1,
     })));
     expect(await screen.findByRole('status')).toHaveTextContent('Đã thêm shop.');
+  });
+
+  it('requires a Country before creating a shop', async () => {
+    const user = userEvent.setup();
+    renderShops();
+    await user.click(await screen.findByRole('button', { name: /Add shop/ }));
+    const country = screen.getByLabelText('Country');
+    expect(country).toBeRequired();
+    await user.type(screen.getByLabelText('Name'), 'No Country Shop');
+    await user.click(screen.getByRole('button', { name: 'Save shop' }));
+    expect(api.createPartnerShop).not.toHaveBeenCalled();
   });
 
   it('keeps the existing edit slug unless the field is cleared', async () => {
     const user = userEvent.setup();
     renderShops();
     await user.click(await screen.findByRole('button', { name: 'Sửa' }));
+    expect(screen.getByLabelText('Country')).toHaveValue('1');
     expect(screen.getByLabelText('Slug (Không bắt buộc)')).toHaveValue('cellphones');
     await user.clear(screen.getByLabelText('Slug (Không bắt buộc)'));
     await user.clear(screen.getByLabelText('Name'));
     await user.type(screen.getByLabelText('Name'), 'Bách Hóa Xanh');
+    await user.selectOptions(screen.getByLabelText('Country'), '1');
     await user.click(screen.getByRole('button', { name: 'Save shop' }));
 
     await waitFor(() => expect(api.updatePartnerShop).toHaveBeenCalledWith(requestAdmin, 42, expect.objectContaining({
-      slug: 'bach-hoa-xanh', name: 'Bách Hóa Xanh',
+      slug: 'bach-hoa-xanh', name: 'Bách Hóa Xanh', countryId: 1,
     })));
+  });
+
+  it('keeps an existing inactive Country visible and allows saving without changing that assignment', async () => {
+    const inactiveShop: PartnerShop = { ...shop, countryId: 2, countryCode: 'ID', countryName: 'Indonesia' };
+    api.getPartnerShops.mockResolvedValueOnce(page([inactiveShop]));
+    const user = userEvent.setup();
+    renderShops();
+
+    expect(await screen.findByText('ID · Indonesia')).toBeInTheDocument();
+    expect(screen.getByText('Inactive')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Sửa' }));
+    expect(screen.getByLabelText('Country')).toHaveValue('2');
+    expect(screen.getByRole('option', { name: 'ID · Indonesia · Inactive' })).toBeInTheDocument();
+    await user.clear(screen.getByLabelText('Name'));
+    await user.type(screen.getByLabelText('Name'), 'CellphoneS Updated');
+    await user.click(screen.getByRole('button', { name: 'Save shop' }));
+
+    await waitFor(() => expect(api.updatePartnerShop).toHaveBeenCalledWith(requestAdmin, 42, expect.objectContaining({ name: 'CellphoneS Updated', countryId: 2 })));
   });
 
   it('retains the add form and shop list after a create permission failure', async () => {
@@ -240,6 +282,7 @@ describe('Partner Shops page', () => {
     await user.click(await screen.findByRole('button', { name: /Add shop/ }));
     await user.type(screen.getByLabelText('Slug (Không bắt buộc)'), 'restricted-shop');
     await user.type(screen.getByLabelText('Name'), 'Restricted Shop');
+    await user.selectOptions(screen.getByLabelText('Country'), '1');
     await user.click(screen.getByRole('button', { name: 'Save shop' }));
 
     expect(await screen.findByRole('alert')).toHaveTextContent('You do not have permission');
