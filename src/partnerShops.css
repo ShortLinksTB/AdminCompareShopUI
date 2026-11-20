@@ -4,7 +4,7 @@
 .partner-shop-toast--error{border-color:var(--studio-bad);background:var(--studio-bad-soft);color:var(--studio-bad)}
 .partner-shop-table-card{min-width:0;overflow:hidden;padding:0}
 .partner-shop-table-wrap{min-width:0}
-.partner-shop-table-wrap .studio-table{min-width:980px}
+.partner-shop-table-wrap .studio-table{min-width:1080px}
 .partner-shop-table-wrap th small{display:block;margin-top:3px;color:var(--studio-muted);font-size:10px;font-weight:500;letter-spacing:0;text-transform:none}
 .partner-shop-name{min-width:170px}
 .partner-shop-name b,.partner-shop-name small{display:block}
@@ -30,6 +30,11 @@
 .partner-shop-explainer b{color:var(--studio-text)}
 .partner-shop-form{display:grid;gap:14px}
 .partner-shop-form>p{margin:0 0 2px;color:var(--studio-muted);font-size:13px}
+.partner-shop-country-field{display:grid;gap:7px;color:var(--studio-text);font-size:12px;font-weight:600}
+.partner-shop-country-field select{width:100%;min-height:40px;padding:8px 11px;border:1px solid var(--studio-border);border-radius:10px;background:var(--studio-surface);color:var(--studio-text);font:inherit}
+.partner-shop-country-field small{color:var(--studio-muted);font-size:11px;font-weight:400}
+.partner-shop-country-field .partner-shop-country-error{color:var(--studio-bad)}
+.partner-shop-country-field button{margin-left:5px;border:0;background:transparent;color:inherit;text-decoration:underline}
 .partner-shop-active{display:flex;min-height:32px;align-items:center;gap:10px;color:var(--studio-text);font-size:13px}
 .partner-shop-modal{width:min(520px,100%)}
 .partner-shop-modal-switch{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:5px 14px;padding:12px 0;border-top:1px solid var(--studio-border)}

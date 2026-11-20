@@ -10,12 +10,15 @@ import type { PartnerShop } from './shopsApi';
 const api = vi.hoisted(() => ({
   getPartnerShops: vi.fn(), createPartnerShop: vi.fn(), updatePartnerShop: vi.fn(), deletePartnerShop: vi.fn(),
 }));
+const countryApi = vi.hoisted(() => ({ getCountries: vi.fn() }));
 vi.mock('./shopsApi', async () => {
   const actual = await vi.importActual<typeof import('./shopsApi')>('./shopsApi');
   return { ...actual, ...api };
 });
+vi.mock('./countries/countries-api', () => countryApi);
 
-const shop: PartnerShop = { id: 42, slug: 'cellphones', name: 'CellphoneS', websiteUrl: 'https://cellphones.com.vn', isActive: true, showOnHome: false, homeDisplayOrder: null };
+const shop: PartnerShop = { id: 42, slug: 'cellphones', name: 'CellphoneS', websiteUrl: 'https://cellphones.com.vn', countryId: 1, countryCode: 'VN', countryName: 'Vietnam', isActive: true, showOnHome: false, homeDisplayOrder: null };
+const countries = [{ id: 1, code: 'VN', name: 'Vietnam', isActive: true }, { id: 2, code: 'ID', name: 'Indonesia', isActive: true }, { id: 3, code: 'QC', name: 'Fixture', isActive: false }];
 const page = (items = [shop], pageNumber = 1, totalItems = items.length, pageSize = 20) => ({ items, pageNumber, pageSize, totalItems });
 const requestAdmin: AdminRequest = vi.fn();
 
@@ -27,6 +30,7 @@ describe('Partner Shops page', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     api.getPartnerShops.mockResolvedValue(page());
+    countryApi.getCountries.mockResolvedValue(countries);
     api.createPartnerShop.mockResolvedValue(shop);
     api.updatePartnerShop.mockResolvedValue(shop);
     api.deletePartnerShop.mockResolvedValue(undefined);
@@ -40,6 +44,7 @@ describe('Partner Shops page', () => {
     expect(screen.getByRole('status', { name: 'Loading partner shops' })).toBeInTheDocument();
     resolve(page());
     expect(await screen.findByText('CellphoneS')).toBeInTheDocument();
+    expect(screen.getByText('Vietnam')).toBeInTheDocument();
     expect(screen.getByText(/#42/)).toBeInTheDocument();
     expect(document.querySelector('.partner-shop-name small')).toHaveTextContent('cellphones');
     expect(screen.getByText('Active')).toBeInTheDocument();
@@ -61,7 +66,7 @@ describe('Partner Shops page', () => {
     const toggle = await screen.findByRole('switch', { name: 'Hiển thị CellphoneS ở trang chủ' });
     await user.click(toggle);
     expect(toggle).toBeChecked();
-    await waitFor(() => expect(api.updatePartnerShop).toHaveBeenCalledWith(requestAdmin, 42, expect.objectContaining({ showOnHome: true, isActive: true })));
+    await waitFor(() => expect(api.updatePartnerShop).toHaveBeenCalledWith(requestAdmin, 42, expect.objectContaining({ countryId: 1, showOnHome: true, isActive: true })));
     expect(await screen.findByRole('status')).toHaveTextContent('CellphoneS sẽ hiển thị ở trang chủ.');
     expect(screen.getByRole('status')).toHaveClass('partner-shop-toast--success');
   });
@@ -127,6 +132,7 @@ describe('Partner Shops page', () => {
     const user = userEvent.setup();
     renderShops();
     await user.click(await screen.findByRole('button', { name: 'Sửa' }));
+    await user.selectOptions(screen.getByLabelText('Country'), '2');
     expect(screen.getByRole('dialog', { name: 'Sửa shop · CellphoneS' })).toBeInTheDocument();
     expect(screen.getByLabelText('Slug (Không bắt buộc)')).toHaveValue('cellphones');
     await user.click(screen.getByRole('switch', { name: 'Hiển thị ở trang chủ' }));
@@ -140,6 +146,7 @@ describe('Partner Shops page', () => {
     const user = userEvent.setup();
     renderShops();
     await user.click(await screen.findByRole('button', { name: 'Sửa' }));
+    await user.selectOptions(screen.getByLabelText('Country'), '1');
     const visibilitySwitch = screen.getByRole('switch', { name: 'Hiển thị ở trang chủ' });
     expect(visibilitySwitch).toBeEnabled();
     await user.click(screen.getByRole('checkbox', { name: 'Active' }));
@@ -160,6 +167,7 @@ describe('Partner Shops page', () => {
     expect(screen.getByLabelText('Slug (Không bắt buộc)')).not.toBeRequired();
     expect(screen.getByLabelText('Slug (Không bắt buộc)')).toHaveAttribute('placeholder', 'Tự động sinh từ tên nếu để trống');
     expect(screen.getByLabelText('Name')).toBeRequired();
+    expect(screen.getByLabelText('Country')).toBeRequired();
     expect(screen.getByLabelText('Website URL (optional)')).toHaveAttribute('maxLength', '2048');
     expect(screen.getByRole('checkbox', { name: 'Active' })).toBeChecked();
     expect(screen.getByRole('button', { name: 'Cancel' })).toBeInTheDocument();
@@ -192,6 +200,32 @@ describe('Partner Shops page', () => {
     expect(screen.queryByRole('button', { name: 'Xoá' })).not.toBeInTheDocument();
   });
 
+  it('keeps an inactive existing country visible and allows changing it only to an active country', async () => {
+    const inactiveShop = { ...shop, countryId: 3, countryCode: 'QC', countryName: 'Fixture' };
+    api.getPartnerShops.mockResolvedValueOnce(page([inactiveShop]));
+    const user = userEvent.setup();
+    renderShops();
+    expect(await screen.findByText('Fixture')).toBeInTheDocument();
+    await user.click(await screen.findByRole('button', { name: 'Sửa' }));
+    const selector = screen.getByLabelText('Country');
+    expect(selector).toHaveValue('3');
+    expect(screen.getByRole('option', { name: /Fixture \(QC\).*Inactive/ })).toBeDisabled();
+    await user.selectOptions(selector, '2');
+    await user.click(screen.getByRole('button', { name: 'Save shop' }));
+    await waitFor(() => expect(api.updatePartnerShop).toHaveBeenCalledWith(requestAdmin, 42, expect.objectContaining({ countryId: 2 })));
+  });
+
+  it('offers a retry when country options fail to load', async () => {
+    const user = userEvent.setup();
+    countryApi.getCountries.mockRejectedValueOnce(new Error('Countries unavailable.'));
+    renderShops();
+    await user.click(await screen.findByRole('button', { name: '+ Add shop' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent('Countries unavailable.');
+    countryApi.getCountries.mockResolvedValueOnce(countries);
+    await user.click(screen.getByRole('button', { name: 'Retry' }));
+    expect(await screen.findByRole('option', { name: 'Vietnam (VN)' })).toBeInTheDocument();
+  });
+
   it('preserves entered form values after validation failure', async () => {
     const user = userEvent.setup();
     api.createPartnerShop.mockRejectedValueOnce(new Error('Slug already exists.'));
@@ -199,10 +233,12 @@ describe('Partner Shops page', () => {
     await user.click(await screen.findByRole('button', { name: /Add shop/ }));
     await user.type(screen.getByLabelText('Slug (Không bắt buộc)'), 'new-shop');
     await user.type(screen.getByLabelText('Name'), 'New Shop');
+    await user.selectOptions(screen.getByLabelText('Country'), '1');
     await user.click(screen.getByRole('button', { name: 'Save shop' }));
     expect(await screen.findByRole('alert')).toHaveTextContent('Slug already exists.');
     expect(screen.getByLabelText('Slug (Không bắt buộc)')).toHaveValue('new-shop');
     expect(screen.getByLabelText('Name')).toHaveValue('New Shop');
+    expect(screen.getByLabelText('Country')).toHaveValue('1');
   });
 
   it('creates a shop with only its name and generates a Vietnamese slug', async () => {
@@ -210,10 +246,11 @@ describe('Partner Shops page', () => {
     renderShops();
     await user.click(await screen.findByRole('button', { name: /Add shop/ }));
     await user.type(screen.getByLabelText('Name'), 'Bách Hóa Xanh');
+    await user.selectOptions(screen.getByLabelText('Country'), '1');
     await user.click(screen.getByRole('button', { name: 'Save shop' }));
 
     await waitFor(() => expect(api.createPartnerShop).toHaveBeenCalledWith(requestAdmin, expect.objectContaining({
-      name: 'Bách Hóa Xanh', slug: 'bach-hoa-xanh',
+      name: 'Bách Hóa Xanh', slug: 'bach-hoa-xanh', countryId: 1,
     })));
     expect(await screen.findByRole('status')).toHaveTextContent('Đã thêm shop.');
   });
@@ -226,10 +263,11 @@ describe('Partner Shops page', () => {
     await user.clear(screen.getByLabelText('Slug (Không bắt buộc)'));
     await user.clear(screen.getByLabelText('Name'));
     await user.type(screen.getByLabelText('Name'), 'Bách Hóa Xanh');
+    await user.selectOptions(screen.getByLabelText('Country'), '2');
     await user.click(screen.getByRole('button', { name: 'Save shop' }));
 
     await waitFor(() => expect(api.updatePartnerShop).toHaveBeenCalledWith(requestAdmin, 42, expect.objectContaining({
-      slug: 'bach-hoa-xanh', name: 'Bách Hóa Xanh',
+      slug: 'bach-hoa-xanh', name: 'Bách Hóa Xanh', countryId: 2,
     })));
   });
 
@@ -240,6 +278,7 @@ describe('Partner Shops page', () => {
     await user.click(await screen.findByRole('button', { name: /Add shop/ }));
     await user.type(screen.getByLabelText('Slug (Không bắt buộc)'), 'restricted-shop');
     await user.type(screen.getByLabelText('Name'), 'Restricted Shop');
+    await user.selectOptions(screen.getByLabelText('Country'), '1');
     await user.click(screen.getByRole('button', { name: 'Save shop' }));
 
     expect(await screen.findByRole('alert')).toHaveTextContent('You do not have permission');
@@ -256,6 +295,7 @@ describe('Partner Shops page', () => {
     await user.click(await screen.findByRole('button', { name: 'Sửa' }));
     await user.clear(screen.getByLabelText('Name'));
     await user.type(screen.getByLabelText('Name'), 'Updated CellphoneS');
+    await user.selectOptions(screen.getByLabelText('Country'), '2');
     await user.click(screen.getByRole('button', { name: 'Save shop' }));
 
     expect(await screen.findByRole('alert')).toHaveTextContent('You do not have permission');

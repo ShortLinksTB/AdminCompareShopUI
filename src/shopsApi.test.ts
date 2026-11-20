@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { createPartnerShop, deletePartnerShop, getPartnerShops, ShopApiError, updatePartnerShop } from './shopsApi';
 import type { AdminRequest } from './bannedItemsApi';
 
-const shop = { id: 3, slug: 'shop-three', name: 'Shop Three', websiteUrl: null, isActive: true, showOnHome: false, homeDisplayOrder: null };
+const shop = { id: 3, slug: 'shop-three', name: 'Shop Three', websiteUrl: null, countryId: 1, countryCode: 'VN', countryName: 'Vietnam', isActive: true, showOnHome: false, homeDisplayOrder: null };
 
 describe('partner shops API', () => {
   it('requests a 1-based page with the selected page size', async () => {
@@ -16,7 +16,7 @@ describe('partner shops API', () => {
       .mockResolvedValueOnce(Response.json(shop, { status: 201 }))
       .mockResolvedValueOnce(Response.json(shop))
       .mockResolvedValueOnce(new Response(null, { status: 204 }));
-    const input = { slug: 'shop-three', name: 'Shop Three', isActive: true, showOnHome: false, homeDisplayOrder: null };
+    const input = { slug: 'shop-three', name: 'Shop Three', countryId: 1, isActive: true, showOnHome: false, homeDisplayOrder: null };
     await expect(createPartnerShop(request, input)).resolves.toEqual(shop);
     await expect(updatePartnerShop(request, 3, input)).resolves.toEqual(shop);
     await expect(deletePartnerShop(request, 3)).resolves.toBeUndefined();

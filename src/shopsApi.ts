@@ -5,6 +5,9 @@ export interface PartnerShop {
   slug: string;
   name: string;
   websiteUrl?: string | null;
+  countryId: number;
+  countryCode: string;
+  countryName: string;
   isActive: boolean;
   showOnHome: boolean;
   homeDisplayOrder?: number | null;
@@ -14,6 +17,7 @@ export interface ShopInput {
   slug: string;
   name: string;
   websiteUrl?: string;
+  countryId: number;
   isActive: boolean;
   showOnHome: boolean;
   homeDisplayOrder?: number | null;

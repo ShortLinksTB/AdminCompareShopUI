@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react';
 import type { AdminRequest, Page } from './bannedItemsApi';
+import { getCountries, type Country } from './countries/countries-api';
 import { createPartnerShop, deletePartnerShop, getPartnerShops, updatePartnerShop, type PartnerShop, type ShopInput } from './shopsApi';
 import { Button, Card, DataTable, EmptyState, Field, FilterChips, Modal, PageHeader, Pager, Pill, Select, Switch, TableFooter } from './ui';
 import './partnerShops.css';
@@ -29,6 +30,24 @@ export function PartnerShops({ requestAdmin, permissions }: { requestAdmin: Admi
   const [updatingIds, setUpdatingIds] = useState<number[]>([]);
   const [filter, setFilter] = useState<VisibilityFilter>('all');
   const [toast, setToast] = useState<PartnerShopToast | null>(null);
+  const [countries, setCountries] = useState<Country[]>([]);
+  const [countriesLoading, setCountriesLoading] = useState(true);
+  const [countriesError, setCountriesError] = useState<string | null>(null);
+  const [countryIdDraft, setCountryIdDraft] = useState<number | ''>('');
+
+  const loadCountries = useCallback(async () => {
+    setCountriesLoading(true);
+    setCountriesError(null);
+    try {
+      setCountries(await getCountries(requestAdmin));
+    } catch (reason) {
+      setCountriesError(reason instanceof Error ? reason.message : 'Could not load countries. Please try again.');
+    } finally {
+      setCountriesLoading(false);
+    }
+  }, [requestAdmin]);
+
+  useEffect(() => { void loadCountries(); }, [loadCountries]);
 
   const load = useCallback(async (requestedPage = page, requestedSize = pageSize) => {
     setLoading(true);
@@ -56,6 +75,12 @@ export function PartnerShops({ requestAdmin, permissions }: { requestAdmin: Admi
   useEffect(() => { void load(1, 20); }, [requestAdmin]);
 
   const can = (permission: string) => permissions.includes(permission);
+  const activeCountries = countries.filter(country => country.isActive);
+  const existingCountry = editing && editing !== undefined
+    ? countries.find(country => country.id === editing.countryId) ?? {
+      id: editing.countryId, code: editing.countryCode, name: editing.countryName, isActive: false,
+    }
+    : undefined;
   const shownCount = result.items.filter(shop => shop.showOnHome).length;
   const hiddenCount = result.items.length - shownCount;
   const filteredShops = result.items.filter(shop => filter === 'all' || (filter === 'shown' ? shop.showOnHome : !shop.showOnHome));
@@ -76,7 +101,7 @@ export function PartnerShops({ requestAdmin, permissions }: { requestAdmin: Admi
     setToast(null);
     setResult(current => ({ ...current, items: current.items.map(item => item.id === shop.id ? { ...item, showOnHome } : item) }));
     try {
-      await updatePartnerShop(requestAdmin, shop.id, { slug: shop.slug, name: shop.name, websiteUrl: shop.websiteUrl ?? undefined, isActive: shop.isActive, showOnHome, homeDisplayOrder: shop.homeDisplayOrder ?? undefined });
+      await updatePartnerShop(requestAdmin, shop.id, { slug: shop.slug, name: shop.name, websiteUrl: shop.websiteUrl ?? undefined, countryId: shop.countryId, isActive: shop.isActive, showOnHome, homeDisplayOrder: shop.homeDisplayOrder ?? undefined });
       setToast({ message: showOnHome ? `${shop.name} sẽ hiển thị ở trang chủ.` : `${shop.name} đã được ẩn khỏi trang chủ.`, variant: 'success' });
     } catch (reason) {
       setResult(current => ({ ...current, items: current.items.map(item => item.id === shop.id ? { ...item, showOnHome: previous } : item) }));
@@ -97,10 +122,15 @@ export function PartnerShops({ requestAdmin, permissions }: { requestAdmin: Admi
       slug: submittedSlug || generateShopSlug(name),
       name,
       websiteUrl: String(form.get('websiteUrl') ?? '').trim() || undefined,
+      countryId: Number(form.get('countryId')),
       isActive: isActiveDraft,
       showOnHome: showOnHomeDraft,
       homeDisplayOrder: orderValue ? Number(orderValue) : undefined,
     };
+    if (!input.countryId) {
+      setError('Select a country for this shop.');
+      return;
+    }
     setSaving(true);
     setError(null);
     setToast(null);
@@ -135,7 +165,7 @@ export function PartnerShops({ requestAdmin, permissions }: { requestAdmin: Admi
   }
 
   return <div className="partner-shops-page">
-    <PageHeader eyebrow="AFFILIATE & DATA" title="Partner Shops" description="Active xác định shop còn hoạt động. Hiển thị ở trang chủ là cài đặt riêng cho mục Đối tác." actions={can('shops.create') && <Button tone="primary" onClick={() => { setShowOnHomeDraft(false); setIsActiveDraft(true); setEditing(null); }}>+ Add shop</Button>} />
+    <PageHeader eyebrow="AFFILIATE & DATA" title="Partner Shops" description="Active xác định shop còn hoạt động. Hiển thị ở trang chủ là cài đặt riêng cho mục Đối tác." actions={can('shops.create') && <Button tone="primary" onClick={() => { setShowOnHomeDraft(false); setIsActiveDraft(true); setCountryIdDraft(''); setEditing(null); }}>+ Add shop</Button>} />
     {error && <div className="partner-shop-alert" role="alert"><span>{error}</span><Button size="sm" onClick={() => void load()}>Retry</Button></div>}
     {toast && <div className={`partner-shop-toast partner-shop-toast--${toast.variant}`} role={toast.variant === 'error' ? 'alert' : 'status'}><span>{toast.message}</span><Button size="sm" tone="ghost" aria-label="Đóng thông báo" onClick={() => setToast(null)}>×</Button></div>}
     <FilterChips label="Lọc theo hiển thị trang chủ" value={filter} onChange={value => { setFilter(value as VisibilityFilter); setPage(1); }} items={[
@@ -146,19 +176,20 @@ export function PartnerShops({ requestAdmin, permissions }: { requestAdmin: Admi
     {result.items.filter(shop => shop.isActive && shop.showOnHome).length > 12 && <div className="partner-shop-limit" role="status">Trang chủ chỉ hiển thị 12 đối tác đầu theo thứ tự. Các shop vượt quá 12 vẫn được bật nhưng không xuất hiện.</div>}
     <Card className="partner-shop-table-card">
       <DataTable className="partner-shop-table-wrap" aria-label="Partner shops">
-        <thead><tr><th>Shop</th><th>Website</th><th>Hoạt động</th><th><span>Hiển thị ở trang chủ</span><small>Khác với trạng thái hoạt động</small></th><th>Thứ tự</th><th aria-label="Actions" /></tr></thead>
+        <thead><tr><th>Shop</th><th>Country</th><th>Website</th><th>Hoạt động</th><th><span>Hiển thị ở trang chủ</span><small>Khác với trạng thái hoạt động</small></th><th>Thứ tự</th><th aria-label="Actions" /></tr></thead>
         <tbody>
-          {loading && <tr><td colSpan={6}><div className="partner-shop-table-loading" role="status" aria-label="Loading partner shops">Đang tải danh sách shop…</div></td></tr>}
+          {loading && <tr><td colSpan={7}><div className="partner-shop-table-loading" role="status" aria-label="Loading partner shops">Đang tải danh sách shop…</div></td></tr>}
           {!loading && displayedShops.map(shop => <tr key={shop.id}>
             <td className="partner-shop-name"><b>{shop.name}</b><small>{shop.slug} · #{shop.id}</small></td>
+            <td>{shop.countryName} <small className="partner-shop-muted">({shop.countryCode})</small></td>
             <td>{shop.websiteUrl ? <a className="partner-shop-website" href={shop.websiteUrl} target="_blank" rel="noreferrer">{shop.websiteUrl}</a> : <span className="partner-shop-muted">—</span>}</td>
             <td><Pill tone={shop.isActive ? 'ok' : 'neutral'}>{shop.isActive ? 'Active' : 'Inactive'}</Pill></td>
             <td><div className="partner-shop-toggle-cell"><Switch checked={shop.showOnHome} disabled={!shop.isActive || !can('shops.update') || updatingIds.includes(shop.id)} label={`Hiển thị ${shop.name} ở trang chủ`} onChange={checked => void toggleVisibility(shop, checked)} />
               {updatingIds.includes(shop.id) ? <small role="status">Đang lưu…</small> : !shop.isActive ? <small>Shop không hoạt động sẽ không hiện ở trang chủ</small> : null}</div></td>
             <td>{shop.showOnHome ? shop.homeDisplayOrder ?? '—' : <span className="partner-shop-muted">—</span>}</td>
-            <td className="partner-shop-actions-cell">{can('shops.update') && <Button size="sm" onClick={() => { setShowOnHomeDraft(shop.showOnHome); setIsActiveDraft(shop.isActive); setEditing(shop); }}>Sửa</Button>} {can('shops.delete') && <Button size="sm" tone="danger" disabled={deletingId === shop.id} onClick={() => void remove(shop)}>{deletingId === shop.id ? 'Đang xoá…' : 'Xoá'}</Button>}</td>
+            <td className="partner-shop-actions-cell">{can('shops.update') && <Button size="sm" onClick={() => { setShowOnHomeDraft(shop.showOnHome); setIsActiveDraft(shop.isActive); setCountryIdDraft(shop.countryId); setEditing(shop); }}>Sửa</Button>} {can('shops.delete') && <Button size="sm" tone="danger" disabled={deletingId === shop.id} onClick={() => void remove(shop)}>{deletingId === shop.id ? 'Đang xoá…' : 'Xoá'}</Button>}</td>
           </tr>)}
-          {!loading && filteredShops.length === 0 && <tr><td colSpan={6}><EmptyState title={error ? 'Không thể tải danh sách shop.' : filter === 'all' ? 'Chưa có partner shop.' : 'Không có shop trong bộ lọc này.'} /></td></tr>}
+          {!loading && filteredShops.length === 0 && <tr><td colSpan={7}><EmptyState title={error ? 'Không thể tải danh sách shop.' : filter === 'all' ? 'Chưa có partner shop.' : 'Không có shop trong bộ lọc này.'} /></td></tr>}
         </tbody>
       </DataTable>
       <TableFooter start={rangeStart} end={rangeEnd} total={filteredShops.length} startContent={<span>Showing {rangeStart}–{rangeEnd} of {filteredShops.length} shops</span>} center={<label className="partner-shop-page-size">Rows per page <Select size="sm" aria-label="Rows per page" value={pageSize} disabled={loading} onChange={event => { const size = Number(event.target.value); setPage(1); setPageSize(size); }}>{PAGE_SIZE_OPTIONS.map(size => <option key={size} value={size}>{size}</option>)}</Select></label>}>
@@ -170,12 +201,22 @@ export function PartnerShops({ requestAdmin, permissions }: { requestAdmin: Admi
       {previewShops.length > 12 && <p className="partner-shop-limit">Trang chủ chỉ hiển thị 12 đối tác đầu theo thứ tự.</p>}
     </Card>
     <div className="partner-shop-explainer"><b>Hoạt động và hiển thị là hai cài đặt riêng.</b> Shop không hoạt động sẽ không xuất hiện trên trang chủ dù cờ hiển thị đang bật.</div>
-    {editing !== undefined && <Modal open onClose={() => !saving && setEditing(undefined)} title={editing ? `Sửa shop · ${editing.name}` : 'Add shop'} className="partner-shop-modal" actions={<><Button tone="ghost" type="button" disabled={saving} onClick={() => setEditing(undefined)}>Cancel</Button><Button tone="primary" type="submit" form="partner-shop-form" disabled={saving}>{saving ? 'Saving…' : 'Save shop'}</Button></>}>
+    {editing !== undefined && <Modal open onClose={() => !saving && setEditing(undefined)} title={editing ? `Sửa shop · ${editing.name}` : 'Add shop'} className="partner-shop-modal" actions={<><Button tone="ghost" type="button" disabled={saving} onClick={() => setEditing(undefined)}>Cancel</Button><Button tone="primary" type="submit" form="partner-shop-form" disabled={saving || countriesLoading || !countryIdDraft}>{saving ? 'Saving…' : 'Save shop'}</Button></>}>
       <form id="partner-shop-form" className="partner-shop-form" onSubmit={event => void submit(event)}>
         <p>Enter the partner shop details.</p>
         <Field label="Slug (Không bắt buộc)" name="slug" placeholder="Tự động sinh từ tên nếu để trống" defaultValue={editing?.slug ?? ''} />
         <Field label="Name" name="name" required defaultValue={editing?.name ?? ''} />
         <Field label="Website URL (optional)" name="websiteUrl" type="text" maxLength={2048} defaultValue={editing?.websiteUrl ?? ''} />
+        <label className="partner-shop-country-field"><span>Country <b aria-hidden="true">*</b></span>
+          <select aria-label="Country" name="countryId" required value={countryIdDraft} disabled={countriesLoading || (!editing && Boolean(countriesError)) || (!existingCountry && activeCountries.length === 0)} onChange={event => setCountryIdDraft(event.target.value ? Number(event.target.value) : '')}>
+            <option value="">Select a country</option>
+            {activeCountries.map(country => <option key={country.id} value={country.id}>{country.name} ({country.code})</option>)}
+            {existingCountry && !existingCountry.isActive && <option value={existingCountry.id} disabled>{existingCountry.name} ({existingCountry.code}) — Inactive (existing assignment)</option>}
+          </select>
+          {countriesLoading && <small role="status">Loading countries…</small>}
+          {countriesError && <small className="partner-shop-country-error" role="alert">{countriesError} <button type="button" onClick={() => void loadCountries()}>Retry</button></small>}
+          {!countriesLoading && !countriesError && activeCountries.length === 0 && !existingCountry && <small role="status">No active countries are available.</small>}
+        </label>
         <label className="partner-shop-active"><input className="studio-checkbox" name="isActive" type="checkbox" checked={isActiveDraft} onChange={event => { const active = event.target.checked; setIsActiveDraft(active); if (!active) setShowOnHomeDraft(false); }} /> Active</label>
         <div className="partner-shop-modal-switch"><div><b>Hiển thị ở trang chủ</b><small>Bật để shop xuất hiện trong mục Đối tác trên trang chủ.</small></div><Switch checked={showOnHomeDraft} disabled={!isActiveDraft} label="Hiển thị ở trang chủ" onChange={setShowOnHomeDraft} />{!isActiveDraft && <small>Shop không hoạt động nên không thể hiển thị ở trang chủ.</small>}</div>
         <Field label="Thứ tự hiển thị" name="homeDisplayOrder" type="number" min={1} max={99} defaultValue={editing?.homeDisplayOrder ?? ''} />
