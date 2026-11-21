@@ -143,8 +143,10 @@ export function CategoriesPage({ requestAdmin, permissions }: { requestAdmin: Ad
       return;
     }
     const assignedCountry = countries.find(country => country.id === input.countryId);
-    const unchangedInactiveCountry = Boolean(editor.category && assignedCountry && !assignedCountry.isActive && editor.category.countryId === input.countryId);
-    if (!assignedCountry || (!assignedCountry.isActive && !unchangedInactiveCountry)) {
+    const unchangedInactiveCountry = Boolean(editor.category
+      && editor.category.countryId === input.countryId
+      && (!assignedCountry || !assignedCountry.isActive));
+    if ((!assignedCountry || !assignedCountry.isActive) && !unchangedInactiveCountry) {
       setFormError('Chọn một Country đang hoạt động.');
       return;
     }
@@ -200,6 +202,10 @@ export function CategoriesPage({ requestAdmin, permissions }: { requestAdmin: Ad
   const visibleIds = new Set(matchingCategories.flatMap(category => category.parentCategoryId == null ? [category.id] : [category.id, category.parentCategoryId]));
   const visibleCategories = categoriesInCountry.filter(category => visibleIds.has(category.id));
   const availableParents = parentChoices.filter(category => category.countryId === editorCountryId && category.parentCategoryId == null && (category.isActive || category.id === editor?.category?.parentCategoryId) && category.id !== editor?.category?.id);
+  const editorCountryOptions = countries.filter(country => country.isActive || (editor?.category && country.id === editor.category.countryId));
+  const missingExistingCountry = editor?.category && !countries.some(country => country.id === editor.category!.countryId)
+    ? { id: editor.category.countryId, code: editor.category.countryCode ?? `#${editor.category.countryId}`, name: editor.category.countryName ?? `Country #${editor.category.countryId}`, isActive: false }
+    : null;
   const orderedCategories = visibleCategories.filter(category => category.parentCategoryId == null).flatMap(parent => [parent, ...visibleCategories.filter(category => category.parentCategoryId === parent.id)]);
   const orphanedChildren = visibleCategories.filter(category => category.parentCategoryId != null && !categoriesById.has(category.parentCategoryId));
   const filteredTotal = matchingCategories.length;
@@ -258,7 +264,7 @@ export function CategoriesPage({ requestAdmin, permissions }: { requestAdmin: Ad
         {parentChoicesError && <ErrorState title={parentChoicesError}><Button size="sm" onClick={() => setParentChoicesReloadKey(value => value + 1)}>Thử lại parent categories</Button></ErrorState>}
         <Field label="Slug" name="slug" required maxLength={160} defaultValue={editor?.initial.slug ?? ''} />
         <Field label="Name" name="name" required maxLength={200} defaultValue={editor?.initial.name ?? ''} />
-        <div className="categories-country-field"><label htmlFor="category-country-select">Country</label><Select id="category-country-select" name="countryId" required value={editorCountryId ?? ''} disabled={saving || countriesLoading || Boolean(countriesError)} onChange={event => { const countryId = Number(event.target.value); setEditorCountryId(Number.isFinite(countryId) && countryId > 0 ? countryId : null); setEditorParentCategoryId(null); setFormError(null); }}><option value="" disabled>Select a Country</option>{countries.filter(country => country.isActive || (editor?.category && country.id === editor.category.countryId)).map(country => <option key={country.id} value={country.id}>{country.code} · {country.name}{country.isActive ? '' : ' · Inactive'}</option>)}</Select></div>
+        <div className="categories-country-field"><label htmlFor="category-country-select">Country</label><Select id="category-country-select" name="countryId" required value={editorCountryId ?? ''} disabled={saving || countriesLoading || Boolean(countriesError)} onChange={event => { const countryId = Number(event.target.value); setEditorCountryId(Number.isFinite(countryId) && countryId > 0 ? countryId : null); setEditorParentCategoryId(null); setFormError(null); }}><option value="" disabled>Select a Country</option>{editorCountryOptions.map(country => <option key={country.id} value={country.id}>{country.code} · {country.name}{country.isActive ? '' : ' · Inactive'}</option>)}{missingExistingCountry && <option value={missingExistingCountry.id}>{missingExistingCountry.code} · {missingExistingCountry.name} · Inactive</option>}</Select></div>
         <div className="categories-parent-field"><label htmlFor="parent-category-select">Parent category</label><Select id="parent-category-select" name="parentCategoryId" value={editorParentCategoryId ?? ''} disabled={saving || parentChoicesLoading || Boolean(parentChoicesError) || editorCountryId === null} onChange={event => { const value = event.target.value; setEditorParentCategoryId(value ? Number(value) : null); }}><option value="">— Không có cha (tạo Level 1) —</option>{availableParents.map(parent => <option key={parent.id} value={parent.id}>{parent.name}{parent.isActive ? '' : ' · Inactive'}</option>)}</Select>{parentChoicesLoading ? <small role="status">Đang tải parent categories…</small> : <small>Chỉ chọn category Level 1 trong cùng Country. Để trống = category Level 1 gốc.</small>}</div>
         <label className="categories-active"><input name="isActive" type="checkbox" defaultChecked={editor?.initial.isActive ?? true} /> Active</label>
       </form>

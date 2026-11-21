@@ -172,6 +172,7 @@ describe('Categories page', () => {
     renderPage();
     await user.click(await screen.findByRole('button', { name: '+ Thêm category' }));
     await waitFor(() => expect(screen.getByRole('button', { name: 'Lưu category' })).toBeEnabled());
+    expect(Array.from((screen.getByRole('combobox', { name: 'Country' }) as HTMLSelectElement).options).map(option => option.value)).toEqual(['', '1', '2']);
     await user.type(screen.getByLabelText('Slug'), 'new-cat');
     await user.type(screen.getByLabelText('Name'), 'New category');
     await user.click(screen.getByRole('button', { name: 'Lưu category' }));
@@ -285,6 +286,31 @@ describe('Categories page', () => {
     expect(await screen.findByText('Audio VN')).toBeInTheDocument();
     expect(screen.queryByText('Audio ID')).not.toBeInTheDocument();
     expect(api.getCategories).toHaveBeenLastCalledWith(requestAdmin, 1, 20, 2, expect.any(AbortSignal));
+  });
+
+  it('opens and saves an existing category with its inactive Country missing from the Countries lookup', async () => {
+    const countryLookup = [
+      { id: 1, code: 'ID', name: 'Indonesia', isActive: true },
+      { id: 2, code: 'VN', name: 'Vietnam', isActive: true },
+    ];
+    const existingCategory: AdminCategory = { ...category, countryId: 1, countryCode: 'ID', countryName: 'Indonesia' };
+    countryApi.getCountries.mockResolvedValue(countryLookup);
+    api.getCategories.mockResolvedValue(page([existingCategory]));
+    api.getAllCategories.mockResolvedValue([existingCategory]);
+    const { rerender } = renderPage();
+    expect(await screen.findByText('Audio')).toBeInTheDocument();
+
+    countryLookup.splice(0, 1);
+    rerender(<CategoriesPage requestAdmin={requestAdmin} permissions={[...allPermissions]} />);
+    await userEvent.click(screen.getByLabelText('Actions for Audio'));
+    await userEvent.click(screen.getByRole('button', { name: 'Sửa' }));
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Lưu category' })).toBeEnabled());
+    const countrySelect = screen.getByRole('combobox', { name: 'Country' }) as HTMLSelectElement;
+    expect(countrySelect).toHaveValue('1');
+    expect(Array.from(countrySelect.options).map(option => option.textContent)).toContain('ID · Indonesia · Inactive');
+
+    await userEvent.click(screen.getByRole('button', { name: 'Lưu category' }));
+    await waitFor(() => expect(api.updateCategory).toHaveBeenCalledWith(requestAdmin, existingCategory.id, expect.objectContaining({ countryId: 1 })));
   });
 
 });
