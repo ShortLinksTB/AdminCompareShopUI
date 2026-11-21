@@ -54,18 +54,18 @@ describe('banned items REST client', () => {
 
   it('posts the brand payload through the authenticated admin request', async () => {
     const requestAdmin = vi.fn<AdminRequest>().mockResolvedValue(new Response(null, { status: 201 }));
-    await createBannedItem(requestAdmin, { targetType: 'Brand', brandName: 'Example Brand', reason: 'Policy violation' });
+    await createBannedItem(requestAdmin, { targetType: 'Brand', brandName: 'Example Brand', reason: 'Policy violation', countryId: null });
     const [path, init] = requestAdmin.mock.calls[0];
     expect(path).toBe('/admin/compliance/bans');
     expect(init?.method).toBe('POST');
-    expect(JSON.parse(init?.body as string)).toEqual({ targetType: 'Brand', brandName: 'Example Brand', reason: 'Policy violation' });
+    expect(JSON.parse(init?.body as string)).toEqual({ targetType: 'Brand', brandName: 'Example Brand', reason: 'Policy violation', countryId: null });
   });
 
   it('posts the product payload through the authenticated admin request', async () => {
     const requestAdmin = vi.fn<AdminRequest>().mockResolvedValue(new Response(null, { status: 201 }));
-    await createBannedItem(requestAdmin, { targetType: 'Product', productId: 42, reason: 'Policy' });
+    await createBannedItem(requestAdmin, { targetType: 'Product', productId: 42, reason: 'Policy', countryId: 2 });
     const [, init] = requestAdmin.mock.calls[0];
-    expect(JSON.parse(init?.body as string)).toEqual({ targetType: 'Product', productId: 42, reason: 'Policy' });
+    expect(JSON.parse(init?.body as string)).toEqual({ targetType: 'Product', productId: 42, reason: 'Policy', countryId: 2 });
   });
 
   it('deletes an encoded ban ID and accepts a 204 response', async () => {

@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { AdminRequest } from '../bannedItemsApi';
-import { createCountry, getCountries, updateCountry } from './countries-api';
+import { createCountry, getActiveCountries, getCountries, updateCountry } from './countries-api';
 
 const admin = vi.fn<AdminRequest>();
 const response = (body: unknown, status = 200) => new Response(status === 204 ? null : JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
@@ -13,6 +13,13 @@ describe('countries API', () => {
     admin.mockResolvedValueOnce(response({ items: [{ id: 1, code: 'VN', name: 'Vietnam', isActive: true }] }));
     await expect(getCountries(admin, controller.signal)).resolves.toEqual([{ id: 1, code: 'VN', name: 'Vietnam', isActive: true }]);
     expect(admin).toHaveBeenCalledWith('/admin/countries', { signal: controller.signal });
+  });
+
+  it('loads active countries from the central public country endpoint', async () => {
+    const controller = new AbortController();
+    admin.mockResolvedValueOnce(response({ items: [{ id: 2, code: 'ID', name: 'Indonesia' }] }));
+    await expect(getActiveCountries(admin, controller.signal)).resolves.toEqual([{ id: 2, code: 'ID', name: 'Indonesia' }]);
+    expect(admin).toHaveBeenCalledWith('/countries', { signal: controller.signal });
   });
 
   it('posts create and update contracts to the admin country endpoints', async () => {

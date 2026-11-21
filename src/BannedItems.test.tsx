@@ -8,10 +8,16 @@ import { BannedItemsRoute } from './BannedItems';
 import { App } from './App';
 import { BanApiError, type AdminRequest, type BannedItem, type Page, type ProductTarget } from './bannedItemsApi';
 import { createBannedItem, getBannedItems, getProductTargets, revokeBannedItem } from './bannedItemsApi';
+import { getActiveCountries } from './countries/countries-api';
 
 vi.mock('./bannedItemsApi', async () => {
   const actual = await vi.importActual<typeof import('./bannedItemsApi')>('./bannedItemsApi');
   return { ...actual, createBannedItem: vi.fn(), getBannedItems: vi.fn(), getProductTargets: vi.fn(), revokeBannedItem: vi.fn() };
+});
+
+vi.mock('./countries/countries-api', async () => {
+  const actual = await vi.importActual<typeof import('./countries/countries-api')>('./countries/countries-api');
+  return { ...actual, getActiveCountries: vi.fn() };
 });
 
 const keycloakMocks = vi.hoisted(() => ({
@@ -58,6 +64,7 @@ describe('Banned items routes', () => {
     vi.clearAllMocks();
     vi.mocked(getBannedItems).mockResolvedValue(page());
     vi.mocked(getProductTargets).mockResolvedValue(products);
+    vi.mocked(getActiveCountries).mockResolvedValue([{ id: 1, code: 'ID', name: 'Indonesia' }, { id: 2, code: 'VN', name: 'Vietnam' }]);
     vi.mocked(createBannedItem).mockResolvedValue(undefined);
     vi.mocked(revokeBannedItem).mockResolvedValue(undefined);
   });
@@ -79,6 +86,7 @@ describe('Banned items routes', () => {
     expect((await screen.findAllByText('Example Brand')).length).toBeGreaterThan(0);
     expect(screen.getAllByText('Policy violation').length).toBeGreaterThan(0);
     expect(screen.getAllByText('Nguyễn An').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Global (all countries)').length).toBeGreaterThan(0);
     expect(screen.getAllByText('Active').length).toBeGreaterThan(0);
     expect(vi.mocked(getBannedItems).mock.calls[0][1]).toMatchObject({ active: true, page: 1, pageSize: 20 });
 
@@ -88,6 +96,12 @@ describe('Banned items routes', () => {
     await waitFor(() => expect(vi.mocked(getBannedItems).mock.calls.at(-1)?.[1]).toMatchObject({ targetType: 'Product', active: true }));
     await user.selectOptions(screen.getByLabelText('Filter by status'), 'false');
     await waitFor(() => expect(vi.mocked(getBannedItems).mock.calls.at(-1)?.[1]).toMatchObject({ active: false }));
+  });
+
+  it('shows the assigned Country for country-scoped bans', async () => {
+    vi.mocked(getBannedItems).mockResolvedValue(page([{ ...item, countryId: 2, countryCode: 'VN', countryName: 'Vietnam' }]));
+    renderRoute('/banned-items');
+    expect((await screen.findAllByText('VN · Vietnam')).length).toBeGreaterThan(0);
   });
 
   it('requests the next API page using the real list route', async () => {
@@ -146,8 +160,35 @@ describe('Banned items routes', () => {
     await user.click(await screen.findByRole('option', { name: 'Example Brand' }));
     await user.type(screen.getByLabelText(/Ban reason/), 'Policy violation');
     await user.click(screen.getByRole('button', { name: 'Add to banned list' }));
-    await waitFor(() => expect(vi.mocked(createBannedItem).mock.calls.at(-1)?.[1]).toEqual({ targetType: 'Brand', brandName: 'Example Brand', reason: 'Policy violation' }));
+    await waitFor(() => expect(vi.mocked(createBannedItem).mock.calls.at(-1)?.[1]).toEqual({ targetType: 'Brand', brandName: 'Example Brand', reason: 'Policy violation', countryId: null }));
     expect(await screen.findByRole('heading', { name: 'Banned items' })).toBeTruthy();
+  });
+
+  it('creates a country-scoped product ban and shows the selected scope in the form', async () => {
+    const user = userEvent.setup();
+    renderRoute('/banned-items');
+    await screen.findAllByText('Example Brand');
+    await user.click(screen.getByRole('button', { name: /Add banned item/ }));
+    await user.click(screen.getByRole('radio', { name: 'Product' }));
+    await user.type(screen.getByRole('combobox', { name: 'Product *' }), 'Example Phone');
+    await user.click(await screen.findByRole('option', { name: /Example Phone/ }));
+    await user.selectOptions(screen.getByLabelText(/^Country scope \(optional\)/), '1');
+    expect(screen.getByLabelText(/^Country scope \(optional\)/)).toHaveValue('1');
+    await user.type(screen.getByLabelText(/Ban reason/), 'Not eligible in Indonesia');
+    await user.click(screen.getByRole('button', { name: 'Add to banned list' }));
+    await waitFor(() => expect(createBannedItem).toHaveBeenCalledWith(expect.any(Function), { targetType: 'Product', productId: 42, reason: 'Not eligible in Indonesia', countryId: 1 }));
+  });
+
+  it('keeps global ban creation available and offers retry when active countries fail to load', async () => {
+    const user = userEvent.setup();
+    vi.mocked(getActiveCountries).mockRejectedValueOnce(new Error('Country service unavailable'));
+    renderRoute('/banned-items');
+    await screen.findAllByText('Example Brand');
+    await user.click(screen.getByRole('button', { name: /Add banned item/ }));
+    expect(await screen.findByRole('alert')).toHaveTextContent('Country service unavailable');
+    expect(screen.getByRole('option', { name: 'Global (all countries)' })).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Retry Countries' }));
+    await waitFor(() => expect(getActiveCountries).toHaveBeenCalledTimes(2));
   });
 
   it('keeps the add drawer open and disables Cancel while a ban is submitting', async () => {
@@ -218,7 +259,7 @@ describe('Banned items routes', () => {
     await user.click(await screen.findByRole('option', { name: /Example Phone/ }));
     await user.type(screen.getByLabelText(/Ban reason/), 'Not eligible');
     await user.click(screen.getByRole('button', { name: 'Add to banned list' }));
-    await waitFor(() => expect(vi.mocked(createBannedItem).mock.calls.at(-1)?.[1]).toEqual({ targetType: 'Product', productId: 42, reason: 'Not eligible' }));
+    await waitFor(() => expect(vi.mocked(createBannedItem).mock.calls.at(-1)?.[1]).toEqual({ targetType: 'Product', productId: 42, reason: 'Not eligible', countryId: null }));
     expect((await screen.findByRole('alert')).textContent).toContain('An active ban already exists');
   });
 

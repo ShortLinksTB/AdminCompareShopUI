@@ -1,14 +1,15 @@
 import type { AdminRequest } from '../bannedItemsApi';
 
 export interface Country { id: number; code: string; name: string; isActive: boolean }
+export interface ActiveCountry { id: number; code: string; name: string }
 export interface CountryInput { code: string; name: string; isActive: boolean }
 
 export class CountriesApiError extends Error {
   constructor(message: string, readonly status: number) { super(message); this.name = 'CountriesApiError'; }
 }
 
-async function request<T>(admin: AdminRequest, path: string, init?: RequestInit): Promise<T> {
-  const response = await admin(`/admin/countries${path}`, init);
+async function requestAt<T>(admin: AdminRequest, path: string, init?: RequestInit): Promise<T> {
+  const response = await admin(path, init);
   if (!response.ok) {
     let message = `Request failed (${response.status}).`;
     try {
@@ -30,8 +31,17 @@ async function request<T>(admin: AdminRequest, path: string, init?: RequestInit)
   return response.json() as Promise<T>;
 }
 
+async function request<T>(admin: AdminRequest, path: string, init?: RequestInit): Promise<T> {
+  return requestAt(admin, `/admin/countries${path}`, init);
+}
+
 export async function getCountries(admin: AdminRequest, signal?: AbortSignal): Promise<Country[]> {
   const result = await request<{ items: Country[] }>(admin, '', { signal });
+  return result.items;
+}
+
+export async function getActiveCountries(admin: AdminRequest, signal?: AbortSignal): Promise<ActiveCountry[]> {
+  const result = await requestAt<{ items: ActiveCountry[] }>(admin, '/countries', { signal });
   return result.items;
 }
 
