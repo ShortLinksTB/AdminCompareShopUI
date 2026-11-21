@@ -12,7 +12,7 @@ export async function adminRequest(
   const url = new URL(path, `${apiBaseUrl}/`);
   const method = (init.method || 'GET').toUpperCase();
   const isAdminEndpoint = url.pathname.startsWith('/admin/');
-  const isCentralCountryRead = url.pathname === '/countries' && method === 'GET';
+  const isCentralCountryRead = url.pathname === '/api/v1/countries' && method === 'GET';
   if (url.origin !== new URL(apiBaseUrl).origin || (!isAdminEndpoint && !isCentralCountryRead)) {
     throw new Error('Authenticated API requests must target same-origin /admin endpoints.');
   }

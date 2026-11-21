@@ -41,7 +41,7 @@ export async function getCountries(admin: AdminRequest, signal?: AbortSignal): P
 }
 
 export async function getActiveCountries(admin: AdminRequest, signal?: AbortSignal): Promise<ActiveCountry[]> {
-  const result = await requestAt<{ items: ActiveCountry[] }>(admin, '/countries', { signal });
+  const result = await requestAt<{ items: ActiveCountry[] }>(admin, '/api/v1/countries', { signal });
   return result.items;
 }
 

@@ -19,7 +19,7 @@ describe('countries API', () => {
     const controller = new AbortController();
     admin.mockResolvedValueOnce(response({ items: [{ id: 2, code: 'ID', name: 'Indonesia' }] }));
     await expect(getActiveCountries(admin, controller.signal)).resolves.toEqual([{ id: 2, code: 'ID', name: 'Indonesia' }]);
-    expect(admin).toHaveBeenCalledWith('/countries', { signal: controller.signal });
+    expect(admin).toHaveBeenCalledWith('/api/v1/countries', { signal: controller.signal });
   });
 
   it('posts create and update contracts to the admin country endpoints', async () => {

@@ -43,8 +43,7 @@ const item: BannedItem = {
 const page = (items: BannedItem[] = [item], pageNumber = 1, totalItems = items.length): Page<BannedItem> => ({ items, pageNumber, pageSize: 20, totalItems });
 const products: ProductTarget[] = [{ id: 42, name: 'Example Phone', brand: 'Example Brand', isActive: true }, { id: 43, name: 'Sample Phone', brand: 'Sample Brand', isActive: true }];
 
-function renderRoute(path: string, permissions: string[] = ['compliance.read', 'compliance.manage']) {
-  const requestAdmin: AdminRequest = vi.fn();
+function renderRoute(path: string, permissions: string[] = ['compliance.read', 'compliance.manage'], requestAdmin: AdminRequest = vi.fn()) {
   return render(<MemoryRouter initialEntries={[path]}><Routes>
     <Route path="/" element={<h1>Dashboard</h1>} />
     <Route path="/banned-items" element={<BannedItemsRoute permissions={permissions} requestAdmin={requestAdmin} />} />
@@ -96,6 +95,17 @@ describe('Banned items routes', () => {
     await waitFor(() => expect(vi.mocked(getBannedItems).mock.calls.at(-1)?.[1]).toMatchObject({ targetType: 'Product', active: true }));
     await user.selectOptions(screen.getByLabelText('Filter by status'), 'false');
     await waitFor(() => expect(vi.mocked(getBannedItems).mock.calls.at(-1)?.[1]).toMatchObject({ active: false }));
+  });
+
+  it('loads Country choices for the Add form from the versioned public Countries route', async () => {
+    const { getActiveCountries: getActiveCountriesFromApi } = await vi.importActual<typeof import('./countries/countries-api')>('./countries/countries-api');
+    const requestAdmin: AdminRequest = vi.fn().mockResolvedValue(Response.json({ items: [{ id: 2, code: 'ID', name: 'Indonesia' }] }));
+    vi.mocked(getActiveCountries).mockImplementation(getActiveCountriesFromApi);
+
+    renderRoute('/banned-items/new', ['compliance.read', 'compliance.manage'], requestAdmin);
+
+    expect(await screen.findByRole('option', { name: /ID.*Indonesia/ })).toBeInTheDocument();
+    expect(requestAdmin).toHaveBeenCalledWith('/api/v1/countries', expect.objectContaining({ signal: expect.any(AbortSignal) }));
   });
 
   it('keeps one header add action and centers the empty state without a duplicate card CTA', async () => {
