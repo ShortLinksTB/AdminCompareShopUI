@@ -27,21 +27,25 @@ describe('adminRequest', () => {
     expect(keycloak.updateToken).toHaveBeenCalledWith(30);
   });
 
-  it('sends bearer auth without cookies to the same-origin central Countries read', async () => {
+  it('sends bearer auth without cookies to the versioned same-origin public Countries read', async () => {
     const fetchMock = vi.fn().mockResolvedValue(response(200));
     vi.stubGlobal('fetch', fetchMock);
     const keycloak = fakeKeycloak();
 
-    const result = await adminRequest(keycloak, '/countries');
+    const result = await adminRequest(keycloak, '/api/v1/countries');
 
     expect(result.status).toBe(200);
-    expect(fetchMock).toHaveBeenCalledWith(expect.objectContaining({ pathname: '/countries' }), expect.objectContaining({ credentials: 'omit' }));
+    expect(fetchMock).toHaveBeenCalledWith(expect.objectContaining({ pathname: '/api/v1/countries' }), expect.objectContaining({ credentials: 'omit' }));
     const options = fetchMock.mock.calls[0][1] as RequestInit;
     expect(new Headers(options.headers).get('Authorization')).toBe('Bearer access-token');
   });
 
   it.each([
+    ['/countries', {}],
     ['/countries', { method: 'POST' }],
+    ['/api/v1/countries', { method: 'POST' }],
+    ['/api/v1/countries/1', {}],
+    ['/api/countries', {}],
     ['/countries/1', {}],
     ['https://attacker.example/countries', {}],
   ])('rejects non-read or non-same-origin Countries paths (%s)', async (path, init) => {
