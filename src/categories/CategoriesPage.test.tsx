@@ -279,27 +279,12 @@ describe('Categories page', () => {
     api.getCategories.mockResolvedValueOnce(page([indonesiaCategory])).mockResolvedValueOnce(page([vietnamCategory]));
     renderPage();
     expect(await screen.findByText('Audio ID')).toBeInTheDocument();
-    await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Country context' }), '2');
+    const context = screen.getByRole('combobox', { name: 'Country context' });
+    expect(Array.from((context as HTMLSelectElement).options).map(option => option.value)).toEqual(['1', '2']);
+    await userEvent.selectOptions(context, '2');
     expect(await screen.findByText('Audio VN')).toBeInTheDocument();
     expect(screen.queryByText('Audio ID')).not.toBeInTheDocument();
     expect(api.getCategories).toHaveBeenLastCalledWith(requestAdmin, 1, 20, 2, expect.any(AbortSignal));
-  });
-
-  it('keeps an existing inactive Country assignment editable without allowing a new assignment', async () => {
-    const thailandCategory: AdminCategory = { ...category, countryId: 3, countryCode: 'TH', countryName: 'Thailand' };
-    api.getCategories.mockResolvedValueOnce(page()).mockResolvedValueOnce(page([thailandCategory]));
-    api.getAllCategories.mockResolvedValue([]);
-    renderPage();
-    await screen.findByText('Audio');
-    await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Country context' }), '3');
-    expect(await screen.findByText('TH · Thailand')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: '+ Thêm category' })).toBeDisabled();
-    await userEvent.click(screen.getByLabelText('Actions for Audio'));
-    await userEvent.click(screen.getByRole('button', { name: 'Sửa' }));
-    await waitFor(() => expect(screen.getByRole('button', { name: 'Lưu category' })).toBeEnabled());
-    expect(screen.getByRole('combobox', { name: 'Country' })).toHaveValue('3');
-    await userEvent.click(screen.getByRole('button', { name: 'Lưu category' }));
-    await waitFor(() => expect(api.updateCategory).toHaveBeenCalledWith(requestAdmin, 7, expect.objectContaining({ countryId: 3 })));
   });
 
 });

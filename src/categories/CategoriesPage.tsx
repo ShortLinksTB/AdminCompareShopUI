@@ -48,9 +48,9 @@ export function CategoriesPage({ requestAdmin, permissions }: { requestAdmin: Ad
       .then(items => {
         if (controller.signal.aborted) return;
         setCountries(items);
-        setSelectedCountryId(current => current !== null && items.some(country => country.id === current)
+        setSelectedCountryId(current => current !== null && items.some(country => country.id === current && country.isActive)
           ? current
-          : items.find(country => country.isActive)?.id ?? items[0]?.id ?? null);
+          : items.find(country => country.isActive)?.id ?? null);
       })
       .catch(reason => {
         if (controller.signal.aborted) return;
@@ -191,6 +191,7 @@ export function CategoriesPage({ requestAdmin, permissions }: { requestAdmin: Ad
     }
   }
 
+  const activeCountries = countries.filter(country => country.isActive);
   const selectedCountry = countries.find(country => country.id === selectedCountryId);
   const countriesById = new Map(countries.map(country => [country.id, country]));
   const categoriesInCountry = result.items.filter(category => category.countryId === selectedCountryId);
@@ -217,14 +218,14 @@ export function CategoriesPage({ requestAdmin, permissions }: { requestAdmin: Ad
     {deleteError && <ErrorState title={deleteError} />}
     <Card className="categories-card" aria-label="Categories">
       <Toolbar className="categories-toolbar">
-        <label className="categories-country-context" htmlFor="categories-country-context"><span>Country</span><Select id="categories-country-context" aria-label="Country context" value={selectedCountryId ?? ''} disabled={countriesLoading || countries.length === 0} onChange={event => { const countryId = Number(event.target.value); setSelectedCountryId(Number.isFinite(countryId) && countryId > 0 ? countryId : null); setResult(emptyPage); setPage(1); setSearch(''); setCollapsedIds(new Set()); }}>
-          {countries.map(country => <option key={country.id} value={country.id}>{country.code} · {country.name}{country.isActive ? '' : ' · Inactive'}</option>)}
-          {!countries.length && <option value="">No countries available</option>}
+        <label className="categories-country-context" htmlFor="categories-country-context"><span>Country</span><Select id="categories-country-context" aria-label="Country context" value={selectedCountryId ?? ''} disabled={countriesLoading || activeCountries.length === 0} onChange={event => { const countryId = Number(event.target.value); setSelectedCountryId(Number.isFinite(countryId) && countryId > 0 ? countryId : null); setResult(emptyPage); setPage(1); setSearch(''); setCollapsedIds(new Set()); }}>
+          {activeCountries.map(country => <option key={country.id} value={country.id}>{country.code} · {country.name}</option>)}
+          {!activeCountries.length && <option value="">No active countries</option>}
         </Select></label>
         <SearchField label="Search categories" value={search} disabled={selectedCountryId === null || Boolean(countriesError)} onChange={event => setSearch(event.target.value)} placeholder="Tìm theo tên hoặc slug..." />
       </Toolbar>
       {countriesLoading ? <div className="categories-loading" role="status" aria-label="Đang tải countries"><Loading /><span>Đang tải countries…</span></div>
-        : !countriesError && countries.length === 0 ? <EmptyState title="Chưa có Country nào." />
+        : !countriesError && activeCountries.length === 0 ? <EmptyState title="Chưa có Country nào đang hoạt động." />
           : loading ? <div className="categories-loading" role="status" aria-label="Đang tải categories"><Loading /><span>Đang tải categories…</span></div>
             : !listError && categoriesInCountry.length === 0 ? <EmptyState title="Chưa có category nào cho Country đã chọn." />
               : !listError && <DataTable className="categories-table-scroll"><thead><tr><th scope="col">Id</th><th scope="col">Name</th><th scope="col">Slug</th><th scope="col">Country</th><th scope="col">Level</th><th scope="col">Parent</th><th scope="col" aria-label="Thao tác" /></tr></thead>
