@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { BanApiError, createBannedItem, getBannedItems, getProductTargets, revokeBannedItem, type AdminRequest, type BanTargetType, type BannedItem, type ProductTarget } from './bannedItemsApi';
+import { getActiveCountries, type ActiveCountry } from './countries/countries-api';
 import { Button, Card, DataTable, Drawer, EmptyState, ErrorState, Loading, Modal, PageHeader, Pager, Pill, SearchField, Select, TableFooter, Toolbar } from './ui';
 import './bannedItems.css';
 
@@ -11,6 +12,11 @@ const dateTime = (value?: string | null) => value
 
 function targetName(item: BannedItem) {
   return item.targetType === 'Brand' ? item.brandName || 'Unnamed brand' : item.productName || item.productId || 'Unnamed product';
+}
+
+function countryScope(item: BannedItem) {
+  if (item.countryName || item.countryCode) return [item.countryCode, item.countryName].filter(Boolean).join(' · ');
+  return item.countryId != null ? `Country #${item.countryId}` : 'Global (all countries)';
 }
 
 export function BannedItemsRoute({ permissions, requestAdmin }: { permissions: string[]; requestAdmin: AdminRequest }) {
@@ -109,9 +115,10 @@ function BannedItemsPage({ canManage, requestAdmin }: { canManage: boolean; requ
       : items.length === 0 && !error ? <Card className="banned-state"><EmptyState title={query ? 'No results' : `No ${active ? 'active' : 'revoked'} bans found`}>{query ? `No banned items match “${query}”.` : 'Try another target type or add a ban.'}</EmptyState>{query && <Button size="sm" onClick={() => setSearch('')}>Clear search</Button>}{canManage && !query && <Button tone="primary" onClick={openAdd}>＋ Add banned item</Button>}</Card>
         : <>
           <Card className="banned-table-panel" aria-label="Banned items list">
-            <DataTable role="region" tabIndex={0} aria-label="Banned items table, scroll horizontally"><thead><tr><th scope="col">Target</th><th scope="col">Reason</th><th scope="col">Status</th><th scope="col">Added by</th><th scope="col">Added at</th><th scope="col">Revoked by</th><th scope="col">Revoked at</th>{canManage && <th scope="col"><span className="sr-only">Actions</span></th>}</tr></thead>
+            <DataTable role="region" tabIndex={0} aria-label="Banned items table, scroll horizontally"><thead><tr><th scope="col">Target</th><th scope="col">Country scope</th><th scope="col">Reason</th><th scope="col">Status</th><th scope="col">Added by</th><th scope="col">Added at</th><th scope="col">Revoked by</th><th scope="col">Revoked at</th>{canManage && <th scope="col"><span className="sr-only">Actions</span></th>}</tr></thead>
               <tbody>{items.map(item => <tr key={item.id}>
                 <td><strong>{targetName(item)}</strong><small>{item.targetType}{item.targetType === 'Product' && item.brandName ? ` · ${item.brandName}` : ''}</small></td>
+                <td className="banned-country-scope">{countryScope(item)}</td>
                 <td className="banned-reason">{item.reason || '—'}</td>
                 <td><Pill tone={item.isActive ? 'ok' : 'neutral'}>{item.isActive ? '● Active' : '◆ Revoked'}</Pill></td>
                 <td>{item.createdBy || '—'}</td><td>{dateTime(item.createdAtUtc)}</td><td>{item.revokedBy || '—'}</td><td>{dateTime(item.revokedAtUtc)}</td>
@@ -122,6 +129,7 @@ function BannedItemsPage({ canManage, requestAdmin }: { canManage: boolean; requ
           <section className="banned-cards" aria-label="Banned items list">{items.map(item => <Card as="article" className="banned-card" key={item.id}>
             <div className="banned-card-head"><div><strong>{targetName(item)}</strong><small>{item.targetType}{item.targetType === 'Product' && item.brandName ? ` · ${item.brandName}` : ''}</small></div><Pill tone={item.isActive ? 'ok' : 'neutral'}>{item.isActive ? '● Active' : '◆ Revoked'}</Pill></div>
             <p className="banned-card-reason">{item.reason || 'No reason provided.'}</p>
+            <p className="banned-card-country"><strong>Country scope:</strong> {countryScope(item)}</p>
             <dl><div><dt>Added by</dt><dd>{item.createdBy || '—'}</dd></div><div><dt>Added at</dt><dd>{dateTime(item.createdAtUtc)}</dd></div>{!item.isActive && <><div><dt>Revoked by</dt><dd>{item.revokedBy || '—'}</dd></div><div><dt>Revoked at</dt><dd>{dateTime(item.revokedAtUtc)}</dd></div></>}</dl>
             {canManage && item.isActive && <Button tone="danger" className="banned-mobile-revoke" onClick={() => setPendingRevoke(item)}>Revoke ban</Button>}
           </Card>)}</section>
@@ -146,6 +154,11 @@ function BannedItemForm({ canManage, requestAdmin, fullScreen, onCancel, onCreat
   const [targetSearch, setTargetSearch] = useState('');
   const [selectedTarget, setSelectedTarget] = useState<ProductTarget | null>(null);
   const [reason, setReason] = useState('');
+  const [countries, setCountries] = useState<ActiveCountry[]>([]);
+  const [countriesLoading, setCountriesLoading] = useState(true);
+  const [countriesError, setCountriesError] = useState('');
+  const [countriesReloadKey, setCountriesReloadKey] = useState(0);
+  const [countryId, setCountryId] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
   const [recent, setRecent] = useState<BannedItem[]>([]);
@@ -167,6 +180,20 @@ function BannedItemForm({ canManage, requestAdmin, fullScreen, onCancel, onCreat
     return () => controller.abort();
   }, []);
 
+  useEffect(() => {
+    const controller = new AbortController();
+    setCountriesLoading(true);
+    setCountriesError('');
+    getActiveCountries(requestAdmin, controller.signal)
+      .then(setCountries)
+      .catch(failure => {
+        if (failure instanceof DOMException && failure.name === 'AbortError') return;
+        setCountriesError(failure instanceof Error ? failure.message : 'Unable to load active Countries.');
+      })
+      .finally(() => { if (!controller.signal.aborted) setCountriesLoading(false); });
+    return () => controller.abort();
+  }, [countriesReloadKey]);
+
   if (!canManage) return <Navigate to="/" replace />;
   const brands = [...new Set(targets.map(product => product.brand?.trim()).filter((brand): brand is string => Boolean(brand)))].sort((a, b) => a.localeCompare(b));
   const normalizedSearch = targetSearch.trim().toLocaleLowerCase();
@@ -180,15 +207,16 @@ function BannedItemForm({ canManage, requestAdmin, fullScreen, onCancel, onCreat
     setSubmitting(true);
     onSubmittingChange?.(true);
     try {
+      const selectedCountryId = countryId === '' ? null : Number(countryId);
       if (targetType === 'Brand') {
         const brandName = selectedTarget?.brand?.trim();
         if (!brandName) throw new Error('Choose a brand from the catalog.');
         if (!reason.trim()) throw new Error('Enter a ban reason.');
-        await createBannedItem(requestAdmin, { targetType, brandName, reason: reason.trim() });
+        await createBannedItem(requestAdmin, { targetType, brandName, reason: reason.trim(), countryId: selectedCountryId });
       } else {
         if (!selectedTarget) throw new Error('Choose a product from the catalog.');
         if (!reason.trim()) throw new Error('Enter a ban reason.');
-        await createBannedItem(requestAdmin, { targetType, productId: selectedTarget.id, reason: reason.trim() });
+        await createBannedItem(requestAdmin, { targetType, productId: selectedTarget.id, reason: reason.trim(), countryId: selectedCountryId });
       }
       onCreated();
     } catch (failure) {
@@ -218,6 +246,7 @@ function BannedItemForm({ canManage, requestAdmin, fullScreen, onCancel, onCreat
         </div>
         {selectedTarget && <span className="banned-selected-target" role="status">Selected: {chosenLabel}<button type="button" onClick={() => setSelectedTarget(null)}>Change</button></span>}
       </div>
+      <label className="banned-field" htmlFor="banCountry"><span>Country scope (optional)</span><Select id="banCountry" value={countryId} disabled={submitting || countriesLoading} onChange={event => setCountryId(event.target.value)}><option value="">Global (all countries)</option>{countries.map(country => <option key={country.id} value={country.id}>{country.code} · {country.name}</option>)}</Select><small>Leave this empty to apply the ban globally. A Country limits it to that market.</small>{countriesLoading && <small role="status">Loading active Countries…</small>}{countriesError && <div className="banned-country-error" role="alert"><span>{countriesError}</span><Button type="button" size="sm" disabled={countriesLoading || submitting} onClick={() => setCountriesReloadKey(current => current + 1)}>Retry Countries</Button></div>}</label>
       <label className="banned-field" htmlFor="banReason"><span>Ban reason <b>*</b></span><textarea id="banReason" required maxLength={1000} value={reason} onChange={event => setReason(event.target.value)} placeholder="Describe why this target is being banned…" /><small>This reason is visible to authorized Admin users.</small></label>
       {error && <div className="banned-alert" role="alert">{error}</div>}
       <div className="banned-form-actions"><Button type="button" disabled={submitting} onClick={onCancel}>Cancel</Button><Button tone="primary" type="submit" disabled={submitting || !selectedTarget || !reason.trim()}>{submitting ? 'Adding…' : 'Add to banned list'}</Button></div>

@@ -6,6 +6,9 @@ export interface BannedItem {
   brandName?: string | null;
   productId?: string | null;
   productName?: string | null;
+  countryId?: number | null;
+  countryCode?: string | null;
+  countryName?: string | null;
   reason?: string | null;
   isActive: boolean;
   createdBy?: string | null;
@@ -99,7 +102,11 @@ export async function getProductTargets(requestAdmin: AdminRequest, signal?: Abo
   return [...firstPage.items, ...remaining.flatMap(result => result.items)];
 }
 
-export async function createBannedItem(requestAdmin: AdminRequest, input: { targetType: 'Brand'; brandName: string; reason: string } | { targetType: 'Product'; productId: number; reason: string }): Promise<void> {
+export type CreateBannedItemInput =
+  | { targetType: 'Brand'; brandName: string; reason: string; countryId: number | null }
+  | { targetType: 'Product'; productId: number; reason: string; countryId: number | null };
+
+export async function createBannedItem(requestAdmin: AdminRequest, input: CreateBannedItemInput): Promise<void> {
   const response = await requestAdmin(bansPath, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },

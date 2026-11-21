@@ -4,11 +4,12 @@
 .banned-toolbar .studio-select{flex:0 1 190px}
 .banned-table-panel{overflow:hidden}
 .banned-table-panel .studio-table-scroll{width:100%;overflow-x:auto}
-.banned-table-panel .studio-table{min-width:1080px}
+.banned-table-panel .studio-table{min-width:1180px}
 .banned-table-panel .studio-table td strong,.banned-table-panel .studio-table td small{display:block}
 .banned-table-panel .studio-table td strong{font-size:13px}
 .banned-table-panel .studio-table td small{margin-top:4px;color:var(--studio-muted);font-size:11px}
 .banned-table-panel .studio-table td.banned-reason{max-width:230px;color:var(--studio-muted)}
+.banned-table-panel .studio-table td.banned-country-scope{min-width:150px;color:var(--studio-text);font-weight:600}
 .banned-table-panel .studio-table td>.studio-button{white-space:nowrap}
 .banned-table-panel .studio-table-scroll:focus-visible{outline:3px solid color-mix(in srgb,var(--studio-brand) 55%,transparent);outline-offset:2px}
 .banned-table-panel .studio-table-footer{border-top:1px solid var(--studio-border)}
@@ -47,6 +48,9 @@
 .banned-target-empty{display:block;padding:13px}
 .banned-selected-target{display:flex;align-items:center;justify-content:space-between;gap:10px;color:var(--studio-muted);font-size:12px}
 .banned-selected-target button{border:0;background:transparent;color:var(--studio-brand-text);font:600 12px Inter,system-ui,sans-serif;text-decoration:underline;cursor:pointer}
+.banned-country-error{display:flex;align-items:center;justify-content:space-between;gap:10px;color:var(--studio-bad);font-size:12px;font-weight:400}
+.banned-card-country{margin:0 0 12px;color:var(--studio-muted);font-size:12px}
+.banned-card-country strong{color:var(--studio-text)}
 .banned-form-actions{display:flex;justify-content:flex-end;gap:10px;margin-top:22px;padding-top:16px;border-top:1px solid var(--studio-border)}
 .banned-form-actions .studio-button:disabled{opacity:.5;cursor:wait}
 .banned-recent{margin-top:18px;padding:18px}
