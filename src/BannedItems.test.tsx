@@ -98,6 +98,20 @@ describe('Banned items routes', () => {
     await waitFor(() => expect(vi.mocked(getBannedItems).mock.calls.at(-1)?.[1]).toMatchObject({ active: false }));
   });
 
+  it('keeps one header add action and centers the empty state without a duplicate card CTA', async () => {
+    vi.mocked(getBannedItems).mockResolvedValue(page([]));
+    const { container } = renderRoute('/banned-items');
+
+    expect(await screen.findByText('No active bans found')).toBeInTheDocument();
+    expect(screen.getByText('Try another target type or add a ban.')).toBeInTheDocument();
+    expect(screen.getAllByRole('button', { name: /Add banned item/ })).toHaveLength(1);
+
+    const emptyCard = container.querySelector('.banned-state');
+    expect(emptyCard).toHaveClass('banned-state');
+    expect(emptyCard).toContainElement(screen.getByText('No active bans found'));
+    expect(within(emptyCard as HTMLElement).queryByRole('button', { name: /Add banned item/ })).not.toBeInTheDocument();
+  });
+
   it('shows the assigned Country for country-scoped bans', async () => {
     vi.mocked(getBannedItems).mockResolvedValue(page([{ ...item, countryId: 2, countryCode: 'VN', countryName: 'Vietnam' }]));
     renderRoute('/banned-items');

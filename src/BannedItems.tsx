@@ -112,7 +112,7 @@ function BannedItemsPage({ canManage, requestAdmin }: { canManage: boolean; requ
 
     {error && <div className="banned-alert"><ErrorState title={error} /><Button size="sm" onClick={() => setReloadKey(current => current + 1)}>Retry</Button></div>}
     {loading ? <BannedItemsLoading />
-      : items.length === 0 && !error ? <Card className="banned-state"><EmptyState title={query ? 'No results' : `No ${active ? 'active' : 'revoked'} bans found`}>{query ? `No banned items match “${query}”.` : 'Try another target type or add a ban.'}</EmptyState>{query && <Button size="sm" onClick={() => setSearch('')}>Clear search</Button>}{canManage && !query && <Button tone="primary" onClick={openAdd}>＋ Add banned item</Button>}</Card>
+      : items.length === 0 && !error ? <Card className="banned-state"><EmptyState title={query ? 'No results' : `No ${active ? 'active' : 'revoked'} bans found`}>{query ? `No banned items match “${query}”.` : 'Try another target type or add a ban.'}</EmptyState>{query && <Button size="sm" onClick={() => setSearch('')}>Clear search</Button>}</Card>
         : <>
           <Card className="banned-table-panel" aria-label="Banned items list">
             <DataTable role="region" tabIndex={0} aria-label="Banned items table, scroll horizontally"><thead><tr><th scope="col">Target</th><th scope="col">Country scope</th><th scope="col">Reason</th><th scope="col">Status</th><th scope="col">Added by</th><th scope="col">Added at</th><th scope="col">Revoked by</th><th scope="col">Revoked at</th>{canManage && <th scope="col"><span className="sr-only">Actions</span></th>}</tr></thead>
