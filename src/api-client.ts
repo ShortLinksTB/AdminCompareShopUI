@@ -10,7 +10,10 @@ export async function adminRequest(
   onForbidden: () => void = () => undefined,
 ): Promise<Response> {
   const url = new URL(path, `${apiBaseUrl}/`);
-  if (url.origin !== new URL(apiBaseUrl).origin || !url.pathname.startsWith('/admin/')) {
+  const method = (init.method || 'GET').toUpperCase();
+  const isAdminEndpoint = url.pathname.startsWith('/admin/');
+  const isCentralCountryRead = url.pathname === '/countries' && method === 'GET';
+  if (url.origin !== new URL(apiBaseUrl).origin || (!isAdminEndpoint && !isCentralCountryRead)) {
     throw new Error('Authenticated API requests must target same-origin /admin endpoints.');
   }
 
@@ -28,7 +31,6 @@ export async function adminRequest(
   };
 
   let response = await sendWithCurrentToken();
-  const method = (init.method || 'GET').toUpperCase();
   if (response.status === 401 && ['GET', 'HEAD', 'OPTIONS'].includes(method)) {
     try {
       await keycloak.updateToken(-1);
