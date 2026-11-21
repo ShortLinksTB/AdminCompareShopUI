@@ -5,6 +5,9 @@ export interface AdminCategory {
   slug: string;
   name: string;
   isActive: boolean;
+  countryId: number;
+  countryCode?: string;
+  countryName?: string;
   parentCategoryId?: number | null;
 }
 
@@ -12,6 +15,7 @@ export interface CategoryInput {
   slug: string;
   name: string;
   isActive: boolean;
+  countryId: number;
   parentCategoryId: number | null;
 }
 
@@ -126,10 +130,19 @@ export async function commitCategoryImport(requestAdmin: AdminRequest, file: Fil
   return readJson<CategoryImportResult>(response);
 }
 
-export async function getCategories(requestAdmin: AdminRequest, page: number, pageSize: number, signal?: AbortSignal): Promise<Page<AdminCategory>> {
-  const response = await requestAdmin(`${categoriesPath}?page=${page}&pageSize=${pageSize}`, { signal });
+export async function getCategories(requestAdmin: AdminRequest, page: number, pageSize: number, countryId?: number, signal?: AbortSignal): Promise<Page<AdminCategory>> {
+  const countryQuery = countryId === undefined ? '' : `&countryId=${encodeURIComponent(countryId)}`;
+  const response = await requestAdmin(`${categoriesPath}?page=${page}&pageSize=${pageSize}${countryQuery}`, { signal });
   await assertResponse(response);
   return response.json() as Promise<Page<AdminCategory>>;
+}
+
+export async function getAllCategories(requestAdmin: AdminRequest, countryId: number, signal?: AbortSignal): Promise<AdminCategory[]> {
+  const firstPage = await getCategories(requestAdmin, 1, 100, countryId, signal);
+  const pageCount = Math.max(1, Math.ceil(firstPage.totalItems / firstPage.pageSize));
+  if (pageCount === 1) return firstPage.items;
+  const pages = await Promise.all(Array.from({ length: pageCount - 1 }, (_, index) => getCategories(requestAdmin, index + 2, firstPage.pageSize, countryId, signal)));
+  return [firstPage, ...pages].flatMap(page => page.items);
 }
 
 export async function createCategory(requestAdmin: AdminRequest, input: CategoryInput): Promise<AdminCategory> {

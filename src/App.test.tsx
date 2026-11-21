@@ -3,6 +3,7 @@ import { cleanup, fireEvent, render, screen, within } from '@testing-library/rea
 import '@testing-library/jest-dom/vitest';
 import { BrowserRouter, MemoryRouter, useLocation } from 'react-router-dom';
 import { App } from './App';
+import { getCountries } from './countries/countries-api';
 
 const auth = vi.hoisted(() => ({
   status: 'authenticated' as 'authenticated' | 'anonymous' | 'logging-out',
@@ -68,6 +69,7 @@ afterEach(() => {
   auth.status = 'authenticated';
   auth.permissionState = 'ready';
   auth.requestAdmin.mockReset();
+  vi.mocked(getCountries).mockResolvedValue([]);
   vi.unstubAllGlobals();
   vi.clearAllMocks();
   window.history.replaceState({}, '', '/');
@@ -256,12 +258,13 @@ describe('mobile application navigation', () => {
 
   it('loads Categories on its real route only for admins with categories.read', async () => {
     auth.permissions = ['categories.read'];
-    auth.requestAdmin.mockResolvedValue(Response.json({ items: [{ id: 7, slug: 'audio', name: 'Audio', isActive: true }], pageNumber: 1, pageSize: 20, totalItems: 1 }));
+    vi.mocked(getCountries).mockResolvedValue([{ id: 1, code: 'ID', name: 'Indonesia', isActive: true }]);
+    auth.requestAdmin.mockResolvedValue(Response.json({ items: [{ id: 7, slug: 'audio', name: 'Audio', isActive: true, countryId: 1 }], pageNumber: 1, pageSize: 20, totalItems: 1 }));
     renderApp('/categories');
 
     expect(screen.getByRole('heading', { name: 'Categories' })).toBeInTheDocument();
     expect(await screen.findByText('Audio')).toBeInTheDocument();
-    expect(auth.requestAdmin).toHaveBeenCalledWith('/admin/categories?page=1&pageSize=100', { signal: undefined });
+    expect(auth.requestAdmin).toHaveBeenCalledWith('/admin/categories?page=1&pageSize=20&countryId=1', expect.objectContaining({ signal: expect.any(AbortSignal) }));
   });
 
   it('loads Home Showcase at its real /home-showcase route behind its dedicated permission', async () => {
