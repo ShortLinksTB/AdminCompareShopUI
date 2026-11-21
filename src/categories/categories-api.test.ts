@@ -1,19 +1,19 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { AdminRequest } from '../bannedItemsApi';
-import { CategoriesApiError, commitCategoryImport, createCategory, deleteCategory, dryRunCategoryImport, exportCategories, getCategories, updateCategory, type AdminCategory } from './categories-api';
+import { CategoriesApiError, commitCategoryImport, createCategory, deleteCategory, dryRunCategoryImport, exportCategories, getAllCategories, getCategories, updateCategory, type AdminCategory } from './categories-api';
 
-const category: AdminCategory = { id: 7, slug: 'audio', name: 'Audio', isActive: false };
+const category: AdminCategory = { id: 7, slug: 'audio', name: 'Audio', isActive: false, countryId: 1, countryCode: 'VN', countryName: 'Vietnam' };
 
 describe('categories API adapter', () => {
   it('reads a paginated response with the requested page', async () => {
     const request = vi.fn<AdminRequest>().mockResolvedValue(new Response(JSON.stringify({ items: [category], pageNumber: 2, pageSize: 10, totalItems: 11 }), { status: 200 }));
-    await expect(getCategories(request, 2, 10)).resolves.toEqual({ items: [category], pageNumber: 2, pageSize: 10, totalItems: 11 });
-    expect(request).toHaveBeenCalledWith('/admin/categories?page=2&pageSize=10', { signal: undefined });
+    await expect(getCategories(request, 2, 10, 1)).resolves.toEqual({ items: [category], pageNumber: 2, pageSize: 10, totalItems: 11 });
+    expect(request).toHaveBeenCalledWith('/admin/categories?page=2&pageSize=10&countryId=1', { signal: undefined });
   });
 
   it('posts and puts only the category contract fields', async () => {
     const request = vi.fn<AdminRequest>().mockImplementation(async () => new Response(JSON.stringify(category), { status: 201 }));
-    const input = { slug: 'audio', name: 'Audio', isActive: false, parentCategoryId: 42 };
+    const input = { slug: 'audio', name: 'Audio', isActive: false, countryId: 1, parentCategoryId: 42 };
     await createCategory(request, input);
     await updateCategory(request, 7, input);
     expect(request).toHaveBeenNthCalledWith(1, '/admin/categories', expect.objectContaining({ method: 'POST', body: JSON.stringify(input) }));
@@ -26,6 +26,18 @@ describe('categories API adapter', () => {
     expect(request).toHaveBeenCalledWith('/admin/categories/7', { method: 'DELETE' });
   });
 
+  it('loads every page of parent candidates for one Country', async () => {
+    const second = { ...category, id: 8, slug: 'phones', parentCategoryId: 7 };
+    const request = vi.fn<AdminRequest>()
+      .mockResolvedValueOnce(new Response(JSON.stringify({ items: [category], pageNumber: 1, pageSize: 1, totalItems: 2 }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ items: [second], pageNumber: 2, pageSize: 1, totalItems: 2 }), { status: 200 }));
+    await expect(getAllCategories(request, 1)).resolves.toEqual([category, second]);
+    expect(request.mock.calls.map(([path]) => path)).toEqual([
+      '/admin/categories?page=1&pageSize=100&countryId=1',
+      '/admin/categories?page=2&pageSize=1&countryId=1',
+    ]);
+  });
+
   it.each([
     [400, 'Slug and name are required'],
     [404, 'could not be found'],
@@ -33,12 +45,12 @@ describe('categories API adapter', () => {
     [500, 'Request failed (500)'],
   ])('surfaces a useful fallback for HTTP %i', async (status, message) => {
     const request = vi.fn<AdminRequest>().mockResolvedValue(new Response(null, { status }));
-    await expect(getCategories(request, 1, 20)).rejects.toThrow(message);
+    await expect(getCategories(request, 1, 20, 1)).rejects.toThrow(message);
   });
 
   it('prefers the API validation message when provided', async () => {
     const request = vi.fn<AdminRequest>().mockResolvedValue(new Response(JSON.stringify({ message: 'Slug already exists.' }), { status: 400 }));
-    await expect(createCategory(request, { slug: 'audio', name: 'Audio', isActive: true, parentCategoryId: null })).rejects.toThrow('Slug already exists.');
+    await expect(createCategory(request, { slug: 'audio', name: 'Audio', isActive: true, countryId: 1, parentCategoryId: null })).rejects.toThrow('Slug already exists.');
   });
 
   it('downloads the shared export endpoint using its content-disposition filename', async () => {
