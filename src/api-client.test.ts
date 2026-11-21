@@ -27,6 +27,32 @@ describe('adminRequest', () => {
     expect(keycloak.updateToken).toHaveBeenCalledWith(30);
   });
 
+  it('sends bearer auth without cookies to the same-origin central Countries read', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(response(200));
+    vi.stubGlobal('fetch', fetchMock);
+    const keycloak = fakeKeycloak();
+
+    const result = await adminRequest(keycloak, '/countries');
+
+    expect(result.status).toBe(200);
+    expect(fetchMock).toHaveBeenCalledWith(expect.objectContaining({ pathname: '/countries' }), expect.objectContaining({ credentials: 'omit' }));
+    const options = fetchMock.mock.calls[0][1] as RequestInit;
+    expect(new Headers(options.headers).get('Authorization')).toBe('Bearer access-token');
+  });
+
+  it.each([
+    ['/countries', { method: 'POST' }],
+    ['/countries/1', {}],
+    ['https://attacker.example/countries', {}],
+  ])('rejects non-read or non-same-origin Countries paths (%s)', async (path, init) => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
+
+    await expect(adminRequest(fakeKeycloak(), path, init)).rejects.toThrow('Authenticated API requests must target same-origin /admin endpoints.');
+
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
   it('forces refresh and retries safe GET requests once after 401', async () => {
     const fetchMock = vi.fn().mockResolvedValueOnce(response(401)).mockResolvedValueOnce(response(200));
     vi.stubGlobal('fetch', fetchMock);
